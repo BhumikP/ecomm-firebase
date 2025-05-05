@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingBag, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -50,9 +50,9 @@ interface CategoryLink {
 
 const categoryLinks: CategoryLink[] = [
     { name: 'Top Offers', icon: Percent, href: '/products?discountedOnly=true' },
-    { name: 'Mobiles', icon: ShoppingBag, href: '/products?category=Mobiles' }, // Assuming 'Mobiles' category exists
+    { name: 'Mobiles', icon: ShoppingCart, href: '/products?category=Mobiles' }, // Assuming 'Mobiles' category exists
     { name: 'TVs', icon: Tv, href: '/products?category=Electronics' }, // Example grouping
-    { name: 'Electronics', icon: ShoppingBag, href: '/products?category=Electronics' }, // Broad Electronics
+    { name: 'Electronics', icon: ShoppingCart, href: '/products?category=Electronics' }, // Broad Electronics
     { name: 'Fashion', icon: Shirt, href: '/products?category=Apparel' }, // Match mock data
     { name: 'Home Goods', icon: HomeGoodsIcon, href: '/products?category=Home Goods' }, // Match mock data
     { name: 'Footwear', icon: Footprints, href: '/products?category=Footwear' }, // Match mock data
@@ -122,7 +122,7 @@ export default function Home() {
              // Extract unique categories from fetched products *only on initial load*
              // This prevents filters from resetting categories based on filtered results.
              // A better approach might be a separate API endpoint for categories.
-             if (Object.keys(filters.categories).length === 0) { // Only if categories filter is empty
+             if (Object.keys(filters.categories).length === 0 && data.products.length > 0) { // Check if products were fetched
                  const uniqueCats = Array.from(new Set(data.products.map((p: IProduct) => p.category))) as string[];
                  setAvailableCategories(uniqueCats);
                  // Initialize filter state for categories based on fetched data
@@ -130,6 +130,10 @@ export default function Home() {
                      ...prev,
                      categories: uniqueCats.reduce((acc, cat) => ({ ...acc, [cat]: false }), {})
                  }));
+             } else if (availableCategories.length === 0 && data.products.length === 0 && !isLoading) {
+                // Handle case where initial fetch returns no products, ensure categories are empty
+                 setAvailableCategories([]);
+                 setFilters(prev => ({ ...prev, categories: {} }));
              }
 
 
@@ -137,6 +141,8 @@ export default function Home() {
             console.error("Error fetching products:", err);
             setError(err.message || "Could not load products.");
             setProducts([]); // Clear products on error
+            setAvailableCategories([]); // Clear categories on error
+            setFilters(prev => ({...prev, categories: {}})); // Reset category filters
         } finally {
             setIsLoading(false);
         }
@@ -220,6 +226,9 @@ export default function Home() {
       return () => clearTimeout(debounceTimer);
   }, [filters.searchQuery]);
 
+  // Filter products based on client-side state (or rely solely on API filtering)
+  // If API handles all filtering, this might not be needed, but useful for immediate feedback before API call
+   const filteredProducts = products; // Assume API does the filtering for now
 
 
   return (
@@ -314,7 +323,7 @@ export default function Home() {
                                     <Label htmlFor={`cat-${category.toLowerCase().replace(/\s+/g, '-')}`}>{category}</Label>
                                 </div>
                             )) : (
-                                <p className="text-sm text-muted-foreground">No categories loaded.</p>
+                                <p className="text-sm text-muted-foreground">No categories available.</p>
                             )}
                         </div>
                         {/* Price Slider */}
