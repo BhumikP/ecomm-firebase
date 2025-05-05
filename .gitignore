@@ -8,9 +8,9 @@
 # Testing
 /coverage
 
-# Next.js build files
-/.next/
-/out/
+# Next.js build output
+/.next
+/out
 
 # Production
 /build
@@ -19,17 +19,24 @@
 .DS_Store
 *.pem
 
-# Debug files
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Local environment variables
+# Local configuration files
 .env*.local
+!.env.example
 
 # Editor directories and files
 .vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 !.vscode/extensions.json
 .idea
 *.suo
@@ -38,12 +45,6 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-# Patch package files
-patches/
-node_modules/.patched
-
-# Genkit state files
-.genkit/
-
-# Turbopack
-.turbo
+# Script output/temp files
+/scripts/admin-creation-log.txt
+/scripts/output/

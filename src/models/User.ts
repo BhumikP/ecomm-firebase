@@ -20,9 +20,9 @@ const UserSchema: Schema<IUser> = new Schema({
   joinedDate: { type: Date, default: Date.now },
   avatarUrl: { type: String },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active', required: true },
-});
+}, { timestamps: true });
 
 // Avoid recompiling the model if it already exists
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
 
-export default User;
+export default User; // Ensure default export for TypeScript modules
