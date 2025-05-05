@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/sidebar'; // Assuming sidebar components are in ui
 import { Header } from '@/components/layout/header'; // Reuse main header for consistency or create admin-specific header
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard } from 'lucide-react'; // Added CreditCard
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 export default function AdminLayout({
@@ -46,17 +46,23 @@ export default function AdminLayout({
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
+     localStorage.removeItem('userData'); // Also clear user data
+    localStorage.removeItem('userEmail'); // Clear email if stored
     setIsLoggedIn(false);
     setUserRole(null);
     router.push('/auth/login');
+     // Add toast notification if desired
   };
 
   // Render skeleton or loading state while checking auth on the client
   if (!isClient || !isLoggedIn || userRole !== 'admin') {
     return (
-       <div className="flex h-screen items-center justify-center">
-         <Skeleton className="h-12 w-12 rounded-full animate-spin" />
-         <p className="ml-4 text-muted-foreground">Loading Admin Area...</p>
+       <div className="flex h-screen items-center justify-center bg-background">
+         {/* More informative loading state */}
+         <div className="flex flex-col items-center gap-4">
+             <Loader2 className="h-12 w-12 animate-spin text-primary" />
+             <p className="text-muted-foreground">Verifying access...</p>
+         </div>
        </div>
     );
   }
@@ -68,10 +74,11 @@ export default function AdminLayout({
              {/* <Header /> */}
             <div className="flex flex-1">
                 <Sidebar side="left" variant="sidebar" collapsible="icon">
-                <SidebarHeader className="p-4 justify-between items-center">
-                    <Link href="/admin" className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">
-                    Admin Panel
-                    </Link>
+                <SidebarHeader className="p-4 justify-between items-center border-b border-sidebar-border">
+                     <Link href="/admin" className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden flex items-center gap-2">
+                          {/* Optional: Add a small logo/icon */}
+                          <span>Admin Panel</span>
+                     </Link>
                     <SidebarTrigger className="md:hidden" /> {/* Trigger for mobile */}
                 </SidebarHeader>
                 <SidebarContent className="flex-1 overflow-y-auto">
@@ -100,6 +107,15 @@ export default function AdminLayout({
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
+                         {/* Add Payments Link */}
+                         <SidebarMenuItem>
+                            <SidebarMenuButton asChild tooltip="Payments">
+                                <Link href="/admin/payments">
+                                    <CreditCard />
+                                    <span>Payments</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
                          <SidebarMenuItem>
                             <SidebarMenuButton asChild tooltip="Analytics">
                                 <Link href="/admin/analytics">
@@ -116,13 +132,13 @@ export default function AdminLayout({
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
-                        {/* Add more admin links as needed */}
+                        {/* Add more admin links as needed (e.g., Orders, Discounts) */}
                     </SidebarMenu>
                 </SidebarContent>
-                <SidebarFooter className="mt-auto p-2">
+                <SidebarFooter className="mt-auto p-2 border-t border-sidebar-border">
                     <SidebarMenu>
                         <SidebarMenuItem>
-                            <SidebarMenuButton onClick={handleLogout} tooltip="Logout">
+                            <SidebarMenuButton onClick={handleLogout} tooltip="Logout" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
                                 <LogOut />
                                 <span>Logout</span>
                             </SidebarMenuButton>
@@ -132,10 +148,10 @@ export default function AdminLayout({
                 </Sidebar>
 
                 {/* Main Content Area */}
-                <SidebarInset className="flex-1 p-4 md:p-6 lg:p-8 bg-background">
+                <SidebarInset className="flex-1 p-4 md:p-6 lg:p-8 bg-muted/30"> {/* Use slightly muted bg */}
                  {/* Simple Admin Header within the inset */}
                   <div className="flex justify-between items-center mb-6 border-b pb-4">
-                      <h1 className="text-2xl font-semibold">Admin Area</h1>
+                      <h1 className="text-2xl font-semibold text-foreground">Admin Area</h1>
                        <div className="flex items-center gap-4">
                          <span className="text-sm text-muted-foreground hidden sm:inline">Welcome, Admin!</span>
                          <Button variant="outline" size="sm" onClick={() => router.push('/')}>View Store</Button>
