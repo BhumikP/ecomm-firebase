@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from 'lucide-react'; // Import Loader2
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,41 +20,57 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    console.log('Attempting login with:', { email, password });
 
-    // --- Mock Login Logic ---
-    // Replace this with your actual Firebase or backend authentication call
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-
-    // Example: Simple check (replace with real auth)
-    if (email === 'admin@example.com' && password === 'password') {
-      // Simulate successful admin login
-       localStorage.setItem('userRole', 'admin'); // Store role (use more secure method in production)
-       localStorage.setItem('isLoggedIn', 'true');
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Admin!",
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
-      router.push('/admin'); // Redirect admin
-    } else if (email === 'user@example.com' && password === 'password') {
-        // Simulate successful user login
-        localStorage.setItem('userRole', 'user'); // Store role
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Login successful
+        const userData = data.user;
+
+        // !! IMPORTANT SECURITY NOTE !!
+        // Storing user data (even without password) and login status in localStorage
+        // is convenient for this example but NOT secure for production applications.
+        // Use secure session management (e.g., HTTP-only cookies with server-side sessions or JWTs).
         localStorage.setItem('isLoggedIn', 'true');
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
-      router.push('/'); // Redirect regular user
-    } else {
+        localStorage.setItem('userRole', userData.role);
+        localStorage.setItem('userData', JSON.stringify(userData)); // Store user details
+
+        toast({
+          title: "Login Successful",
+          description: `Welcome back, ${userData.name}!`,
+        });
+
+        // Redirect based on role
+        if (userData.role === 'admin') {
+          router.push('/admin');
+        } else {
+          router.push('/'); // Redirect regular user to homepage
+        }
+      } else {
+        // Login failed
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: data.message || "Invalid email or password. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error('Login fetch error:', error);
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: "Invalid email or password. Please try again.",
+        title: "Login Error",
+        description: "An unexpected error occurred. Please try again later.",
       });
+    } finally {
+      setIsLoading(false);
     }
-    // --- End Mock Login Logic ---
-
-    setIsLoading(false);
   };
 
   return (
@@ -76,12 +92,13 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
+                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                  <Label htmlFor="password">Password</Label>
-                 <Link href="/auth/forgot-password" // Add this link later
+                 <Link href="/auth/forgot-password" // TODO: Implement forgot password page
                      className="text-sm text-primary hover:underline">
                      Forgot password?
                  </Link>
@@ -93,6 +110,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                autoComplete="current-password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
@@ -114,9 +132,11 @@ export default function LoginPage() {
                     Register
                 </Link>
             </p>
+           {/* Remove mock login hints if desired
            <p className="text-sm text-muted-foreground">
                 Admin login? Use admin@example.com / password
             </p>
+            */}
         </CardFooter>
       </Card>
     </div>

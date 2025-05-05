@@ -32,36 +32,60 @@ export default function RegisterPage() {
       setIsLoading(false);
       return;
     }
+    if (password.length < 6) {
+         toast({
+             variant: "destructive",
+             title: "Registration Failed",
+             description: "Password must be at least 6 characters long.",
+         });
+         setIsLoading(false);
+         return;
+    }
 
-    console.log('Attempting registration with:', { name, email, password });
 
-    // --- Mock Registration Logic ---
-    // Replace this with your actual Firebase or backend registration call
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-
-    // Example: Simulate success (replace with real logic)
-    // In a real app, you'd check if the email is already taken, etc.
-    const registrationSuccessful = true; // Assume success for now
-
-    if (registrationSuccessful) {
-      // Simulate successful registration & automatic login
-      localStorage.setItem('userRole', 'user'); // Store role
-      localStorage.setItem('isLoggedIn', 'true');
-      toast({
-        title: "Registration Successful",
-        description: "Your account has been created. Welcome!",
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
       });
-      router.push('/'); // Redirect user to homepage after registration
-    } else {
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Registration successful
+        const userData = data.user;
+
+        // !! IMPORTANT SECURITY NOTE !! (Same as login)
+        // Avoid localStorage for sensitive data in production. Use secure sessions.
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userRole', userData.role);
+        localStorage.setItem('userData', JSON.stringify(userData)); // Store user details
+
+        toast({
+          title: "Registration Successful",
+          description: "Your account has been created. Welcome!",
+        });
+        router.push('/'); // Redirect user to homepage after registration
+
+      } else {
+        // Registration failed
+        toast({
+          variant: "destructive",
+          title: "Registration Failed",
+          description: data.message || "Could not create account. Please try again later.",
+        });
+      }
+    } catch (error) {
+      console.error('Registration fetch error:', error);
       toast({
         variant: "destructive",
-        title: "Registration Failed",
-        description: "Could not create account. Please try again later.", // Or provide specific error
+        title: "Registration Error",
+        description: "An unexpected error occurred. Please try again later.",
       });
+    } finally {
+      setIsLoading(false);
     }
-    // --- End Mock Registration Logic ---
-
-    setIsLoading(false);
   };
 
   return (
@@ -83,6 +107,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isLoading}
+                autoComplete="name"
               />
             </div>
             <div className="space-y-2">
@@ -95,6 +120,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
+                 autoComplete="email"
               />
             </div>
             <div className="space-y-2">
@@ -104,10 +130,11 @@ export default function RegisterPage() {
                 type="password"
                  placeholder="********"
                 required
-                minLength={6} // Add minimum length requirement
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                autoComplete="new-password"
               />
             </div>
              <div className="space-y-2">
@@ -121,6 +148,7 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 disabled={isLoading}
+                autoComplete="new-password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
