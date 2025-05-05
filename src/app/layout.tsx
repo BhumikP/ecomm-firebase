@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import Script from 'next/script'; // Import Script
+import * as Sentry from "@sentry/nextjs"; // Import Sentry
+import { Suspense } from 'react'; // Import Suspense
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -113,7 +115,13 @@ export default function RootLayout({
           {/* Add other head elements like favicon links if needed */}
        </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
-        {children}
+        {/* Wrap children with Sentry Error Boundary */}
+         {/* Using Suspense to handle potential async operations within Sentry setup or children */}
+         <Suspense fallback={<div>Loading...</div>}>
+             <Sentry.ErrorBoundary fallback={<div>An error has occurred</div>}>
+                 {children}
+             </Sentry.ErrorBoundary>
+         </Suspense>
         <Toaster />
       </body>
     </html>

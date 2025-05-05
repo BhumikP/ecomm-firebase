@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Trash2, Minus, Plus, ArrowLeft } from 'lucide-react';
+import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart } from 'lucide-react'; // Import ShoppingCart
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Header } from '@/components/layout/header';

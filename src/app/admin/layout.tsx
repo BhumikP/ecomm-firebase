@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/sidebar'; // Assuming sidebar components are in ui
 import { Header } from '@/components/layout/header'; // Reuse main header for consistency or create admin-specific header
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard } from 'lucide-react'; // Added CreditCard
+import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, Loader2 } from 'lucide-react'; // Added CreditCard and Loader2
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 export default function AdminLayout({

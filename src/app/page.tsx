@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star } from 'lucide-react'; // Import Star
 import {
   Sheet,
   SheetContent,
@@ -121,20 +121,17 @@ export default function Home() {
             }
             const data = await response.json();
 
-            if (!Array.isArray(data.products)) {
-                console.error("API response for products is not an array:", data);
-                throw new Error("Invalid product data format received.");
-            }
-
-            setProducts(data.products);
+            // Ensure data.products is always an array
+            const fetchedProducts = Array.isArray(data.products) ? data.products : [];
+            setProducts(fetchedProducts);
 
              // --- Dynamic Category Loading Logic ---
              // Only fetch categories if they haven't been loaded yet.
              // This prevents filters from resetting when applying filters.
              // A dedicated categories API endpoint is generally better.
-             if (availableCategories.length === 0 && data.products.length > 0) {
+             if (availableCategories.length === 0 && fetchedProducts.length > 0) {
                  console.log("Fetching initial categories from products...");
-                 const uniqueCats = Array.from(new Set(data.products.map((p: IProduct) => p.category))) as string[];
+                 const uniqueCats = Array.from(new Set(fetchedProducts.map((p: IProduct) => p.category))) as string[];
                  console.log("Unique categories found:", uniqueCats);
                  setAvailableCategories(uniqueCats);
                  // Initialize category filters only once
@@ -142,7 +139,7 @@ export default function Home() {
                      ...prev,
                      categories: uniqueCats.reduce((acc, cat) => ({ ...acc, [cat]: false }), {})
                  }));
-             } else if (availableCategories.length === 0 && !isLoading) {
+             } else if (availableCategories.length === 0 && !isLoading && fetchedProducts.length === 0) {
                   // Handle case where initial fetch returns no products or categories are empty
                  console.log("No products found on initial load, setting categories to empty.");
                  setAvailableCategories([]);

@@ -8,11 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Search, Loader2, Image as ImageIcon } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Loader2, Image as ImageIcon, Star } from 'lucide-react'; // Import Star
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { IProduct } from '@/models/Product'; // Import IProduct type
 import Image from 'next/image'; // Import Next Image
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { Badge } from '@/components/ui/badge'; // Import Badge
 
 
 // Define Product Type matching the backend model, including _id
@@ -41,14 +42,14 @@ export default function AdminProductsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // For main table loading
   const [isDialogLoading, setIsDialogLoading] = useState(false); // For dialog save/delete operations
-  const [isDeleting, setIsDeleting] = useState(false); // Specific state for delete operation in AlertDialog
+  const [isDeleting, setIsDeleting] = useState<string | null>(null); // Specific state for delete operation in AlertDialog, store ID
   const { toast } = useToast();
 
   // Fetch products from API
    const fetchProducts = async () => {
         setIsLoading(true);
         try {
-             const response = await fetch(`/api/products?searchQuery=${encodeURIComponent(searchTerm)}`); // Add search query
+             const response = await fetch(`/api/products?searchQuery=${encodeURIComponent(searchTerm)}&limit=100`); // Add search query, increase limit
              if (!response.ok) {
                  throw new Error('Failed to fetch products');
              }
@@ -195,7 +196,7 @@ export default function AdminProductsPage() {
   // --- Delete Handler ---
 
   const handleDeleteProduct = async (productId: string, productTitle: string) => {
-      setIsDeleting(true); // Indicate deletion is in progress
+      setIsDeleting(productId); // Indicate deletion is in progress by ID
 
       try {
             const response = await fetch(`/api/products/${productId}`, {
@@ -215,7 +216,7 @@ export default function AdminProductsPage() {
           console.error("Error deleting product:", error);
           toast({ variant: "destructive", title: "Error", description: error.message || "Could not delete product." });
       } finally {
-         setIsDeleting(false); // Reset deleting state
+         setIsDeleting(null); // Reset deleting state
       }
   };
 
@@ -334,12 +335,12 @@ export default function AdminProductsPage() {
                  <TableRow key={product._id}>
                       <TableCell>
                            <Image
-                                src={product.image || '/placeholder.svg'} // Provide a fallback placeholder image
+                                src={product.image || '/placeholder.svg'} // Use a local placeholder
                                 alt={product.title}
                                 width={40}
                                 height={40}
                                 className="w-10 h-10 object-cover rounded border"
-                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} // Handle image loading errors
+                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} // Fallback on error
                            />
                       </TableCell>
                     <TableCell className="font-medium">{product.title}</TableCell>
@@ -364,8 +365,8 @@ export default function AdminProductsPage() {
 
                          <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isDeleting}>
-                                     <Trash2 className="h-4 w-4" />
+                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isDeleting === product._id}>
+                                     {isDeleting === product._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                      <span className="sr-only">Delete</span>
                                  </Button>
                             </AlertDialogTrigger>
@@ -378,13 +379,13 @@ export default function AdminProductsPage() {
                                 </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel disabled={isDeleting === product._id}>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                      onClick={() => handleDeleteProduct(product._id, product.title)}
-                                     disabled={isDeleting}
+                                     disabled={isDeleting === product._id}
                                      className="bg-destructive hover:bg-destructive/90"
                                 >
-                                      {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                      {isDeleting === product._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                      Delete
                                 </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -421,6 +422,3 @@ const PlaceholderSvg = () => (
         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
     </svg>
 );
-
-// Add placeholder.svg to public folder if needed, or use this inline SVG approach
-// If using a file, update the onError handler: e.target.src = '/placeholder.svg'

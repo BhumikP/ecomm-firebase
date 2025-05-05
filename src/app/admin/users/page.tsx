@@ -18,6 +18,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuPortal, // Ensure Portal is imported
 } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -112,6 +113,7 @@ export default function AdminUsersPage() {
             }
 
             const result = await response.json();
+            // Ensure result.user contains the updated fields
             setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...result.user } : u));
              toast({ title: "User Updated", description: `User's ${action} changed to ${value}.` });
 
@@ -227,8 +229,8 @@ export default function AdminUsersPage() {
                                         value={user.role}
                                         onValueChange={(value) => handleUpdateUser(user._id, { role: value as 'user' | 'admin' })}
                                         >
-                                        <DropdownMenuRadioItem value="user">User</DropdownMenuRadioItem>
-                                        <DropdownMenuRadioItem value="admin">Admin</DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem value="user" disabled={user.role === 'user'}>User</DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem value="admin" disabled={user.role === 'admin'}>Admin</DropdownMenuRadioItem>
                                     </DropdownMenuRadioGroup>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuPortal>
@@ -270,11 +272,13 @@ export default function AdminUsersPage() {
                                         </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogCancel disabled={isDeleting === user._id}>Cancel</AlertDialogCancel>
                                         <AlertDialogAction
                                             onClick={() => handleDeleteUser(user._id, user.name)}
                                             className="bg-destructive hover:bg-destructive/90"
+                                            disabled={isDeleting === user._id}
                                         >
+                                            {isDeleting === user._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                             Delete
                                         </AlertDialogAction>
                                         </AlertDialogFooter>

@@ -8,7 +8,7 @@ import { Footer } from '@/components/layout/footer';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Star, Loader2 } from 'lucide-react';
+import { Star, Loader2 } from 'lucide-react'; // Import Star and Loader2
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from 'react';
