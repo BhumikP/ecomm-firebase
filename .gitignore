@@ -4,13 +4,14 @@
 /node_modules
 /.pnp
 .pnp.js
+.yarn/install-state.gz
 
 # Testing
 /coverage
 
-# Next.js build output
-/.next
-/out
+# Next.js
+/.next/
+/out/
 
 # Production
 /build
@@ -19,18 +20,15 @@
 .DS_Store
 *.pem
 
-# Logs
-logs
-*.log
+# Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+.pnpm-debug.log*
 
-# Local configuration files
+# Local Environment Variables
 .env*.local
-!.env.example
+.env # Add .env as well, should not be committed
 
 # Editor directories and files
 .vscode/*
@@ -39,12 +37,28 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 .idea
+*.*proj.user
+*.*scc
 *.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+*.user
+*.userosscache
+*.sln.docstates
 
-# Script output/temp files
-/scripts/admin-creation-log.txt
-/scripts/output/
+# Compiled Output
+*.js.map
+*.ts.map
+
+# Optional: Sentry specific files if needed
+# .sentryclirc
+
+# macOS file system metadata files
+._*
+
+# Optional files from specific tools
+# Examples:
+# /dist
+# /storybook-static
+
+# MongoDB files
+/data/db # If running MongoDB locally in project folder
+mongod.lock # MongoDB lock file
