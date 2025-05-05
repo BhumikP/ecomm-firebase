@@ -52,7 +52,7 @@ export default function RegisterPage() {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok) { // Checks for 2xx status codes (e.g., 201 Created)
         // Registration successful
         const userData = data.user;
 
@@ -61,6 +61,8 @@ export default function RegisterPage() {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('userData', JSON.stringify(userData)); // Store user details
+        localStorage.setItem('userEmail', userData.email); // Store email for display/use
+
 
         toast({
           title: "Registration Successful",
@@ -69,11 +71,20 @@ export default function RegisterPage() {
         router.push('/'); // Redirect user to homepage after registration
 
       } else {
-        // Registration failed
+        // Registration failed - handle specific errors if available
+        let errorMessage = data.message || "Could not create account. Please try again later.";
+        // Check for validation errors specifically
+         if (data.errors) {
+             const errorMessages = Object.values(data.errors).map((err: any) => err.message).join(' ');
+             errorMessage = `Validation failed: ${errorMessages}`;
+         } else if (response.status === 409) { // Conflict (email exists)
+             errorMessage = data.message || "This email address is already registered.";
+         }
+
         toast({
           variant: "destructive",
           title: "Registration Failed",
-          description: data.message || "Could not create account. Please try again later.",
+          description: errorMessage,
         });
       }
     } catch (error) {

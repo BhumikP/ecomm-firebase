@@ -16,6 +16,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Name, email, and password are required' }, { status: 400 });
     }
 
+    // Basic validation on server-side
+    if (password.length < 6) {
+        return NextResponse.json({ message: 'Password must be at least 6 characters long' }, { status: 400 });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -48,10 +53,21 @@ export async function POST(req: NextRequest) {
      }, { status: 201 }); // Created
 
   } catch (error) {
+    // Log the detailed error for server-side debugging
     console.error('Registration error:', error);
+
      if ((error as any).name === 'ValidationError') {
+         // Log specific validation errors
+         console.error('Validation Errors:', (error as any).errors);
        return NextResponse.json({ message: 'Validation failed', errors: (error as any).errors }, { status: 400 });
      }
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+      // Catch potential duplicate key errors (though the initial check should prevent most)
+      if ((error as any).code === 11000) {
+         console.error('Duplicate key error:', error);
+         return NextResponse.json({ message: 'Email already in use (duplicate key)' }, { status: 409 });
+      }
+
+    // Generic internal server error for other issues
+    return NextResponse.json({ message: 'Internal server error during registration' }, { status: 500 });
   }
 }
