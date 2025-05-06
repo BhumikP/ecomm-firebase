@@ -14,6 +14,7 @@ import { IProduct } from '@/models/Product'; // Import IProduct type
 import Image from 'next/image'; // Import Next Image
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Badge } from '@/components/ui/badge'; // Import Badge
+import { Card } from "@/components/ui/card"; // Import Card component
 
 
 // Define Product Type matching the backend model, including _id
