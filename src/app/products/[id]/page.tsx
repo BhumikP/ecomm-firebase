@@ -18,15 +18,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
 
 // Define Product Type matching the backend model, ensuring category is populated
-interface ProductDetail extends Omit<IProduct, 'category' | 'colors'> {
+interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | 'image' | 'images'> {
   _id: string;
   category: { _id: string; name: string; subcategories: string[] };
   colors: PopulatedProductColor[]; // Use PopulatedProductColor
+   thumbnailUrl: string; // Add ThumbnailURL
 }
 
 interface PopulatedProductColor extends Omit<IProductColor, '_id' | 'imageIndices'> {
     _id?: string; // Mongoose subdocument _id is optional on client
-    imageIndices: number[]; // Ensure this is an array of numbers
+    imageUrls: string[]; // Image urls
 }
 
 
@@ -66,10 +67,10 @@ export default function ProductDetailPage() {
                 }
 
                 const productData: ProductDetail = await response.json();
-                // Ensure colors and imageIndices within colors are arrays
+                 // Ensure colors and imageIndices within colors are arrays
                 const processedProductData = {
                     ...productData,
-                    colors: (productData.colors || []).map(c => ({...c, imageIndices: Array.isArray(c.imageIndices) ? c.imageIndices : []}))
+                    colors: (productData.colors || []).map(c => ({...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : []}))
                 };
                 setProduct(processedProductData);
 
@@ -78,12 +79,12 @@ export default function ProductDetailPage() {
                      if (processedProductData.colors && processedProductData.colors.length > 0) {
                          const firstColor = processedProductData.colors[0];
                          setSelectedColor(firstColor);
-                         if (firstColor.imageIndices && firstColor.imageIndices.length > 0) {
-                            setSelectedImageIndex(firstColor.imageIndices[0]);
-                         } else if (processedProductData.images && processedProductData.images.length > 0) {
+                         if (firstColor.imageUrls && firstColor.imageUrls.length > 0) {
+                            setSelectedImageIndex(0);
+                         } else {
                             setSelectedImageIndex(0);
                          }
-                     } else if (processedProductData.images && processedProductData.images.length > 0) {
+                     } else {
                          setSelectedImageIndex(0);
                      }
                 } else {
@@ -121,23 +122,10 @@ export default function ProductDetailPage() {
 
     const handleColorSelect = (color: PopulatedProductColor) => {
         setSelectedColor(color);
-        if (color.imageIndices && color.imageIndices.length > 0) {
-            setSelectedImageIndex(color.imageIndices[0]); // Show the first image of the selected color
-        } else if (product?.images && product.images.length > 0) {
-            setSelectedImageIndex(0); // Fallback to the product's primary image
-        }
+         setSelectedImageIndex(0);
     };
 
-    const handleThumbnailClick = (index: number) => {
-        setSelectedImageIndex(index);
-        const matchingColor = product?.colors.find(c => c.imageIndices.includes(index));
-        if (matchingColor) {
-            setSelectedColor(matchingColor);
-        } else {
-            setSelectedColor(undefined);
-        }
-    };
-
+    const displayImageSrc = selectedColor ? selectedColor.thumbnailUrl : product?.thumbnailUrl;
 
    const generateProductSchema = (productData: ProductDetail | null) => {
        if (!productData) return null;
@@ -150,7 +138,7 @@ export default function ProductDetailPage() {
          "@context": "https://schema.org/",
          "@type": "Product",
          "name": productData.title,
-         "image": (productData.images && productData.images.length > 0 ? productData.images[0] : productData.image) || 'https://YOUR_DOMAIN.com/default-product-image.jpg',
+         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg',
          "description": productData.description,
          "sku": productData._id,
          "aggregateRating": productData.rating && productData.rating > 0 ? {
@@ -184,9 +172,6 @@ export default function ProductDetailPage() {
                 <div className="grid md:grid-cols-2 gap-8 lg:gap-12 w-full max-w-5xl mx-auto">
                     <div className="flex flex-col gap-4">
                         <Skeleton className="aspect-square md:aspect-[4/3] w-full rounded-lg bg-muted" />
-                        <div className="grid grid-cols-4 gap-2">
-                            {[...Array(4)].map((_, i) => <Skeleton key={i} className="aspect-square w-full rounded bg-muted" />)}
-                        </div>
                     </div>
                     <div className="flex flex-col space-y-4">
                          <Skeleton className="h-10 w-3/4 bg-muted rounded" />
@@ -238,12 +223,8 @@ export default function ProductDetailPage() {
     ? (product.price * (1 - product.discount / 100)).toFixed(2)
     : product.price.toFixed(2);
 
-  const displayImageSrc = product.images && product.images.length > selectedImageIndex
-                         ? product.images[selectedImageIndex]
-                         : product.image;
-
-  const currentStock = selectedColor?.stock !== undefined ? selectedColor.stock : product.stock;
-  const isOutOfStock = currentStock <= 0;
+   const currentStock = selectedColor?.stock !== undefined ? selectedColor.stock : product.stock;
+   const isOutOfStock = currentStock <= 0;
 
 
   return (
@@ -273,25 +254,24 @@ export default function ProductDetailPage() {
                     <Badge variant="destructive" className="absolute top-4 left-4 text-sm md:text-base px-3 py-1 shadow-md">{product.discount}% OFF</Badge>
                  )}
              </div>
-             {product.images && product.images.length > 1 && (
+             {selectedColor && selectedColor.imageUrls && selectedColor.imageUrls.length > 0 && (
                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                     {product.images.map((imgUrl, index) => (
-                         <button
+                     {selectedColor.imageUrls.map((imgUrl, index) => (
+                         <div
                             key={index}
-                            onClick={() => handleThumbnailClick(index)}
                             className={`aspect-square rounded-md overflow-hidden border-2 transition-all
-                                ${index === selectedImageIndex ? 'border-primary ring-2 ring-primary' : 'border-transparent hover:border-muted-foreground/50'}`}
-                            aria-label={`View image ${index + 1} of ${product.images.length}`}
+                                 border-transparent hover:border-muted-foreground/50`}
+                            aria-label={`View image ${index + 1} of ${selectedColor.name}`}
                          >
                             <Image
                                 src={imgUrl}
-                                alt={`${product.title} - thumbnail ${index + 1}`}
+                                alt={`${product.title} - ${selectedColor.name} - thumbnail ${index + 1}`}
                                 width={100}
                                 height={100}
                                 className="w-full h-full object-cover"
                                 data-ai-hint="product thumbnail gallery"
                             />
-                         </button>
+                         </div>
                      ))}
                  </div>
              )}
@@ -323,7 +303,7 @@ export default function ProductDetailPage() {
              <p className="text-base text-foreground/90 leading-relaxed">{product.description}</p>
 
             <div className="space-y-1">
-                <span className="text-3xl font-bold text-primary">${discountedPrice}</span>
+                <span className="text-3xl font-bold text-foreground">${discountedPrice}</span>
                  {product.discount && product.discount > 0 && (
                     <span className="ml-3 text-lg text-muted-foreground line-through">
                         ${product.price.toFixed(2)}
@@ -395,4 +375,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-

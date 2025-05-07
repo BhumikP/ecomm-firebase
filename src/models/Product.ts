@@ -6,41 +6,37 @@ import type { ICategory } from './Category'; // Import ICategory
 export interface IProductColor extends Types.Subdocument {
   name: string;
   hexCode?: string; // Optional: for color swatch display (e.g., #FF0000)
-  imageIndices: number[]; // Indices in the 'images' array for this color variant
-  stock?: number; // Optional: stock specific to this color/variant
+  imageUrls: string[]; // Indices in the 'images' array for this color variant
+  stock: number; // Optional: stock specific to this color/variant
+  thumbnailUrl: string;
 }
 
 // Schema for ProductColor subdocument
 const ProductColorSchema: Schema<IProductColor> = new Schema({
   name: { type: String, required: true, trim: true },
   hexCode: { type: String, trim: true },
-  imageIndices: {
-    type: [Number], // Defines an array of Numbers
-    required: [true, 'imageIndices array is required for each color variant.'], // Make the array required
+  imageUrls: {
+    type: [String], // Defines an array of Numbers
+    required: [true, 'imageUrls array is required for each color variant.'], // Make the array required
     validate: [
       {
-        validator: function(arr: number[]) {
+        validator: function(arr: string[]) {
           // Check if it's an array and has at least one element
           return Array.isArray(arr) && arr.length > 0;
         },
-        message: 'imageIndices array must not be empty and must be an array.'
+        message: 'imageUrls array must not be empty and must be an array.'
       },
-      {
-        validator: function(arr: number[]) {
-          // Check if all elements are non-negative integers
-          return arr.every(num => typeof num === 'number' && Number.isInteger(num) && num >= 0);
-        },
-        message: 'All elements in imageIndices must be non-negative integers.'
-      }
     ]
   },
-  stock: { type: Number, min: 0 },
+  thumbnailUrl: {
+    type: String, // Defines an array of Numbers
+    required: [true, 'thumbnailUrl is required for each color variant.'], // Make the array required
+  },
+  stock: { type: Number, required: true, min: 0 },
 }, { _id: true }); // Enable _id for subdocuments
 
 
 export interface IProduct extends Document {
-  image: string; // Main/featured image URL (typically images[0] or a specific one)
-  images: string[]; // Array of all image URLs for the product
   title: string;
   description: string;
   price: number;
@@ -51,13 +47,12 @@ export interface IProduct extends Document {
   stock: number; // Overall stock for the product. If using per-color stock, this might be sum or base.
   features: string[];
   colors: Types.DocumentArray<IProductColor>; // Use Mongoose DocumentArray for subdocuments
+   thumbnailUrl: string; // The url for the product thumbnail,
   createdAt: Date;
   updatedAt: Date;
 }
 
 const ProductSchema: Schema<IProduct> = new Schema({
-  image: { type: String, required: true }, // Primary display image
-  images: [{ type: String }], // Array of all image URLs
   title: { type: String, required: true, index: true },
   description: { type: String, required: true },
   price: { type: Number, required: true, min: 0 },
@@ -68,23 +63,9 @@ const ProductSchema: Schema<IProduct> = new Schema({
   stock: { type: Number, required: true, min: 0, default: 0 }, // Total/base stock
   features: [{ type: String }],
   colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array
+  thumbnailUrl: { type: String, required: true }, // Primary display image
 }, { timestamps: true });
 
-// Pre-save hook to ensure 'image' is set from 'images' if needed
-ProductSchema.pre<IProduct>('save', function(next) {
-    if (this.isModified('images') || this.isNew) {
-        if (this.images && this.images.length > 0 && (!this.image || !this.images.includes(this.image))) {
-            this.image = this.images[0];
-        } else if (!this.images || this.images.length === 0) {
-            // Handle case where images array is empty - maybe set default or throw error
-             // this.image = '/default-placeholder.png'; // Example placeholder
-             // Or throw an error if an image is strictly required:
-             // next(new Error('Product must have at least one image.')); return;
-             this.image = ''; // Clear if no images
-        }
-    }
-    next();
-});
 
 
 // Avoid recompiling the model if it already exists
