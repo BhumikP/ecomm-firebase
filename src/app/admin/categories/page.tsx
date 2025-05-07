@@ -179,25 +179,25 @@ export default function AdminCategoriesPage() {
                                 {isEditing ? `Update details for "${(currentCategory as CategoryData).name}".` : 'Create a new category and its subcategories.'}
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="name" className="text-right">Name</Label>
-                                <Input id="name" value={currentCategory.name} onChange={handleNameChange} className="col-span-3" disabled={isDialogLoading}/>
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name</Label>
+                                <Input id="name" value={currentCategory.name} onChange={handleNameChange} className="w-full" disabled={isDialogLoading}/>
                             </div>
-                            <div className="grid grid-cols-4 items-start gap-4">
-                                <Label htmlFor="subcategories" className="text-right pt-2">Subcategories</Label>
+                            <div className="space-y-2">
+                                <Label htmlFor="subcategories">Subcategories (Comma-separated)</Label>
                                 <Textarea
                                     id="subcategories"
                                     value={subcategoriesInput}
                                     onChange={handleSubcategoriesChange}
-                                    className="col-span-3 min-h-[80px]"
-                                    placeholder="Comma-separated, e.g., Shirts, Pants, Dresses"
+                                    className="w-full min-h-[80px]"
+                                    placeholder="e.g., Shirts, Pants, Dresses"
                                     disabled={isDialogLoading}
                                 />
+                                 <p className="text-xs text-muted-foreground">
+                                    Enter subcategories separated by commas. Duplicates and empty entries will be ignored.
+                                </p>
                             </div>
-                             <p className="col-span-4 text-xs text-muted-foreground pl-[calc(25%+1rem)]">
-                                Enter subcategories separated by commas. Duplicates and empty entries will be ignored.
-                            </p>
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>
@@ -304,4 +304,4 @@ export default function AdminCategoriesPage() {
             </Card>
         </div>
     );
-
+}

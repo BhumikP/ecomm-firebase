@@ -1,5 +1,4 @@
 // src/app/admin/products/page.tsx
-// src/app/admin/products/page.tsx
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -80,8 +79,16 @@ export default function AdminProductsPage() {
         fetch('/api/categories')
       ]);
 
-      if (!productsResponse.ok) throw new Error('Failed to fetch products');
-      if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
+      if (!productsResponse.ok) {
+        const errorText = await productsResponse.text();
+        console.error("Failed to fetch products. Status:", productsResponse.status, "Response:", errorText);
+        throw new Error(`Failed to fetch products. Status: ${productsResponse.status}`);
+      }
+      if (!categoriesResponse.ok) {
+        const errorText = await categoriesResponse.text();
+        console.error("Failed to fetch categories. Status:", categoriesResponse.status, "Response:", errorText);
+        throw new Error(`Failed to fetch categories. Status: ${categoriesResponse.status}`);
+      }
 
       const productsData = await productsResponse.json();
       const categoriesData = await categoriesResponse.json();
@@ -330,30 +337,29 @@ export default function AdminProductsPage() {
                     {isEditing ? `Update details for "${(currentProduct as ProductData).title}".` : 'Fill in the details for the new product.'}
                  </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                     {/* Standard fields */}
-                     <div className="grid grid-cols-4 items-center gap-4">
-                         <Label htmlFor="title" className="text-right">Title</Label>
-                         <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="col-span-3" />
+                <div className="space-y-4 py-4">
+                     <div className="space-y-2">
+                         <Label htmlFor="title">Title</Label>
+                         <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" />
                      </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="category" className="text-right">Category</Label>
+                     <div className="space-y-2">
+                        <Label htmlFor="category">Category</Label>
                         <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}>
-                            <SelectTrigger className="col-span-3"><SelectValue placeholder="Select a category" /></SelectTrigger>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Select a category" /></SelectTrigger>
                             <SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent>
                         </Select>
                      </div>
                     {selectedCategoryId && currentSubcategories.length > 0 && (
-                         <div className="grid grid-cols-4 items-center gap-4">
-                             <Label htmlFor="subcategory" className="text-right">Subcategory</Label>
+                         <div className="space-y-2">
+                             <Label htmlFor="subcategory">Subcategory</Label>
                              <Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}>
-                                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select a subcategory" /></SelectTrigger>
+                                 <SelectTrigger className="w-full"><SelectValue placeholder="Select a subcategory" /></SelectTrigger>
                                  <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
                              </Select>
                          </div>
                      )}
                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                         <div className="space-y-2">
                             <Label htmlFor="price">Price ($)</Label>
                             <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} />
@@ -367,46 +373,47 @@ export default function AdminProductsPage() {
                              <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} />
                         </div>
                      </div>
-                     <div className="grid grid-cols-4 items-start gap-4">
-                         <Label htmlFor="description" className="text-right pt-2">Description</Label>
-                         <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="col-span-3 min-h-[100px]" />
+                     <div className="space-y-2">
+                         <Label htmlFor="description">Description</Label>
+                         <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="w-full min-h-[100px]" />
                      </div>
-                     <div className="grid grid-cols-4 items-start gap-4">
-                         <Label htmlFor="features" className="text-right pt-2">Features</Label>
-                         <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="col-span-3 min-h-[80px]" placeholder="Comma-separated" />
+                     <div className="space-y-2">
+                         <Label htmlFor="features">Features (Comma-separated)</Label>
+                         <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="w-full min-h-[80px]" placeholder="Feature 1, Feature 2" />
                      </div>
 
-                    {/* Image URLs Input */}
-                    <div className="grid grid-cols-4 items-start gap-4">
-                        <Label htmlFor="images" className="text-right pt-2">Image URLs</Label>
+                    <div className="space-y-2">
+                        <Label htmlFor="images">Image URLs (One per line)</Label>
                         <Textarea
                             id="images"
                             name="images"
                             value={imagesInput}
                             onChange={(e) => setImagesInput(e.target.value)}
-                            className="col-span-3 min-h-[100px]"
-                            placeholder="One image URL per line. The first will be the primary image."
+                            className="w-full min-h-[100px]"
+                            placeholder="https://example.com/image1.jpg
+https://example.com/image2.jpg"
                         />
+                         <p className="text-xs text-muted-foreground">
+                            The first URL will be the primary image. Ensure URLs are valid (start with http:// or https://).
+                        </p>
                     </div>
-                     <p className="col-span-4 text-xs text-muted-foreground pl-[calc(25%+1rem)]">
-                        Ensure URLs are valid (start with http:// or https://).
-                    </p>
 
-                    {/* Color Variants Input */}
-                    <div className="grid grid-cols-4 items-start gap-4">
-                        <Label htmlFor="colors" className="text-right pt-2">Color Variants</Label>
+                    <div className="space-y-2">
+                        <Label htmlFor="colors">Color Variants (One per line)</Label>
                         <Textarea
                             id="colors"
                             name="colors"
                             value={colorsInput}
                             onChange={(e) => setColorsInput(e.target.value)}
-                            className="col-span-3 min-h-[100px]"
-                            placeholder="One per line: ColorName,HexCode(#RRGGBB),ImageIndex,Stock (e.g., Red,#FF0000,0,10). HexCode & Stock are optional."
+                            className="w-full min-h-[100px]"
+                            placeholder="Red,#FF0000,0,10
+Blue,#0000FF,1,5
+Green,,2, (Hex & Stock are optional)"
                         />
+                        <p className="text-xs text-muted-foreground">
+                            Format: ColorName,HexCode,ImageIndex,Stock. ImageIndex refers to the line number in 'Image URLs' (0-based). Leave stock blank to use overall product stock for that color.
+                        </p>
                     </div>
-                    <p className="col-span-4 text-xs text-muted-foreground pl-[calc(25%+1rem)]">
-                        ImageIndex refers to the line number in 'Image URLs' (0-based). Leave stock blank to use overall stock.
-                    </p>
 
                 </div>
                 <DialogFooter>
