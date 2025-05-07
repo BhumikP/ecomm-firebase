@@ -12,16 +12,17 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
+        hostname: '**', // Allow any hostname for HTTPS
+        port: '', // Allow any port
+        pathname: '/**', // Allow any path
       },
-      {
-        protocol: 'https',
-        hostname: 'encrypted-tbn0.gstatic.com',
-        port: '',
-        pathname: '/**',
-      }
+      // If you also need to support HTTP from all domains (less secure):
+      // {
+      //   protocol: 'http',
+      //   hostname: '**',
+      //   port: '',
+      //   pathname: '/**',
+      // }
     ],
   },
 };
