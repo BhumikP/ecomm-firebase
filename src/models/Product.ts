@@ -16,8 +16,7 @@ const ProductColorSchema: Schema<IProductColor> = new Schema({
   hexCode: { type: String, trim: true },
   imageIndices: {
     type: [Number], // Defines an array of Numbers
-    required: [true, 'imageIndices array is required for each color variant.'], // The array field itself is now explicitly required
-    default: undefined, // Ensure default doesn't make it implicitly optional
+    required: [true, 'imageIndices array is required for each color variant.'], // Make the array required
     validate: [
       {
         validator: function(arr: number[]) {
@@ -29,14 +28,14 @@ const ProductColorSchema: Schema<IProductColor> = new Schema({
       {
         validator: function(arr: number[]) {
           // Check if all elements are non-negative integers
-          return arr.every(num => typeof num === 'number' && !isNaN(num) && num >= 0 && Number.isInteger(num));
+          return arr.every(num => typeof num === 'number' && Number.isInteger(num) && num >= 0);
         },
         message: 'All elements in imageIndices must be non-negative integers.'
       }
     ]
   },
   stock: { type: Number, min: 0 },
-}, { _id: true });
+}, { _id: true }); // Enable _id for subdocuments
 
 
 export interface IProduct extends Document {
@@ -51,7 +50,7 @@ export interface IProduct extends Document {
   rating: number; // Average rating
   stock: number; // Overall stock for the product. If using per-color stock, this might be sum or base.
   features: string[];
-  colors: IProductColor[]; // Array of color variants, ensuring it's an array.
+  colors: Types.DocumentArray<IProductColor>; // Use Mongoose DocumentArray for subdocuments
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +69,23 @@ const ProductSchema: Schema<IProduct> = new Schema({
   features: [{ type: String }],
   colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array
 }, { timestamps: true });
+
+// Pre-save hook to ensure 'image' is set from 'images' if needed
+ProductSchema.pre<IProduct>('save', function(next) {
+    if (this.isModified('images') || this.isNew) {
+        if (this.images && this.images.length > 0 && (!this.image || !this.images.includes(this.image))) {
+            this.image = this.images[0];
+        } else if (!this.images || this.images.length === 0) {
+            // Handle case where images array is empty - maybe set default or throw error
+             // this.image = '/default-placeholder.png'; // Example placeholder
+             // Or throw an error if an image is strictly required:
+             // next(new Error('Product must have at least one image.')); return;
+             this.image = ''; // Clear if no images
+        }
+    }
+    next();
+});
+
 
 // Avoid recompiling the model if it already exists
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);

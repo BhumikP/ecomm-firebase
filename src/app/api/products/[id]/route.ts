@@ -48,45 +48,55 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: Array<Omit<IProductColor, '_id' | 'id'> & { imageIndices: number[], _id?: string }> };
+    // Expecting structure similar to ProductFormData (or IProduct subset) from client
+    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: Array<Partial<Omit<IProductColor, 'id'>> & { imageIndices: number[], _id?: string }> };
 
 
      if (Object.keys(body).length === 0) {
         return NextResponse.json({ message: 'No update data provided' }, { status: 400 });
      }
+     // Basic field validations
      if (body.price !== undefined && body.price < 0) return NextResponse.json({ message: 'Price cannot be negative' }, { status: 400 });
      if (body.stock !== undefined && body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
      if (body.discount !== undefined && (body.discount === null || (body.discount >= 0 && body.discount <= 100))) {/* valid */} else if (body.discount !== undefined) return NextResponse.json({ message: 'Discount must be between 0 and 100, or null' }, { status: 400 });
 
-    const updateData: any = { ...body };
 
+    const updateData: any = { ...body }; // Start with body, will refine
+
+    // Handle image updates: Ensure primary 'image' is derived from 'images' array
     if (body.images && Array.isArray(body.images)) {
         updateData.images = body.images.map(img => String(img).trim()).filter(img => img);
         if (updateData.images.length > 0) {
-             if (!body.image || String(body.image).trim() === '') {
-                updateData.image = updateData.images[0];
-             }
-        } else if (body.image && String(body.image).trim() !== '') {
-            updateData.images = [String(body.image).trim()];
+            // Always update the primary 'image' field if 'images' array is being updated
+            updateData.image = updateData.images[0];
+        } else {
+            // If images array is emptied, clear the primary image too (or handle as error)
+            updateData.image = undefined; // Or potentially throw error if image is required
+            return NextResponse.json({ message: 'Product must have at least one image.' }, { status: 400 });
         }
     } else if (body.image && String(body.image).trim() !== '' && (!updateData.images || updateData.images.length === 0) ) {
+        // If only primary image is provided (and no images array), synthetically create images array
         updateData.images = [String(body.image).trim()];
+        updateData.image = updateData.images[0];
     }
 
 
+    // Handle category and subcategory updates
     if (body.category) {
         if (!mongoose.Types.ObjectId.isValid(body.category)) return NextResponse.json({ message: 'Invalid category ID format for update' }, { status: 400 });
         const categoryExists = await Category.findById(body.category);
         if (!categoryExists) return NextResponse.json({ message: 'Selected category for update does not exist' }, { status: 400 });
         updateData.category = new mongoose.Types.ObjectId(body.category);
 
+        // When category changes, validate or clear subcategory
         if (body.subcategory && body.subcategory.trim() !== '') {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             updateData.subcategory = body.subcategory.trim();
         } else {
-             updateData.subcategory = undefined;
+             updateData.subcategory = undefined; // Clear subcategory if category changes and no new subcat provided
         }
     } else if (body.hasOwnProperty('subcategory')) {
+        // Only subcategory is being updated, check against current category
         const existingProduct = await Product.findById(id).populate('category');
         if (!existingProduct) return NextResponse.json({ message: 'Product not found for subcategory update' }, { status: 404 });
         const productCategory = existingProduct.category as ICategory;
@@ -94,14 +104,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (!productCategory || !productCategory.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in product's current category '${productCategory?.name}'` }, { status: 400 });
             updateData.subcategory = body.subcategory.trim();
         } else {
-             updateData.subcategory = undefined;
+             updateData.subcategory = undefined; // Clear subcategory
         }
     }
 
+    // Handle color updates
     if (body.colors && Array.isArray(body.colors)) {
-        const parsedColors: Partial<IProductColor>[] = [];
+        const parsedColors: Partial<IProductColor>[] = []; // Use Partial for constructing
         // Determine the image count based on updated images if provided, otherwise fetch existing
-        const imageCount = updateData.images ? updateData.images.length : (await Product.findById(id).select('images'))?.images.length || 0;
+        const finalImages = updateData.images || (await Product.findById(id).select('images'))?.images || [];
+        const imageCount = finalImages.length;
 
         for (const color of body.colors) {
             if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
@@ -110,37 +122,41 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (!Array.isArray(color.imageIndices) || color.imageIndices.length === 0) {
                 return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image index.` }, { status: 400 });
             }
+
             for (const imageIndex of color.imageIndices) {
-                 // Validate that imageIndex is a non-negative integer
+                 // Validate that imageIndex is a non-negative integer and within bounds
                  if (typeof imageIndex !== 'number' || !Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex >= imageCount) {
                     return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. Must be a valid, non-negative integer index of the product's images array (0 to ${imageCount - 1}).` }, { status: 400 });
                  }
             }
+
             if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
                 return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number or undefined.` }, { status: 400 });
             }
-             const newColor: Partial<IProductColor> = {
+
+             const newColorData: Partial<IProductColor> = {
                 name: color.name.trim(),
-                imageIndices: color.imageIndices,
+                imageIndices: color.imageIndices, // Already validated
+                hexCode: color.hexCode?.trim() || undefined,
+                stock: color.stock,
+                 // Include _id ONLY if it's a valid ObjectId (for updating existing subdocs)
+                ...(color._id && mongoose.Types.ObjectId.isValid(color._id.toString()) && { _id: new mongoose.Types.ObjectId(color._id.toString()) })
              };
-             if (color.hexCode) newColor.hexCode = color.hexCode.trim();
-             if (color.stock !== undefined) newColor.stock = color.stock;
-              // Keep existing _id if provided and valid, otherwise Mongoose will assign new for new subdocs
-             if (color._id && mongoose.Types.ObjectId.isValid(color._id.toString())) {
-                newColor._id = new mongoose.Types.ObjectId(color._id.toString()) as Types.ObjectId;
-             }
 
-
-            parsedColors.push(newColor);
+            parsedColors.push(newColorData);
         }
-        updateData.colors = parsedColors;
+        updateData.colors = parsedColors; // Replace the entire colors array
+    } else if (body.hasOwnProperty('colors') && body.colors === null) {
+        // Allow explicitly setting colors to null or empty array to remove all colors
+        updateData.colors = [];
     }
 
 
+    // Use findByIdAndUpdate with $set to update only provided fields
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true } // runValidators ensures schema rules are checked
     ).populate<{ category: ICategory }>('category', 'name subcategories _id');
 
     if (!updatedProduct) {
