@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,7 @@ interface ProductColorFormData {
     name: string;
     imageUrls: string[]; // Array of image URLs for this color
     stock: number;
+    thumbnailUrl: string;
 }
 
 // Define Product Type for frontend state, using ProductColorFormData
@@ -120,8 +121,9 @@ export default function AdminProductsPage() {
         colors: (product.colors || []).map(c => ({
             _id: c._id?.toString(),
             name: c.name,
-            imageUrls: c.imageIndices || [],
+            imageUrls: c.imageUrls || [],
             stock: c.stock,
+            thumbnailUrl: c.thumbnailUrl
         })),
       });
       setSelectedCategoryId(categoryId);
@@ -179,7 +181,7 @@ export default function AdminProductsPage() {
   const handleAddColor = () => {
       setCurrentProduct(prev => ({
           ...prev,
-          colors: [...prev.colors, { name: '', imageUrls: [], stock: 1 }]
+          colors: [...prev.colors, { name: '', imageUrls: [], stock: 1, thumbnailUrl: '' }]
       }));
   };
 
@@ -199,17 +201,17 @@ export default function AdminProductsPage() {
       }));
   };
 
-    const handleAddImageToColor = (index: number) => {
+    const handleAddImageToColor = (colorIndex: number) => {
         setCurrentProduct(prev => {
             const updatedColors = [...prev.colors];
-            const colorToUpdate = { ...updatedColors[index] };
+            const colorToUpdate = { ...updatedColors[colorIndex] };
 
             if (!colorToUpdate.imageUrls) {
                 colorToUpdate.imageUrls = [];
             }
 
             colorToUpdate.imageUrls.push(''); // Add a new empty URL
-            updatedColors[index] = colorToUpdate;
+            updatedColors[colorIndex] = colorToUpdate;
             return { ...prev, colors: updatedColors };
         });
     };
@@ -234,6 +236,15 @@ export default function AdminProductsPage() {
         });
     };
 
+   const handleColorThumbnailChange = (index: number, value: string) => {
+        setCurrentProduct(prev => ({
+            ...prev,
+            colors: prev.colors.map((color, i) =>
+                i === index ? { ...color, thumbnailUrl: value } : color
+            )
+        }));
+    };
+
 
   const handleSaveProduct = async () => {
     setIsDialogLoading(true);
@@ -245,6 +256,10 @@ export default function AdminProductsPage() {
         const colorForm = currentProduct.colors[i];
         if (!colorForm.name || colorForm.name.trim() === '') {
             toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is required for color variant #${i + 1}.` });
+            setIsDialogLoading(false); return;
+        }
+        if (!colorForm.thumbnailUrl || colorForm.thumbnailUrl.trim() === '') {
+            toast({ variant: "destructive", title: "Color Validation Error", description: `thumbnailUrl is required for color "${colorForm.name}".` });
             setIsDialogLoading(false); return;
         }
 
@@ -268,6 +283,9 @@ export default function AdminProductsPage() {
             hexCode: colorForm.hexCode?.trim() || undefined,
             imageUrls: colorForm.imageUrls,
             stock: Number(colorForm.stock),
+            thumbnailUrl: colorForm.thumbnailUrl
+            
+            ,
             _id: colorForm._id
         });
     }
@@ -426,10 +444,7 @@ export default function AdminProductsPage() {
                                 </Select>
                             </div>
                         )}
-                        <div className="space-y-2">
-                            <Label htmlFor="thumbnailUrl">Thumbnail URL</Label>
-                            <Input id="thumbnailUrl" name="thumbnailUrl" type="text" value={currentProduct.thumbnailUrl} onChange={handleInputChange} className="w-full" disabled={isDialogLoading} />
-                        </div>
+                        <div></div>
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -483,6 +498,17 @@ export default function AdminProductsPage() {
                                             <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} className="p-0 h-8 w-8 border-none rounded-md" disabled={isDialogLoading}/>
                                         </div>
                                     </div>
+                                </div>
+                                 <div className="space-y-1">
+                                    <Label htmlFor={`colorThumbnailUrl-${index}`} className="text-xs">Thumbnail URL</Label>
+                                    <Input
+                                        type="text"
+                                        value={color.thumbnailUrl}
+                                        onChange={(e) => handleColorThumbnailChange(index, e.target.value)}
+                                        placeholder="Image URL"
+                                        disabled={isDialogLoading}
+                                        className="w-full"
+                                     />
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs</Label>
@@ -684,4 +710,5 @@ const PlaceholderSvg = () => (
         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
     </svg>
 );
+
 
