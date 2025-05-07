@@ -10,11 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, Search, Loader2, Image as ImageIcon, Star } from 'lucide-react'; // Import Star
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { IProduct } from '@/models/Product'; // Import IProduct type
+import type { IProduct } from '@/models/Product'; // Import IProduct type
 import Image from 'next/image'; // Import Next Image
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Badge } from '@/components/ui/badge'; // Import Badge
-import { Card } from "@/components/ui/card"; // Import Card component
+import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 
 
 // Define Product Type matching the backend model, including _id
@@ -308,15 +308,7 @@ export default function AdminProductsPage() {
       <Card>
          <Table>
             <TableHeader>
-            <TableRow>
-                 <TableHead className="w-[60px]">Image</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Stock</TableHead>
-                 <TableHead>Status</TableHead> {/* Add Status Column */}
-                <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
+            <TableRow><TableHead className="w-[60px]">Image</TableHead><TableHead>Title</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Stock</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow>
             </TableHeader>
             <TableBody>
              {isLoading ? (
@@ -423,3 +415,4 @@ const PlaceholderSvg = () => (
         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
     </svg>
 );
+
