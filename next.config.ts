@@ -16,6 +16,13 @@ const nextConfig: NextConfig = {
         port: '', // Allow any port
         pathname: '/**', // Allow any path
       },
+      // Specifically allow the domain causing the error
+      {
+        protocol: 'https',
+        hostname: 'encrypted-tbn0.gstatic.com',
+        port: '',
+        pathname: '/**',
+      },
       // If you also need to support HTTP from all domains (less secure):
       // {
       //   protocol: 'http',
