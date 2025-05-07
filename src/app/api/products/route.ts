@@ -2,28 +2,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Product, { IProduct } from '@/models/Product';
-// Import authentication/authorization logic if needed for POST
+import Category from '@/models/Category'; // Import Category model
+import mongoose from 'mongoose';
 
 // GET all products (or filtered products)
 export async function GET(req: NextRequest) {
     await connectDb();
     const { searchParams } = new URL(req.url);
 
-    // --- Filtering Logic ---
     const filters: any = {};
-    const category = searchParams.get('category');
+    const categoryIdQuery = searchParams.get('category'); // Expecting category ID
+    const subcategoryQuery = searchParams.get('subcategory');
     const searchQuery = searchParams.get('searchQuery');
     const maxPrice = searchParams.get('maxPrice');
     const discountedOnly = searchParams.get('discountedOnly');
+    const populateCategory = searchParams.get('populate') === 'category';
 
-    if (category) {
-        filters.category = category; // Could use $in for multiple categories later
+    if (categoryIdQuery && mongoose.Types.ObjectId.isValid(categoryIdQuery)) {
+        filters.category = categoryIdQuery;
+    }
+    if (subcategoryQuery) {
+        filters.subcategory = { $regex: subcategoryQuery, $options: 'i' };
     }
     if (searchQuery) {
-        // Simple text search on title and description
         filters.$or = [
             { title: { $regex: searchQuery, $options: 'i' } },
             { description: { $regex: searchQuery, $options: 'i' } }
+            // Consider searching by populated category name if needed, but more complex
         ];
     }
      if (maxPrice) {
@@ -33,38 +38,35 @@ export async function GET(req: NextRequest) {
         }
      }
      if (discountedOnly === 'true') {
-         filters.discount = { $ne: null, $gt: 0 }; // Has a discount greater than 0
+         filters.discount = { $ne: null, $gt: 0 };
      }
 
-    // --- Sorting Logic (Example) ---
     const sortOptions: any = {};
-    const sortBy = searchParams.get('sortBy') || 'createdAt'; // Default sort
-    const sortOrder = searchParams.get('sortOrder') === 'asc' ? 1 : -1; // Default desc
+    const sortBy = searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = searchParams.get('sortOrder') === 'asc' ? 1 : -1;
     sortOptions[sortBy] = sortOrder;
 
-    // --- Pagination Logic (Example) ---
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '12', 10); // Default limit
+    const limit = parseInt(searchParams.get('limit') || '12', 10);
     const skip = (page - 1) * limit;
 
-
     try {
-        const products = await Product.find(filters)
+        let query = Product.find(filters)
             .sort(sortOptions)
             .skip(skip)
             .limit(limit);
 
+        if (populateCategory) {
+            query = query.populate<{ category: typeof Category }>('category', 'name subcategories _id');
+        }
+
+        const products = await query.exec();
         const totalProducts = await Product.countDocuments(filters);
         const totalPages = Math.ceil(totalProducts / limit);
 
         return NextResponse.json({
              products,
-             pagination: {
-                 currentPage: page,
-                 totalPages,
-                 totalProducts,
-                 limit
-             }
+             pagination: { currentPage: page, totalPages, totalProducts, limit }
          }, { status: 200 });
     } catch (error) {
         console.error('Error fetching products:', error);
@@ -75,29 +77,46 @@ export async function GET(req: NextRequest) {
 // POST a new product (Admin only)
 export async function POST(req: NextRequest) {
     await connectDb();
-
-     // TODO: Add robust authentication and authorization check (ensure user is admin)
-     // const isAdmin = await checkAdminRole(req); // Replace with your auth logic
-     // if (!isAdmin) {
-     //    return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
-     // }
-
+    // TODO: Implement admin check
 
     try {
-        const body = await req.json() as Omit<IProduct, 'id' | 'createdAt' | 'updatedAt' | 'rating'>;
+        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string }; // category is ID string
 
-        // Basic validation (more robust validation using Zod is recommended)
         if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.image) {
             return NextResponse.json({ message: 'Missing required product fields' }, { status: 400 });
         }
+        if (!mongoose.Types.ObjectId.isValid(body.category)) {
+            return NextResponse.json({ message: 'Invalid category ID format' }, { status: 400 });
+        }
+
+        const categoryExists = await Category.findById(body.category);
+        if (!categoryExists) {
+            return NextResponse.json({ message: 'Selected category does not exist' }, { status: 400 });
+        }
+
+        // Validate subcategory if provided
+        if (body.subcategory && body.subcategory.trim() !== '') {
+            if (!categoryExists.subcategories.includes(body.subcategory.trim())) {
+                return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
+            }
+        } else {
+            // If subcategory is empty or not provided, ensure it's not stored as empty string, make it undefined
+            body.subcategory = undefined;
+        }
+
 
         const newProduct = new Product({
             ...body,
-            rating: body.rating ?? 0, // Set default rating if not provided
+            category: new mongoose.Types.ObjectId(body.category), // Convert string ID to ObjectId
+            rating: body.rating ?? 0,
+            subcategory: body.subcategory ? body.subcategory.trim() : undefined, // Save trimmed or undefined
         });
 
         const savedProduct = await newProduct.save();
-        return NextResponse.json(savedProduct, { status: 201 }); // Created
+        // Optionally populate category before sending response
+        const populatedProduct = await Product.findById(savedProduct._id).populate('category');
+
+        return NextResponse.json(populatedProduct, { status: 201 });
 
     } catch (error) {
         console.error('Error creating product:', error);

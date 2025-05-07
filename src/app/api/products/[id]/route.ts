@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Product, { IProduct } from '@/models/Product';
+import Category from '@/models/Category'; // Import Category model
 import mongoose from 'mongoose';
-// Import authentication/authorization logic if needed for PUT/DELETE
 
 interface Params {
   params: { id: string };
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const product = await Product.findById(id);
+    const product = await Product.findById(id).populate<{ category: typeof Category }>('category', 'name subcategories _id');
     if (!product) {
       return NextResponse.json({ message: 'Product not found' }, { status: 404 });
     }
@@ -34,21 +34,15 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function PUT(req: NextRequest, { params }: Params) {
   await connectDb();
   const { id } = params;
-
-  // TODO: Add robust authentication and authorization check (ensure user is admin)
-  // const isAdmin = await checkAdminRole(req); // Replace with your auth logic
-  // if (!isAdmin) {
-  //    return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
-  // }
+  // TODO: Implement admin check
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ message: 'Invalid product ID format' }, { status: 400 });
   }
 
   try {
-    const body = await req.json() as Partial<Omit<IProduct, 'id' | 'createdAt' | 'updatedAt'>>;
+    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt'>> & { category?: string };
 
-     // Basic validation (consider Zod)
      if (Object.keys(body).length === 0) {
         return NextResponse.json({ message: 'No update data provided' }, { status: 400 });
      }
@@ -64,12 +58,50 @@ export async function PUT(req: NextRequest, { params }: Params) {
            return NextResponse.json({ message: 'Discount must be between 0 and 100, or null' }, { status: 400 });
       }
 
+    const updateData: any = { ...body };
+
+    if (body.category) {
+        if (!mongoose.Types.ObjectId.isValid(body.category)) {
+            return NextResponse.json({ message: 'Invalid category ID format for update' }, { status: 400 });
+        }
+        const categoryExists = await Category.findById(body.category);
+        if (!categoryExists) {
+            return NextResponse.json({ message: 'Selected category for update does not exist' }, { status: 400 });
+        }
+        updateData.category = new mongoose.Types.ObjectId(body.category);
+
+        // Validate or clear subcategory based on new category
+        if (body.subcategory && body.subcategory.trim() !== '') {
+            if (!categoryExists.subcategories.includes(body.subcategory.trim())) {
+                return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
+            }
+            updateData.subcategory = body.subcategory.trim();
+        } else {
+            // If subcategory field is present but empty, or if category changes and subcategory is not re-validated
+            updateData.subcategory = undefined; // Clear subcategory if not valid for new category or explicitly emptied
+        }
+    } else if (body.hasOwnProperty('subcategory')) { // If only subcategory is being updated
+        const existingProduct = await Product.findById(id).populate('category');
+        if (!existingProduct) {
+            return NextResponse.json({ message: 'Product not found for subcategory update' }, { status: 404 });
+        }
+        const productCategory = existingProduct.category as unknown as ICategory; // Cast to ICategory
+        if (body.subcategory && body.subcategory.trim() !== '') {
+            if (!productCategory || !productCategory.subcategories.includes(body.subcategory.trim())) {
+                return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in product's current category '${productCategory?.name}'` }, { status: 400 });
+            }
+            updateData.subcategory = body.subcategory.trim();
+        } else {
+             updateData.subcategory = undefined; // Clear subcategory if explicitly emptied
+        }
+    }
+
 
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
-      { $set: body }, // Use $set to update only provided fields
-      { new: true, runValidators: true } // Return the updated document and run schema validators
-    );
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).populate<{ category: typeof Category }>('category', 'name subcategories _id');
 
     if (!updatedProduct) {
       return NextResponse.json({ message: 'Product not found' }, { status: 404 });
@@ -89,12 +121,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
   await connectDb();
   const { id } = params;
-
-  // TODO: Add robust authentication and authorization check (ensure user is admin)
-  // const isAdmin = await checkAdminRole(req); // Replace with your auth logic
-  // if (!isAdmin) {
-  //    return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
-  // }
+  // TODO: Implement admin check
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ message: 'Invalid product ID format' }, { status: 400 });
