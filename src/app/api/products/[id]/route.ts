@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Product, { IProduct, IProductColor } from '@/models/Product';
 import Category, { ICategory } from '@/models/Category'; // Import Category model
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose'; // Import Types
 
 interface Params {
   params: { id: string };
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             updateData.subcategory = body.subcategory.trim();
         } else {
-            updateData.subcategory = undefined;
+             updateData.subcategory = undefined;
         }
     } else if (body.hasOwnProperty('subcategory')) {
         const existingProduct = await Product.findById(id).populate('category');
@@ -100,6 +100,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     if (body.colors && Array.isArray(body.colors)) {
         const parsedColors: Partial<IProductColor>[] = [];
+        // Determine the image count based on updated images if provided, otherwise fetch existing
         const imageCount = updateData.images ? updateData.images.length : (await Product.findById(id).select('images'))?.images.length || 0;
 
         for (const color of body.colors) {
@@ -110,8 +111,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
                 return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image index.` }, { status: 400 });
             }
             for (const imageIndex of color.imageIndices) {
-                 if (typeof imageIndex !== 'number' || imageIndex < 0 || imageIndex >= imageCount) {
-                    return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. Must be a valid index of the product's images array (0 to ${imageCount - 1}).` }, { status: 400 });
+                 // Validate that imageIndex is a non-negative integer
+                 if (typeof imageIndex !== 'number' || !Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex >= imageCount) {
+                    return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. Must be a valid, non-negative integer index of the product's images array (0 to ${imageCount - 1}).` }, { status: 400 });
                  }
             }
             if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
@@ -123,6 +125,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
              };
              if (color.hexCode) newColor.hexCode = color.hexCode.trim();
              if (color.stock !== undefined) newColor.stock = color.stock;
+              // Keep existing _id if provided and valid, otherwise Mongoose will assign new for new subdocs
              if (color._id && mongoose.Types.ObjectId.isValid(color._id.toString())) {
                 newColor._id = new mongoose.Types.ObjectId(color._id.toString()) as Types.ObjectId;
              }
@@ -148,7 +151,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
   } catch (error) {
     console.error(`Error updating product ${id}:`, error);
      if ((error as any).name === 'ValidationError') {
-       return NextResponse.json({ message: 'Validation failed', errors: (error as any).errors }, { status: 400 });
+       // Log detailed validation errors for debugging
+       console.error('Mongoose Validation Errors during PUT:', (error as any).errors);
+       return NextResponse.json({ message: 'Validation failed. Check product data.', errors: (error as any).errors }, { status: 400 });
      }
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
@@ -177,4 +182,3 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
-

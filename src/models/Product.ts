@@ -14,7 +14,27 @@ export interface IProductColor extends Types.Subdocument {
 const ProductColorSchema: Schema<IProductColor> = new Schema({
   name: { type: String, required: true, trim: true },
   hexCode: { type: String, trim: true },
-  imageIndices: [{ type: Number, required: true, min: 0 }], // Array of numbers
+  imageIndices: {
+    type: [Number], // Defines an array of Numbers
+    required: [true, 'imageIndices array is required for each color variant.'], // The array field itself is now explicitly required
+    default: undefined, // Ensure default doesn't make it implicitly optional
+    validate: [
+      {
+        validator: function(arr: number[]) {
+          // Check if it's an array and has at least one element
+          return Array.isArray(arr) && arr.length > 0;
+        },
+        message: 'imageIndices array must not be empty and must be an array.'
+      },
+      {
+        validator: function(arr: number[]) {
+          // Check if all elements are non-negative integers
+          return arr.every(num => typeof num === 'number' && !isNaN(num) && num >= 0 && Number.isInteger(num));
+        },
+        message: 'All elements in imageIndices must be non-negative integers.'
+      }
+    ]
+  },
   stock: { type: Number, min: 0 },
 }, { _id: true });
 
@@ -55,4 +75,3 @@ const ProductSchema: Schema<IProduct> = new Schema({
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 
 export default Product;
-

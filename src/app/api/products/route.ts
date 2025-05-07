@@ -119,8 +119,9 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image index.` }, { status: 400 });
                 }
                 for (const imageIndex of color.imageIndices) {
-                    if (typeof imageIndex !== 'number' || imageIndex < 0 || imageIndex >= imagesToSave.length) {
-                        return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. It must be a valid index of the product's 'images' array (0 to ${imagesToSave.length - 1}).` }, { status: 400 });
+                    // Validate that imageIndex is a non-negative integer
+                    if (typeof imageIndex !== 'number' || !Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex >= imagesToSave.length) {
+                        return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. It must be a valid, non-negative integer index of the product's 'images' array (0 to ${imagesToSave.length - 1}).` }, { status: 400 });
                     }
                 }
                 if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
                 parsedColors.push({
                     name: color.name.trim(),
                     hexCode: color.hexCode?.trim() || undefined,
-                    imageIndices: color.imageIndices,
+                    imageIndices: color.imageIndices, // Already validated as array of non-negative integers
                     stock: color.stock
                 } as IProductColor);
             }
@@ -154,9 +155,10 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         console.error('Error creating product:', error);
          if ((error as any).name === 'ValidationError') {
-           return NextResponse.json({ message: 'Validation failed', errors: (error as any).errors }, { status: 400 });
+           // Log detailed validation errors for debugging
+           console.error('Mongoose Validation Errors:', (error as any).errors);
+           return NextResponse.json({ message: 'Validation failed. Check product data.', errors: (error as any).errors }, { status: 400 });
          }
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
 }
-
