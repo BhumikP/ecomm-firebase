@@ -3,7 +3,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Added React import
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,11 +33,12 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProduct, IProductColor } from '@/models/Product'; // Import IProduct and IProductColor
+import type { IProduct, IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 
 
 interface PopulatedProduct extends Omit<IProduct, 'category' | 'colors'> {
+  _id: string; // Ensure _id is always present
   category: ICategory; // Category is populated
   colors: IProductColor[]; // Ensure colors has the correct type
 }
@@ -104,11 +105,11 @@ export default function Home() {
             Object.entries(currentFilters.categories)
                 .filter(([, checked]) => checked)
                 .forEach(([filterKey]) => {
-                    const parts = filterKey.split('_');
-                    if (parts.length === 2) { // categoryId_subcategoryName
+                    const parts = filterKey.split('_SUB_'); // Use a more distinct separator
+                    if (parts.length === 2) { // categoryId_SUB_subcategoryName
                         selectedCategoryFilters.push({ categoryId: parts[0], subcategoryName: parts[1] });
-                         params.append('subcategory', parts[1]); // Assuming API filters by subcategory name
-                         params.append('category', parts[0]); // And also by parent category ID
+                         params.append('subcategory', parts[1]);
+                         params.append('category', parts[0]);
                     } else if (parts.length === 1) { // categoryId only
                         selectedCategoryFilters.push({ categoryId: parts[0] });
                         params.append('category', parts[0]);
@@ -133,7 +134,7 @@ export default function Home() {
             }
             const data = await response.json();
             const fetchedProducts: PopulatedProduct[] = Array.isArray(data.products) ? data.products : [];
-            setProducts(fetchedProducts.map(p => ({...p, colors: p.colors || []})));
+            setProducts(fetchedProducts.map(p => ({...p, _id: p._id.toString(), colors: p.colors || []})));
 
 
              // Fetch all categories (including subcategories) for filter population if not already fetched
@@ -149,10 +150,10 @@ export default function Home() {
                 allCats.forEach(cat => {
                     if (cat.subcategories && cat.subcategories.length > 0) {
                         cat.subcategories.forEach(sub => {
-                            initialCatFilters[`${cat._id}_${sub}`] = false; // Key: categoryId_subcategoryName
+                            initialCatFilters[`${cat._id}_SUB_${sub}`] = false; // Key: categoryId_SUB_subcategoryName
                         });
                     } else {
-                        initialCatFilters[cat._id] = false; // Key: categoryId
+                        initialCatFilters[cat._id.toString()] = false; // Key: categoryId
                     }
                 });
                 setFilters(prev => ({ ...prev, categories: initialCatFilters }));
@@ -190,7 +191,7 @@ export default function Home() {
          priceRange: [priceValue[0]] as [number],
      };
      setFilters(newFilters);
-     fetchProductsAndCategories(newFilters); // Changed to fetchProductsAndCategories
+     fetchProductsAndCategories(newFilters);
      toast({ title: "Filters Applied", description: "Product list updated." });
      document.getElementById('close-filter-sheet')?.click();
   };
@@ -227,7 +228,7 @@ export default function Home() {
   useEffect(() => {
       const debounceTimer = setTimeout(() => {
           if (filters.searchQuery !== undefined) {
-               fetchProductsAndCategories(filters); // Changed to fetchProductsAndCategories
+               fetchProductsAndCategories(filters);
           }
       }, 500);
       return () => clearTimeout(debounceTimer);
@@ -239,10 +240,10 @@ export default function Home() {
         availableCategoriesAndSubcategories.forEach(cat => {
             if (cat.subcategories && cat.subcategories.length > 0) {
                 cat.subcategories.forEach(sub => {
-                    initialCatFilters[`${cat._id}_${sub}`] = false;
+                    initialCatFilters[`${cat._id}_SUB_${sub}`] = false;
                 });
             } else {
-                initialCatFilters[cat._id] = false;
+                initialCatFilters[cat._id.toString()] = false;
             }
         });
         const defaultFilters: FilterState = {
@@ -253,7 +254,7 @@ export default function Home() {
         };
         setPriceValue([500]);
         setFilters(defaultFilters);
-        fetchProductsAndCategories(defaultFilters); // Changed to fetchProductsAndCategories
+        fetchProductsAndCategories(defaultFilters);
         toast({ title: "Filters Cleared", description: "Showing all products." });
          document.getElementById('close-filter-sheet')?.click();
     };
@@ -348,32 +349,35 @@ export default function Home() {
                         <fieldset className="space-y-2">
                             <legend className="font-semibold mb-1 text-sm">Category</legend>
                             {availableCategoriesAndSubcategories.length > 0 ? availableCategoriesAndSubcategories.map(cat => (
-                                <React.Fragment key={cat._id}>
+                                <React.Fragment key={cat._id.toString()}>
                                     {cat.subcategories && cat.subcategories.length > 0 ? (
-                                        cat.subcategories.map(sub => {
-                                            const filterKey = `${cat._id}_${sub}`;
-                                            const label = `${cat.name} - ${sub}`;
-                                            return (
-                                                <div key={filterKey} className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id={`cat-${filterKey}`}
-                                                        checked={filters.categories[filterKey] || false}
-                                                        onCheckedChange={(checked) => handleCategoryChange(filterKey, checked)}
-                                                        aria-labelledby={`label-cat-${filterKey}`}
-                                                    />
-                                                    <Label id={`label-cat-${filterKey}`} htmlFor={`cat-${filterKey}`} className="cursor-pointer">{label}</Label>
-                                                </div>
-                                            );
-                                        })
+                                        <>
+                                            <p className="font-medium text-xs pt-2 text-muted-foreground">{cat.name}</p>
+                                            {cat.subcategories.map(sub => {
+                                                const filterKey = `${cat._id}_SUB_${sub}`;
+                                                const label = sub; // Display only subcategory name
+                                                return (
+                                                    <div key={filterKey} className="flex items-center space-x-2 pl-2">
+                                                        <Checkbox
+                                                            id={`cat-${filterKey}`}
+                                                            checked={filters.categories[filterKey] || false}
+                                                            onCheckedChange={(checked) => handleCategoryChange(filterKey, checked)}
+                                                            aria-labelledby={`label-cat-${filterKey}`}
+                                                        />
+                                                        <Label id={`label-cat-${filterKey}`} htmlFor={`cat-${filterKey}`} className="cursor-pointer text-sm font-normal">{label}</Label>
+                                                    </div>
+                                                );
+                                            })}
+                                        </>
                                     ) : (
-                                        <div key={cat._id} className="flex items-center space-x-2">
+                                        <div key={cat._id.toString()} className="flex items-center space-x-2">
                                             <Checkbox
-                                                id={`cat-${cat._id}`}
-                                                checked={filters.categories[cat._id] || false}
-                                                onCheckedChange={(checked) => handleCategoryChange(cat._id, checked)}
-                                                aria-labelledby={`label-cat-${cat._id}`}
+                                                id={`cat-${cat._id.toString()}`}
+                                                checked={filters.categories[cat._id.toString()] || false}
+                                                onCheckedChange={(checked) => handleCategoryChange(cat._id.toString(), checked)}
+                                                aria-labelledby={`label-cat-${cat._id.toString()}`}
                                             />
-                                            <Label id={`label-cat-${cat._id}`} htmlFor={`cat-${cat._id}`} className="cursor-pointer">{cat.name}</Label>
+                                            <Label id={`label-cat-${cat._id.toString()}`} htmlFor={`cat-${cat._id.toString()}`} className="cursor-pointer text-sm font-normal">{cat.name}</Label>
                                         </div>
                                     )}
                                 </React.Fragment>
@@ -447,15 +451,16 @@ export default function Home() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map((product) => {
                         const displayImageIndex = selectedProductColors[product._id.toString()] ?? 0;
-                        const displayImage = product.images && product.images.length > displayImageIndex ? product.images[displayImageIndex] : product.image;
-                        const selectedColorObject = product.colors.find(c => c.imageIndex === displayImageIndex);
+                        // Ensure product.images exists and is an array before accessing
+                        const displayImage = (product.images && product.images.length > displayImageIndex ? product.images[displayImageIndex] : product.image) || 'https://picsum.photos/300/200?random=placeholder';
+                        const selectedColorObject = product.colors?.find(c => c.imageIndex === displayImageIndex);
 
                         return (
                         <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
                         <CardHeader className="p-0 relative">
                             <Link href={`/products/${product._id.toString()}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
                                 <Image
-                                src={displayImage || 'https://picsum.photos/300/200?random=placeholder'}
+                                src={displayImage}
                                 alt={product.title}
                                 width={300}
                                 height={200}
@@ -487,12 +492,12 @@ export default function Home() {
                                     <Palette className="h-4 w-4 text-muted-foreground mr-1"/>
                                     {product.colors.map((color, index) => (
                                         <button
-                                            key={index}
+                                            key={color._id?.toString() || `${color.name}-${index}`} // Ensure unique key
                                             title={color.name}
                                             aria-label={`Select color ${color.name}`}
                                             onClick={() => handleColorSelection(product._id.toString(), color.imageIndex)}
                                             className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary
-                                                ${selectedProductColors[product._id.toString()] === color.imageIndex || (selectedProductColors[product._id.toString()] === undefined && index === 0) ? 'ring-2 ring-primary ring-offset-1' : 'border-muted-foreground/30'}`}
+                                                ${selectedProductColors[product._id.toString()] === color.imageIndex || (selectedProductColors[product._id.toString()] === undefined && color.imageIndex === 0) ? 'ring-2 ring-primary ring-offset-1' : 'border-muted-foreground/30'}`}
                                             style={{ backgroundColor: color.hexCode || 'transparent' }}
                                         >
                                            {!color.hexCode && <span className="sr-only">{color.name}</span>}
@@ -546,4 +551,3 @@ export default function Home() {
     </div>
   );
 }
-
