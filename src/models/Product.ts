@@ -25,7 +25,7 @@ export interface IProduct extends Document {
   title: string;
   description: string;
   price: number;
-  discount: number | null; // Percentage discount
+  discount: number | null; // Percentage d  iscount
   category: Types.ObjectId | ICategory; // Reference to Category model
   subcategory?: string; // Name of the subcategory (string)
   rating: number; // Average rating

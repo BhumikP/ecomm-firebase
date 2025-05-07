@@ -38,7 +38,12 @@ export default function AdminCategoriesPage() {
         setIsLoading(true);
         try {
             const response = await fetch('/api/categories');
-            if (!response.ok) throw new Error('Failed to fetch categories');
+            if (!response.ok) {
+                // Log more details if the response is not OK
+                const errorText = await response.text();
+                console.error("Failed to fetch categories. Status:", response.status, "Response:", errorText);
+                throw new Error(`Failed to fetch categories. Status: ${response.status}`);
+            }
             const data = await response.json();
             setCategories(Array.isArray(data.categories) ? data.categories : []);
         } catch (error: any) {
@@ -299,4 +304,4 @@ export default function AdminCategoriesPage() {
             </Card>
         </div>
     );
-}
+
