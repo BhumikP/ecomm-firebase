@@ -105,19 +105,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
-      <head>
-        {/* Inline JSON-LD Structured Data */}
-        <Script
-          id="organization-schema"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-        />
-        {/* Add other head elements like favicon links if needed */}
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
+       <head>
+          {/* Inline JSON-LD Structured Data */}
+          <Script
+            id="organization-schema"
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          />
+          {/* Add other head elements like favicon links if needed */}
+       </head>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`} suppressHydrationWarning={true}>
         {/* Wrap children with Sentry Error Boundary */}
-        {/* Using Suspense to handle potential async operations within Sentry setup or children */}
-        <Suspense fallback={<div>Loading...</div>}>
+         {/* Using Suspense to handle potential async operations within Sentry setup or children */}
+         <Suspense fallback={<div>Loading...</div>}>
           <Sentry.ErrorBoundary fallback={<div>An error has occurred</div>}>
             {children}
           </Sentry.ErrorBoundary>
