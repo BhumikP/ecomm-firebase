@@ -86,7 +86,7 @@ export default function AdminProductsPage() {
       const productsData = await productsResponse.json();
       const categoriesData = await categoriesResponse.json();
 
-      setProducts(Array.isArray(productsData.products) ? productsData.products.map(p => ({...p, colors: p.colors || []})) : []);
+      setProducts(Array.isArray(productsData.products) ? productsData.products.map((p: ProductData) => ({...p, _id: p._id.toString(), colors: p.colors || []})) : []);
       setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
 
     } catch (error: any) {
@@ -353,16 +353,20 @@ export default function AdminProductsPage() {
                          </div>
                      )}
                      
-                      <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="price" className="text-right">Price ($)</Label>
-                                <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} className="col-span-1" />
-
-                                <Label htmlFor="discount" className="text-right">Discount (%)</Label>
-                                <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} className="col-span-1" placeholder="e.g., 10 (blank for none)" />
-
-                                <Label htmlFor="stock" className="text-right">Stock</Label>
-                                <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} className="col-span-1" />
-                            </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+                        <div className="space-y-2">
+                            <Label htmlFor="price">Price ($)</Label>
+                            <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} />
+                        </div>
+                        <div className="space-y-2">
+                             <Label htmlFor="discount">Discount (%)</Label>
+                             <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                        </div>
+                        <div className="space-y-2">
+                             <Label htmlFor="stock">Stock</Label>
+                             <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} />
+                        </div>
+                     </div>
                      <div className="grid grid-cols-4 items-start gap-4">
                          <Label htmlFor="description" className="text-right pt-2">Description</Label>
                          <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="col-span-3 min-h-[100px]" />
@@ -453,7 +457,7 @@ export default function AdminProductsPage() {
                 products.map((product) => {
                     const categoryDisplay = typeof product.category === 'object' && product.category !== null ? (product.category as ICategory).name : 'N/A';
                     return (
-                 <TableRow key={product._id}>
+                 <TableRow key={product._id.toString()}>
                       <TableCell>
                            <Image
                                 src={product.image || '/placeholder.svg'} // Use primary image
@@ -503,7 +507,7 @@ export default function AdminProductsPage() {
                                      {isDeleting === product._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                      <span className="sr-only">Delete</span>
                                  </Button>
-                            AlertDialogTrigger>
+                            </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -525,22 +529,22 @@ export default function AdminProductsPage() {
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                          </AlertDialog>
-                    div>
-                    TableCell>
-                 TableRow>
+                    </div>
+                    </TableCell>
+                 </TableRow>
                     );
                 })
             ) : (
-                TableRow>
+                <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center text-muted-foreground"> {/* Adjusted colSpan */}
                         No products found{searchTerm ? ' matching your search' : ''}.
-                    TableCell>
-                 TableRow>
+                    </TableCell>
+                 </TableRow>
             )}
             </TableBody>
         </Table>
       </Card>
-    div>
+    </div>
   );
 }
 
@@ -561,3 +565,4 @@ const PlaceholderSvg = () => (
         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
     </svg>
 );
+
