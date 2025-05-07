@@ -79,16 +79,14 @@ export async function POST(req: NextRequest) {
     // TODO: Implement admin check
 
     try {
-        // Expect ProductFormData structure from the client
-        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating' | 'colors' | 'image' | 'images'> & { category: string; colors?: Array<Omit<IProductColor, '_id' > & {imageUrls: string[], thumbnailUrl: string}> };
+        // Expect ProductFormData structure from the client (includes thumbnailUrl, colors without thumbnailUrl)
+        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string; colors?: Array<Omit<IProductColor, '_id' | 'thumbnailUrl' > & {imageUrls: string[]}> };
 
-        if (!body.title || !body.description || body.price == null || body.stock == null || !body.category) {
-            return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category.' }, { status: 400 });
+        if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.thumbnailUrl) {
+            return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category, thumbnailUrl.' }, { status: 400 });
         }
-
-
-         if (!body.thumbnailUrl) {
-             return NextResponse.json({ message: 'Thumbnail URL is required.' }, { status: 400 });
+         if (body.thumbnailUrl.trim() === '') {
+             return NextResponse.json({ message: 'Primary Thumbnail URL cannot be empty.' }, { status: 400 });
          }
 
         // Validate category
@@ -118,11 +116,8 @@ export async function POST(req: NextRequest) {
                 if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
                     return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
                 }
-                if (!color.thumbnailUrl || typeof color.thumbnailUrl !== 'string' || color.thumbnailUrl.trim() === '') {
-                    return NextResponse.json({ message: 'Each color variant must have a thumbnailUrl.' }, { status: 400 });
-                }
-                 if (!color.imageUrls || typeof color.imageUrls !== 'object' || !Array.isArray(color.imageUrls)) {
-                    return NextResponse.json({ message: 'Each color variant must have a imageUrls.' }, { status: 400 });
+                 if (!Array.isArray(color.imageUrls) || color.imageUrls.length === 0) {
+                    return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image URL.` }, { status: 400 });
                  }
                   if (color.stock === undefined || typeof color.stock !== 'number' || color.stock < 0) {
                      return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number.` }, { status: 400 });
@@ -137,19 +132,24 @@ export async function POST(req: NextRequest) {
                     hexCode: color.hexCode?.trim() || undefined,
                     imageUrls: parsedImageUrls,
                     stock: color.stock,
-                    thumbnailUrl: color.thumbnailUrl
+                    // No thumbnailUrl for color variants
                 });
             }
         }
 
 
-        const newProductData = {
-            ...body,
-            colors: parsedColors, // Set the validated colors array
+        const newProductData: Partial<IProduct> = {
+            title: body.title,
+            description: body.description,
+            price: body.price,
+            discount: body.discount,
             category: new mongoose.Types.ObjectId(body.category),
-            rating: body.rating ?? 0,
             subcategory: body.subcategory, // Already processed
-            thumbnailUrl: body.thumbnailUrl
+            rating: body.rating ?? 0,
+            stock: body.stock,
+            features: body.features,
+            colors: parsedColors as any, // Set the validated colors array
+            thumbnailUrl: body.thumbnailUrl.trim(), // Main thumbnail
         };
 
 

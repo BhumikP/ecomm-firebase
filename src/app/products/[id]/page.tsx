@@ -9,31 +9,32 @@ import { Footer } from '@/components/layout/footer';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Star, Loader2, Palette } from 'lucide-react';
+import { Star, Loader2, Palette, X } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from 'react';
-import type { IProduct, IProductColor } from '@/models/Product';
+import type { IProduct, IProductColor } from '@/models/Product'; // Use base interfaces
 import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
 
 // Define Product Type matching the backend model, ensuring category is populated
-interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | 'image' | 'images'> {
+interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: { _id: string; name: string; subcategories: string[] };
   colors: PopulatedProductColor[]; // Use PopulatedProductColor
-   thumbnailUrl: string; // Add ThumbnailURL
+  thumbnailUrl: string; // Main thumbnail URL
 }
 
-interface PopulatedProductColor extends Omit<IProductColor, '_id' | 'imageIndices'> {
+// Type for color data used in frontend (without separate thumbnail)
+interface PopulatedProductColor extends Omit<IProductColor, '_id' | 'thumbnailUrl'> {
     _id?: string; // Mongoose subdocument _id is optional on client
     imageUrls: string[]; // Image urls
 }
 
 
 export default function ProductDetailPage() {
-   const pageParams = useParams<{ id: string }>();
-   const id = pageParams?.id;
+   const params = useParams<{ id: string }>(); // Use useParams hook
+   const id = params?.id; // Extract id from params
 
    const { toast } = useToast();
    const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -67,7 +68,7 @@ export default function ProductDetailPage() {
                 }
 
                 const productData: ProductDetail = await response.json();
-                 // Ensure colors and imageIndices within colors are arrays
+                 // Ensure colors and imageUrls within colors are arrays
                 const processedProductData = {
                     ...productData,
                     colors: (productData.colors || []).map(c => ({...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : []}))
@@ -76,17 +77,16 @@ export default function ProductDetailPage() {
 
                 if (processedProductData) {
                      document.title = `${processedProductData.title} | eShop Simplified`;
-                     if (processedProductData.colors && processedProductData.colors.length > 0) {
-                         const firstColor = processedProductData.colors[0];
-                         setSelectedColor(firstColor);
-                         if (firstColor.imageUrls && firstColor.imageUrls.length > 0) {
-                            setSelectedImageIndex(0);
-                         } else {
-                            setSelectedImageIndex(0);
-                         }
+                     // Select the first available color by default, or none if no colors
+                     const firstAvailableColor = processedProductData.colors?.find(c => c.stock > 0);
+                     if (firstAvailableColor) {
+                         setSelectedColor(firstAvailableColor);
+                         setSelectedImageIndex(0); // Display first image of the selected color
                      } else {
-                         setSelectedImageIndex(0);
+                         setSelectedColor(processedProductData.colors?.[0]); // Select first color even if OOS, or undefined
+                         setSelectedImageIndex(0); // Display main thumbnail if no color selected/no color images
                      }
+
                 } else {
                       document.title = `Product Not Found | eShop Simplified`;
                 }
@@ -103,11 +103,11 @@ export default function ProductDetailPage() {
 
         if (id) {
            fetchProduct();
-        } else if (pageParams) { // This condition might be redundant if id is derived from pageParams
+        } else if (params) { // Check if params object exists (it should)
            setError("Product ID not available in route parameters.");
            setLoading(false);
         }
-   }, [id, pageParams]);
+   }, [id, params]);
 
    const handleAddToCart = () => {
     if (product) {
@@ -122,10 +122,11 @@ export default function ProductDetailPage() {
 
     const handleColorSelect = (color: PopulatedProductColor) => {
         setSelectedColor(color);
-         setSelectedImageIndex(0);
+         setSelectedImageIndex(0); // Reset to the first image of the newly selected color
     };
 
-    const displayImageSrc = selectedColor ? selectedColor.thumbnailUrl : product?.thumbnailUrl;
+    // Determine which image to display
+    const displayImageSrc = selectedColor?.imageUrls?.[selectedImageIndex] ?? product?.thumbnailUrl ?? 'https://picsum.photos/600/400?random=placeholder';
 
    const generateProductSchema = (productData: ProductDetail | null) => {
        if (!productData) return null;
@@ -134,11 +135,13 @@ export default function ProductDetailPage() {
             ? (productData.price * (1 - productData.discount / 100)).toFixed(2)
             : productData.price.toFixed(2);
 
+       const currentStock = selectedColor?.stock !== undefined ? selectedColor.stock : productData.stock;
+
        const schema = {
          "@context": "https://schema.org/",
          "@type": "Product",
          "name": productData.title,
-         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg',
+         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg', // Use main thumbnail
          "description": productData.description,
          "sku": productData._id,
          "aggregateRating": productData.rating && productData.rating > 0 ? {
@@ -148,14 +151,15 @@ export default function ProductDetailPage() {
          } : undefined,
          "offers": {
            "@type": "Offer",
-           "url": `https://YOUR_DOMAIN.com/products/${productData._id}`,
-           "priceCurrency": "USD",
+           "url": `https://YOUR_DOMAIN.com/products/${productData._id}`, // Replace with actual domain
+           "priceCurrency": "USD", // Adjust if needed
            "price": discountedPriceValue,
-           "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
+           "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], // Example: valid for 30 days
            "itemCondition": "https://schema.org/NewCondition",
-           "availability": productData.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+           "availability": currentStock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
          }
        };
+        // Clean up undefined optional fields
        Object.keys(schema).forEach(key => schema[key as keyof typeof schema] === undefined && delete schema[key as keyof typeof schema]);
        if (schema.offers && schema.offers.availability === undefined) delete schema.offers.availability;
        if (schema.aggregateRating === undefined) delete schema.aggregateRating;
@@ -172,6 +176,9 @@ export default function ProductDetailPage() {
                 <div className="grid md:grid-cols-2 gap-8 lg:gap-12 w-full max-w-5xl mx-auto">
                     <div className="flex flex-col gap-4">
                         <Skeleton className="aspect-square md:aspect-[4/3] w-full rounded-lg bg-muted" />
+                         <div className="grid grid-cols-5 gap-2">
+                             {[...Array(5)].map((_, i) => <Skeleton key={i} className="aspect-square rounded-md bg-muted" />)}
+                         </div>
                     </div>
                     <div className="flex flex-col space-y-4">
                          <Skeleton className="h-10 w-3/4 bg-muted rounded" />
@@ -185,6 +192,14 @@ export default function ProductDetailPage() {
                          <Skeleton className="h-4 w-full bg-muted rounded" />
                          <Skeleton className="h-8 w-1/2 bg-muted rounded my-4" />
                          <Skeleton className="h-6 w-1/4 bg-muted rounded my-2" />
+                          <div className="pt-2 space-y-2">
+                             <Skeleton className="h-6 w-1/3 bg-muted rounded mb-2" />
+                             <div className="flex gap-2">
+                                 <Skeleton className="h-8 w-8 rounded-full bg-muted" />
+                                 <Skeleton className="h-8 w-8 rounded-full bg-muted" />
+                                 <Skeleton className="h-8 w-8 rounded-full bg-muted" />
+                             </div>
+                          </div>
                          <div className="pt-4 space-y-2">
                              <Skeleton className="h-6 w-1/3 bg-muted rounded mb-2" />
                              <Skeleton className="h-4 w-full bg-muted rounded" />
@@ -223,7 +238,7 @@ export default function ProductDetailPage() {
     ? (product.price * (1 - product.discount / 100)).toFixed(2)
     : product.price.toFixed(2);
 
-   const currentStock = selectedColor?.stock !== undefined ? selectedColor.stock : product.stock;
+   const currentStock = selectedColor?.stock ?? product.stock; // Use color stock if available, else product stock
    const isOutOfStock = currentStock <= 0;
 
 
@@ -242,36 +257,41 @@ export default function ProductDetailPage() {
           <div className="flex flex-col gap-4">
              <div className="relative aspect-square md:aspect-[4/3] bg-muted rounded-lg overflow-hidden shadow-md">
                 <Image
-                  src={displayImageSrc || 'https://picsum.photos/600/400?random=placeholder'}
-                  alt={product.title}
+                  src={displayImageSrc}
+                  alt={product.title + (selectedColor ? ` - ${selectedColor.name}` : '')}
                   fill
-                  className="object-contain p-4"
+                  className="object-contain p-4" // Changed to contain to see full image
                   sizes="(max-width: 768px) 100vw, 50vw"
                   priority
                   data-ai-hint="detailed product photo ecommerce professional"
+                  onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/600/400?random=onerror'; }}
                 />
                  {product.discount && product.discount > 0 && (
                     <Badge variant="destructive" className="absolute top-4 left-4 text-sm md:text-base px-3 py-1 shadow-md">{product.discount}% OFF</Badge>
                  )}
              </div>
-             {selectedColor && selectedColor.imageUrls && selectedColor.imageUrls.length > 0 && (
+              {/* Image Thumbnails - Show only if color is selected and has multiple images */}
+             {selectedColor && selectedColor.imageUrls && selectedColor.imageUrls.length > 1 && (
                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                      {selectedColor.imageUrls.map((imgUrl, index) => (
-                         <div
+                         <button
                             key={index}
-                            className={`aspect-square rounded-md overflow-hidden border-2 transition-all
-                                 border-transparent hover:border-muted-foreground/50`}
+                            onClick={() => setSelectedImageIndex(index)}
+                            className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+                                 ${selectedImageIndex === index ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'}`}
                             aria-label={`View image ${index + 1} of ${selectedColor.name}`}
+                            aria-current={selectedImageIndex === index}
                          >
                             <Image
                                 src={imgUrl}
                                 alt={`${product.title} - ${selectedColor.name} - thumbnail ${index + 1}`}
-                                width={100}
-                                height={100}
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
+                                sizes="100px"
                                 data-ai-hint="product thumbnail gallery"
+                                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/100/100?random=onerrorthumb'; }}
                             />
-                         </div>
+                         </button>
                      ))}
                  </div>
              )}
@@ -319,15 +339,15 @@ export default function ProductDetailPage() {
                             <button
                                 key={color._id?.toString() || color.name}
                                 onClick={() => handleColorSelect(color)}
-                                className={`h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                                    ${selectedColor?._id === color._id || selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary' : 'border-muted-foreground/30 hover:border-primary'}`}
+                                className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
+                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary' : 'border-muted-foreground/30 hover:border-primary'}`}
                                 style={{ backgroundColor: color.hexCode || '#ccc' }}
                                 title={color.name}
-                                aria-label={`Select color ${color.name} ${color.stock !== undefined && color.stock <= 0 ? '(Out of stock)' : ''}`}
-                                disabled={color.stock !== undefined && color.stock <= 0}
+                                aria-label={`Select color ${color.name} ${color.stock <= 0 ? '(Out of stock)' : ''}`}
+                                disabled={color.stock <= 0}
                             >
-                               {color.stock !== undefined && color.stock <= 0 && (
-                                    <span className="absolute inset-0 flex items-center justify-center text-destructive-foreground text-xs leading-none">X</span>
+                               {color.stock <= 0 && (
+                                     <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
                                 )}
                             </button>
                         ))}

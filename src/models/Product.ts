@@ -6,9 +6,8 @@ import type { ICategory } from './Category'; // Import ICategory
 export interface IProductColor extends Types.Subdocument {
   name: string;
   hexCode?: string; // Optional: for color swatch display (e.g., #FF0000)
-  imageUrls: string[]; // Indices in the 'images' array for this color variant
-  stock: number; // Optional: stock specific to this color/variant
-  thumbnailUrl: string;
+  imageUrls: string[]; // Array of image URLs for this color variant
+  stock: number; // Stock specific to this color/variant
 }
 
 // Schema for ProductColor subdocument
@@ -16,21 +15,16 @@ const ProductColorSchema: Schema<IProductColor> = new Schema({
   name: { type: String, required: true, trim: true },
   hexCode: { type: String, trim: true },
   imageUrls: {
-    type: [String], // Defines an array of Numbers
-    required: [true, 'imageUrls array is required for each color variant.'], // Make the array required
+    type: [String],
+    required: [true, 'At least one image URL is required for each color variant.'],
     validate: [
       {
         validator: function(arr: string[]) {
-          // Check if it's an array and has at least one element
-          return Array.isArray(arr) && arr.length > 0;
+          return Array.isArray(arr) && arr.length > 0 && arr.every(url => typeof url === 'string' && url.trim() !== '');
         },
-        message: 'imageUrls array must not be empty and must be an array.'
+        message: 'imageUrls array must contain at least one non-empty string URL.'
       },
     ]
-  },
-  thumbnailUrl: {
-    type: String, // Defines an array of Numbers
-    required: [true, 'thumbnailUrl is required for each color variant.'], // Make the array required
   },
   stock: { type: Number, required: true, min: 0 },
 }, { _id: true }); // Enable _id for subdocuments
@@ -47,7 +41,7 @@ export interface IProduct extends Document {
   stock: number; // Overall stock for the product. If using per-color stock, this might be sum or base.
   features: string[];
   colors: Types.DocumentArray<IProductColor>; // Use Mongoose DocumentArray for subdocuments
-   thumbnailUrl: string; // The url for the product thumbnail,
+  thumbnailUrl: string; // The url for the product thumbnail - REQUIRED
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,7 +57,7 @@ const ProductSchema: Schema<IProduct> = new Schema({
   stock: { type: Number, required: true, min: 0, default: 0 }, // Total/base stock
   features: [{ type: String }],
   colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array
-  thumbnailUrl: { type: String, required: true }, // Primary display image
+  thumbnailUrl: { type: String, required: [true, 'Primary Thumbnail URL is required.'] }, // Make primary thumbnail required
 }, { timestamps: true });
 
 

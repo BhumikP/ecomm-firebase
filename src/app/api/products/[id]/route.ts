@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   try {
     // Expecting structure similar to ProductFormData (or IProduct subset) from client
-    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors' | 'image' | 'images'>> & { category?: string; colors?: Array<Partial<Omit<IProductColor, '_id'>> & { imageUrls: string[], _id?: string, thumbnailUrl: string }> };
+    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: Array<Partial<Omit<IProductColor, '_id' | 'thumbnailUrl'>> & { imageUrls: string[], _id?: string }> };
 
 
      if (Object.keys(body).length === 0) {
@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
      if (body.price !== undefined && body.price < 0) return NextResponse.json({ message: 'Price cannot be negative' }, { status: 400 });
      if (body.stock !== undefined && body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
      if (body.discount !== undefined && (body.discount === null || (body.discount >= 0 && body.discount <= 100))) {/* valid */} else if (body.discount !== undefined) return NextResponse.json({ message: 'Discount must be between 0 and 100, or null' }, { status: 400 });
-
+     if (body.thumbnailUrl !== undefined && body.thumbnailUrl.trim() === '') return NextResponse.json({ message: 'Primary Thumbnail URL cannot be empty' }, { status: 400 });
 
     const updateData: any = { ...body }; // Start with body, will refine
 
@@ -93,20 +93,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // Handle color updates
     if (body.colors && Array.isArray(body.colors)) {
         const parsedColors: Partial<IProductColor>[] = []; // Use Partial for constructing
-        // Determine the image count based on updated images if provided, otherwise fetch existing
 
         for (const color of body.colors) {
             if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
                 return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
             }
-             if (!color.thumbnailUrl || typeof color.thumbnailUrl !== 'string' || color.thumbnailUrl.trim() === '') {
-                return NextResponse.json({ message: 'Each color variant must have a thumbnailUrl.' }, { status: 400 });
-            }
-
             if (!Array.isArray(color.imageUrls) || color.imageUrls.length === 0) {
                 return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image URL.` }, { status: 400 });
             }
-
              if (color.stock === undefined || typeof color.stock !== 'number' || color.stock < 0) {
                 return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number.` }, { status: 400 });
             }
@@ -120,7 +114,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
                 hexCode: color.hexCode?.trim() || undefined,
                 imageUrls: parsedImageUrls, // Already validated
                 stock: color.stock,
-                 thumbnailUrl: color.thumbnailUrl.trim(),
                  // Include _id ONLY if it's a valid ObjectId (for updating existing subdocs)
                 ...(color._id && mongoose.Types.ObjectId.isValid(color._id.toString()) && { _id: new mongoose.Types.ObjectId(color._id.toString()) })
              };
@@ -131,6 +124,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     } else if (body.hasOwnProperty('colors') && body.colors === null) {
         // Allow explicitly setting colors to null or empty array to remove all colors
         updateData.colors = [];
+    }
+
+    // Trim thumbnailUrl if provided
+    if (updateData.thumbnailUrl) {
+        updateData.thumbnailUrl = updateData.thumbnailUrl.trim();
     }
 
 

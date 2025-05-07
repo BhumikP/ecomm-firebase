@@ -1,9 +1,10 @@
 // src/app/page.tsx
 'use client';
 
+import React from 'react'; // Make sure React is imported
 import Image from 'next/image';
 import Link from 'next/link';
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,19 +34,16 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProduct, IProductColor } from '@/models/Product';
+import type { IProduct, IProductColor } from '@/models/Product'; // Import base types
 import type { ICategory } from '@/models/Category';
 
 
-interface PopulatedProduct extends Omit<IProduct, 'category' | 'colors'> {
+// Type for product data fetched from API (with populated category and correct color structure)
+interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
-  category: ICategory;
-  colors: PopulatedProductColor[]; // Use PopulatedProductColor
-}
-
-interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
-    _id?: string; // Mongoose subdocument _id is optional on client
-    imageIndices: number[];
+  category: ICategory; // Assumes category is populated
+  colors: IProductColor[]; // Colors as defined in the backend model
+  thumbnailUrl: string; // Main thumbnail URL
 }
 
 
@@ -82,10 +80,11 @@ const bannerImages = [
 
 export default function Home() {
   const { toast } = useToast();
-  const [products, setProducts] = useState<PopulatedProduct[]>([]);
+  const [products, setProducts] = useState<FetchedProduct[]>([]); // Use FetchedProduct type
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
+  const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
 
 
   const [filters, setFilters] = useState<FilterState>({
@@ -139,8 +138,13 @@ export default function Home() {
                  throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
             }
             const data = await response.json();
-            const fetchedProducts: PopulatedProduct[] = Array.isArray(data.products) ? data.products : [];
-            setProducts(fetchedProducts.map(p => ({...p, _id: p._id.toString(), colors: (p.colors || []).map(c => ({...c, imageIndices: c.imageIndices || []}))})));
+             // Ensure data.products is an array and process it
+            const fetchedProducts: FetchedProduct[] = (Array.isArray(data.products) ? data.products : []).map((p: FetchedProduct) => ({
+                ...p,
+                _id: p._id.toString(),
+                colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })), // Ensure imageUrls is array
+            }));
+            setProducts(fetchedProducts);
 
 
              if (availableCategoriesAndSubcategories.length === 0) {
@@ -183,7 +187,7 @@ export default function Home() {
    }, []);
 
 
-  const handleAddToCart = (product: PopulatedProduct, selectedColor?: PopulatedProductColor) => {
+  const handleAddToCart = (product: FetchedProduct, selectedColor?: IProductColor) => {
     const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
     console.log(`Adding ${itemToAdd} to cart`);
     toast({
@@ -266,15 +270,8 @@ export default function Home() {
          document.getElementById('close-filter-sheet')?.click();
     };
 
-  const [selectedProductColorImageIndices, setSelectedProductColorImageIndices] = useState<Record<string, number | undefined>>({}); // Store first imageIndex of selected color
-
-  const handleColorSelection = (productId: string, color?: PopulatedProductColor) => {
-      if (color && color.imageIndices && color.imageIndices.length > 0) {
-          setSelectedProductColorImageIndices(prev => ({ ...prev, [productId]: color.imageIndices[0] }));
-      } else {
-           // If no color selected or color has no images, show default product image (index 0)
-          setSelectedProductColorImageIndices(prev => ({ ...prev, [productId]: 0 }));
-      }
+  const handleColorSelection = (productId: string, color?: IProductColor) => {
+      setSelectedColorPerProduct(prev => ({ ...prev, [productId]: color }));
   };
 
 
@@ -461,10 +458,8 @@ export default function Home() {
                 ) : products.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map((product) => {
-                        const selectedImageDisplayIndex = selectedProductColorImageIndices[product._id.toString()] ?? 0;
-                        const displayImage = (product.images && product.images.length > selectedImageDisplayIndex ? product.images[selectedImageDisplayIndex] : product.image) || 'https://picsum.photos/300/200?random=placeholder';
-                        
-                        const selectedColorObject = product.colors?.find(c => c.imageIndices.includes(selectedImageDisplayIndex));
+                         const selectedColor = selectedColorPerProduct[product._id];
+                         const displayImage = selectedColor?.imageUrls?.[0] ?? product.thumbnailUrl ?? 'https://picsum.photos/300/200?random=placeholder';
 
                         return (
                         <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
@@ -479,6 +474,7 @@ export default function Home() {
                                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                                 loading="lazy"
                                 data-ai-hint="product image retail fashion electronics"
+                                onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/300/200?random=onerror'; }}
                                 />
                             </Link>
                             {product.discount && product.discount > 0 && (
@@ -506,11 +502,13 @@ export default function Home() {
                                             title={color.name}
                                             aria-label={`Select color ${color.name}`}
                                             onClick={() => handleColorSelection(product._id.toString(), color)}
-                                            className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary
-                                                ${selectedProductColorImageIndices[product._id.toString()] !== undefined && color.imageIndices.includes(selectedProductColorImageIndices[product._id.toString()]!) ? 'ring-2 ring-primary ring-offset-1' : 'border-muted-foreground/30'}`}
+                                            className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary transition-all
+                                                ${selectedColor === color ? 'ring-2 ring-primary ring-offset-1 border-primary' : 'border-muted-foreground/30'}`}
                                             style={{ backgroundColor: color.hexCode || 'transparent' }}
+                                            disabled={color.stock <= 0}
                                         >
                                            {!color.hexCode && <span className="sr-only">{color.name}</span>}
+                                            {color.stock <= 0 && <X className="h-3 w-3 text-destructive-foreground absolute inset-0 m-auto opacity-70" />}
                                         </button>
                                     ))}
                                 </div>
@@ -534,12 +532,12 @@ export default function Home() {
                                 size="sm"
                                 variant="outline"
                                 className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                                onClick={() => handleAddToCart(product, selectedColorObject)}
+                                onClick={() => handleAddToCart(product, selectedColor)}
                                 aria-label={`Add ${product.title} to cart`}
-                                disabled={product.stock <= 0 || (selectedColorObject?.stock === 0)}
+                                disabled={product.stock <= 0 || (selectedColor?.stock === 0)}
                             >
-                                {(product.stock > 0 && (selectedColorObject ? selectedColorObject.stock !== 0 : true)) ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
-                                {(product.stock <= 0 || (selectedColorObject?.stock === 0)) ? 'Out' : 'Add'}
+                                {(product.stock > 0 && (selectedColor ? selectedColor.stock > 0 : true)) ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
+                                {(product.stock <= 0 || (selectedColor?.stock === 0)) ? 'Out' : 'Add'}
                             </Button>
                         </CardFooter>
                         </Card>

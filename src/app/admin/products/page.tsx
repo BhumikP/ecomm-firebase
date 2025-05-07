@@ -12,36 +12,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, Search, Loader2, ImageIcon, Star, Palette, X } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { IProduct } from '@/models/Product'; // Base IProduct
+import type { IProduct } from '@/models/Product'; // Base IProduct from model
+import type { IProductColor } from '@/models/Product'; // Base IProductColor from model
 import type { ICategory } from '@/models/Category';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from '@/components/ui/checkbox'; // Import Checkbox
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Import Card
 
-// Define ProductColor for frontend state
+// Define ProductColor for frontend state (without thumbnailUrl)
 interface ProductColorFormData {
     _id?: string; // For existing colors, to help identify them if needed during update
     name: string;
+    hexCode?: string;
     imageUrls: string[]; // Array of image URLs for this color
     stock: number;
-    thumbnailUrl: string;
 }
 
 // Define Product Type for frontend state, using ProductColorFormData
-type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | 'colors' | '_id' | 'image' | 'images'> & {
+type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | 'colors' | '_id'> & {
     _id?: string; // Optional for new products
     category: string; // Category ID
-    colors: ProductColorFormData[]; // Use ProductColorFormData
-    thumbnailUrl: string; // The primary image url
+    colors: ProductColorFormData[]; // Use ProductColorFormData without thumbnail
+    thumbnailUrl: string; // Main thumbnail is required
     createdAt?: Date;
     updatedAt?: Date;
 };
 
+// Type for fetched product which includes populated category and original color structure
+interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
+  _id: string;
+  category: ICategory; // Assumes category is populated
+  colors: IProductColor[]; // Colors as defined in the backend model
+}
+
 
 const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating'> = {
-    thumbnailUrl: '',
+    thumbnailUrl: '', // Add thumbnailUrl here
     title: '',
     price: 0,
     discount: null,
@@ -55,7 +62,7 @@ const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'r
 
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<IProduct[]>([]); // Use IProduct from model for fetched products
+  const [products, setProducts] = useState<FetchedProduct[]>([]); // Store fetched products
   const [availableCategories, setAvailableCategories] = useState<ICategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -67,9 +74,6 @@ export default function AdminProductsPage() {
   const [isDialogLoading, setIsDialogLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const { toast } = useToast();
-
-  // Removed imagesInput state, colors are now managed directly in currentProduct.colors
-
 
   const fetchProductsAndCategories = async () => {
     setIsLoading(true);
@@ -93,7 +97,15 @@ export default function AdminProductsPage() {
       const productsData = await productsResponse.json();
       const categoriesData = await categoriesResponse.json();
 
-      setProducts(Array.isArray(productsData.products) ? productsData.products.map((p: IProduct) => ({...p, _id: p._id.toString(), colors: p.colors || []})) : []);
+      // Process fetched products (ensure _id is string and colors is array)
+      const processedProducts = Array.isArray(productsData.products)
+        ? productsData.products.map((p: FetchedProduct) => ({
+            ...p,
+            _id: p._id.toString(),
+            colors: p.colors || [], // Ensure colors is an array
+          }))
+        : [];
+      setProducts(processedProducts);
       setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
 
     } catch (error: any) {
@@ -109,21 +121,21 @@ export default function AdminProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  const handleOpenDialog = (product?: IProduct) => { // Takes IProduct
+  const handleOpenDialog = (product?: FetchedProduct) => { // Takes FetchedProduct
     if (product) {
       const categoryId = typeof product.category === 'string' ? product.category : (product.category as ICategory)._id;
-      setCurrentProduct({ // Convert IProduct to ProductFormData
+      setCurrentProduct({ // Convert FetchedProduct to ProductFormData
         ...product,
         _id: product._id.toString(),
         category: categoryId,
-        thumbnailUrl: product.image,
+        thumbnailUrl: product.thumbnailUrl, // Use the actual thumbnailUrl
         features: product.features || [],
-        colors: (product.colors || []).map(c => ({
+        colors: (product.colors || []).map(c => ({ // Map colors, removing thumbnailUrl
             _id: c._id?.toString(),
             name: c.name,
+            hexCode: c.hexCode,
             imageUrls: c.imageUrls || [],
             stock: c.stock,
-            thumbnailUrl: c.thumbnailUrl
         })),
       });
       setSelectedCategoryId(categoryId);
@@ -152,11 +164,11 @@ export default function AdminProductsPage() {
 
     if (name === 'features') {
          const featuresArray = value.split(',').map(f => f.trim()).filter(f => f !== '');
-         setCurrentProduct(prev => ({ ...prev, features: featuresArray }));
+         setCurrentProduct(prev => ({ ...prev as ProductFormData, features: featuresArray }));
          return;
     }
     setCurrentProduct(prev => ({
-        ...prev,
+        ...(prev as ProductFormData),
         [name]: numericFields.includes(name) ? (value === '' ? null : Number(value)) : value,
     }));
   };
@@ -164,7 +176,7 @@ export default function AdminProductsPage() {
   const handleCategoryChange = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setCurrentProduct(prev => ({
-        ...prev,
+        ...(prev as ProductFormData),
         category: categoryId,
         subcategory: '', // Reset subcategory when category changes
     }));
@@ -172,7 +184,7 @@ export default function AdminProductsPage() {
 
   const handleSubcategoryChange = (subcategoryName: string) => {
       setCurrentProduct(prev => ({
-          ...prev,
+           ...(prev as ProductFormData),
           subcategory: subcategoryName,
       }));
   };
@@ -180,21 +192,21 @@ export default function AdminProductsPage() {
   // Color management functions
   const handleAddColor = () => {
       setCurrentProduct(prev => ({
-          ...prev,
-          colors: [...prev.colors, { name: '', imageUrls: [], stock: 1, thumbnailUrl: '' }]
+           ...(prev as ProductFormData),
+          colors: [...prev.colors, { name: '', imageUrls: [], stock: 1 }] // No thumbnail here
       }));
   };
 
   const handleRemoveColor = (index: number) => {
       setCurrentProduct(prev => ({
-          ...prev,
+           ...(prev as ProductFormData),
           colors: prev.colors.filter((_, i) => i !== index)
       }));
   };
 
   const handleColorFieldChange = (index: number, field: keyof ProductColorFormData, value: string | number | string[]) => {
       setCurrentProduct(prev => ({
-          ...prev,
+           ...(prev as ProductFormData),
           colors: prev.colors.map((color, i) =>
               i === index ? { ...color, [field]: value } : color
           )
@@ -203,7 +215,8 @@ export default function AdminProductsPage() {
 
     const handleAddImageToColor = (colorIndex: number) => {
         setCurrentProduct(prev => {
-            const updatedColors = [...prev.colors];
+             const productData = prev as ProductFormData;
+            const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
 
             if (!colorToUpdate.imageUrls) {
@@ -212,58 +225,47 @@ export default function AdminProductsPage() {
 
             colorToUpdate.imageUrls.push(''); // Add a new empty URL
             updatedColors[colorIndex] = colorToUpdate;
-            return { ...prev, colors: updatedColors };
+            return { ...productData, colors: updatedColors };
         });
     };
 
     const handleRemoveImageFromColor = (colorIndex: number, imageIndex: number) => {
         setCurrentProduct(prev => {
-            const updatedColors = [...prev.colors];
+             const productData = prev as ProductFormData;
+            const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
             colorToUpdate.imageUrls = colorToUpdate.imageUrls.filter((_, i) => i !== imageIndex);
             updatedColors[colorIndex] = colorToUpdate;
-            return { ...prev, colors: updatedColors };
+            return { ...productData, colors: updatedColors };
         });
     };
 
     const handleImageUrlChange = (colorIndex: number, imageIndex: number, value: string) => {
         setCurrentProduct(prev => {
-            const updatedColors = [...prev.colors];
+             const productData = prev as ProductFormData;
+            const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
             colorToUpdate.imageUrls[imageIndex] = value;
             updatedColors[colorIndex] = colorToUpdate;
-            return { ...prev, colors: updatedColors };
+            return { ...productData, colors: updatedColors };
         });
-    };
-
-   const handleColorThumbnailChange = (index: number, value: string) => {
-        setCurrentProduct(prev => ({
-            ...prev,
-            colors: prev.colors.map((color, i) =>
-                i === index ? { ...color, thumbnailUrl: value } : color
-            )
-        }));
     };
 
 
   const handleSaveProduct = async () => {
     setIsDialogLoading(true);
 
+    const productData = currentProduct as ProductFormData;
 
     // Validate and parse colors from currentProduct.colors
     const finalColors = [];
-    for (let i = 0; i < currentProduct.colors.length; i++) {
-        const colorForm = currentProduct.colors[i];
+    for (let i = 0; i < productData.colors.length; i++) {
+        const colorForm = productData.colors[i];
         if (!colorForm.name || colorForm.name.trim() === '') {
             toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is required for color variant #${i + 1}.` });
             setIsDialogLoading(false); return;
         }
-        if (!colorForm.thumbnailUrl || colorForm.thumbnailUrl.trim() === '') {
-            toast({ variant: "destructive", title: "Color Validation Error", description: `thumbnailUrl is required for color "${colorForm.name}".` });
-            setIsDialogLoading(false); return;
-        }
-
-         if (!colorForm.imageUrls || colorForm.imageUrls.length === 0) {
+         if (!Array.isArray(colorForm.imageUrls) || colorForm.imageUrls.length === 0) {
              toast({ variant: "destructive", title: "Color Validation Error", description: `At least one Image URL is required for color "${colorForm.name}".` });
              setIsDialogLoading(false); return;
          }
@@ -271,28 +273,25 @@ export default function AdminProductsPage() {
             toast({ variant: "destructive", title: "Color Validation Error", description: `Stock for color "${colorForm.name}" is required and must be a non-negative number.` });
             setIsDialogLoading(false); return;
         }
-        for (const imageUrl of colorForm.imageUrls) {
-            if (!imageUrl || imageUrl.trim() === '') {
-                toast({ variant: "destructive", title: "Color Validation Error", description: `Image URL cannot be empty for color "${colorForm.name}".` });
-                setIsDialogLoading(false); return;
-            }
-        }
+        const validImageUrls = colorForm.imageUrls.map(url => url.trim()).filter(url => url);
+         if (validImageUrls.length === 0) {
+             toast({ variant: "destructive", title: "Color Validation Error", description: `At least one valid Image URL is required for color "${colorForm.name}".` });
+             setIsDialogLoading(false); return;
+         }
+
 
         finalColors.push({
             name: colorForm.name.trim(),
             hexCode: colorForm.hexCode?.trim() || undefined,
-            imageUrls: colorForm.imageUrls,
+            imageUrls: validImageUrls,
             stock: Number(colorForm.stock),
-            thumbnailUrl: colorForm.thumbnailUrl
-            
-            ,
-            _id: colorForm._id
+            _id: colorForm._id // Include _id if present for updates
         });
     }
 
 
     const productToSave = {
-        ...currentProduct,
+        ...productData,
         colors: finalColors, // Use the parsed and validated colors
         category: selectedCategoryId,
     };
@@ -303,8 +302,9 @@ export default function AdminProductsPage() {
         setIsDialogLoading(false);
         return;
     }
-     if (!productToSave.thumbnailUrl) { // Check specifically for primary image after derivation
-        toast({ variant: "destructive", title: "Validation Error", description: "A primary image is required. Ensure the first URL in 'Image URLs' is valid or add at least one image." });
+     // Check specifically for primary image URL
+     if (!productToSave.thumbnailUrl || productToSave.thumbnailUrl.trim() === '') {
+        toast({ variant: "destructive", title: "Validation Error", description: "A primary Thumbnail URL is required." });
         setIsDialogLoading(false);
         return;
     }
@@ -325,10 +325,13 @@ export default function AdminProductsPage() {
     try {
         let response;
         let successMessage = '';
-        const payload = { ...productToSave };
+        const payload: any = { ...productToSave };
         // If it's a new product, don't send an _id field that might be empty from `emptyProduct`
         if (!isEditing || !payload._id) {
             delete payload._id;
+        } else {
+             // Ensure _id is sent for updates if it exists
+             payload._id = productData._id;
         }
 
 
@@ -340,6 +343,8 @@ export default function AdminProductsPage() {
             });
             successMessage = `"${payload.title}" has been updated.`;
         } else {
+             // Remove _id explicitly for POST request if it somehow slipped through
+             delete payload._id;
             response = await fetch('/api/products', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -397,13 +402,13 @@ export default function AdminProductsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <h2 className="text-3xl font-bold tracking-tight">Manage Products</h2>
         <div className="flex gap-2 w-full sm:w-auto">
-            <div className="relative flex-grow">
+            <div className="relative flex-grow md:flex-grow-0">
                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                  <Input
                     placeholder="Search products..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-full bg-background"
+                    className="pl-10 w-full md:w-64 bg-background"
                  />
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -412,59 +417,53 @@ export default function AdminProductsPage() {
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Product
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[1000px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"> {/* Adjusted width */}
                 <DialogHeader>
                  <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                  <DialogDescription>
                     {isEditing ? `Update details for "${(currentProduct as ProductFormData).title}".` : 'Fill in the details for the new product.'}
                  </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 gap-4 py-4"> {/* Changed to grid for one item per line */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="title">Title</Label>
-                            <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" disabled={isDialogLoading} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="category">Category</Label>
-                            <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}>
-                                <SelectTrigger className="w-full"><SelectValue placeholder="Select a category" /></SelectTrigger>
-                                <SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent>
-                            </Select>
-                        </div>
+                <div className="space-y-4 py-4"> {/* Use simple vertical stacking */}
+                    <div className="space-y-2">
+                        <Label htmlFor="title">Title</Label>
+                        <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" disabled={isDialogLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="thumbnailUrl">Primary Thumbnail URL</Label>
+                        <Input id="thumbnailUrl" name="thumbnailUrl" value={currentProduct.thumbnailUrl} onChange={handleInputChange} className="w-full" placeholder="https://example.com/image.jpg" disabled={isDialogLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="category">Category</Label>
+                        <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Select a category" /></SelectTrigger>
+                            <SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent>
+                        </Select>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {selectedCategoryId && currentSubcategories.length > 0 && (
-                            <div className="space-y-2">
-                                <Label htmlFor="subcategory">Subcategory</Label>
-                                <Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}>
-                                    <SelectTrigger className="w-full"><SelectValue placeholder="Select a subcategory (optional)" /></SelectTrigger>
-                                    <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <div></div>
+                    {selectedCategoryId && currentSubcategories.length > 0 && (
+                        <div className="space-y-2">
+                            <Label htmlFor="subcategory">Subcategory</Label>
+                            <Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}>
+                                <SelectTrigger className="w-full"><SelectValue placeholder="Select a subcategory (optional)" /></SelectTrigger>
+                                <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <Label htmlFor="price">Price ($)</Label>
+                        <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/>
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="price">Price ($)</Label>
-                            <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="discount">Discount (%)</Label>
-                            <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10 or leave blank" disabled={isDialogLoading}/>
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="discount">Discount (%)</Label>
+                        <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10 or leave blank" disabled={isDialogLoading}/>
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="stock">Overall Stock</Label>
-                            <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
-                        </div>
-                         <div></div>
-                     </div>
-                    
-                   
+                    <div className="space-y-2">
+                        <Label htmlFor="stock">Overall Stock</Label>
+                        <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
+                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>
                         <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="w-full min-h-[100px]" disabled={isDialogLoading}/>
@@ -473,7 +472,6 @@ export default function AdminProductsPage() {
                         <Label htmlFor="features">Features (Comma-separated)</Label>
                         <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="w-full min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/>
                     </div>
-                   
 
                     {/* Color Variants Section */}
                     <div className="space-y-4 border p-4 rounded-md">
@@ -499,19 +497,8 @@ export default function AdminProductsPage() {
                                         </div>
                                     </div>
                                 </div>
-                                 <div className="space-y-1">
-                                    <Label htmlFor={`colorThumbnailUrl-${index}`} className="text-xs">Thumbnail URL</Label>
-                                    <Input
-                                        type="text"
-                                        value={color.thumbnailUrl}
-                                        onChange={(e) => handleColorThumbnailChange(index, e.target.value)}
-                                        placeholder="Image URL"
-                                        disabled={isDialogLoading}
-                                        className="w-full"
-                                     />
-                                </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs</Label>
+                                    <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs for this Color</Label>
                                     {color.imageUrls && color.imageUrls.map((url, i) => (
                                         <div key={i} className="flex gap-2 items-center">
                                             <Input
@@ -540,7 +527,7 @@ export default function AdminProductsPage() {
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor={`colorStock-${index}`} className="text-xs">Stock for this color</Label>
-                                    <Input id={`colorStock-${index}`} type="number" min="0" value={color.stock} onChange={(e) => handleColorFieldChange(index, 'stock', e.target.value === '' ? undefined : parseInt(e.target.value, 10))} placeholder="Enter stock" required disabled={isDialogLoading}/>
+                                    <Input id={`colorStock-${index}`} type="number" min="0" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(index, 'stock', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Enter stock" required disabled={isDialogLoading}/>
                                 </div>
                             </div>
                         ))}
@@ -600,7 +587,7 @@ export default function AdminProductsPage() {
                  <TableRow key={product._id.toString()}>
                       <TableCell>
                            <Image
-                                src={product.thumbnailUrl || '/placeholder.svg'}
+                                src={product.thumbnailUrl || '/placeholder.svg'} // Use main thumbnail
                                 alt={product.title}
                                 width={40}
                                 height={40}
@@ -704,11 +691,9 @@ function getContrastColor(hexcolor: string | undefined): string {
     return (yiq >= 128) ? '#000000' : '#FFFFFF';
 }
 
-const PlaceholderSvg = () => (
-    <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="bg-muted text-muted-foreground">
-        <rect width="100" height="100" rx="8"/>
-        <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
-    </svg>
-);
-
-
+// const PlaceholderSvg = () => (
+//     <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="bg-muted text-muted-foreground">
+//         <rect width="100" height="100" rx="8"/>
+//         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
+//     </svg>
+// );
