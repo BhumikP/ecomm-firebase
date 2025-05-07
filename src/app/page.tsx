@@ -3,7 +3,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import React, { useState, useEffect, useMemo } from 'react'; // Added React import
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,14 +38,19 @@ import type { ICategory } from '@/models/Category';
 
 
 interface PopulatedProduct extends Omit<IProduct, 'category' | 'colors'> {
-  _id: string; // Ensure _id is always present
-  category: ICategory; // Category is populated
-  colors: IProductColor[]; // Ensure colors has the correct type
+  _id: string;
+  category: ICategory;
+  colors: PopulatedProductColor[]; // Use PopulatedProductColor
+}
+
+interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
+    _id?: string; // Mongoose subdocument _id is optional on client
+    imageIndices: number[];
 }
 
 
 interface FilterState {
-  categories: { [key: string]: boolean }; // Key is categoryId_SUB_subcategoryName or just categoryId if no subcategory
+  categories: { [key: string]: boolean };
   priceRange: [number];
   discountedOnly: boolean;
   searchQuery: string;
@@ -60,7 +65,7 @@ interface CategoryLink {
 
 const categoryLinks: CategoryLink[] = [
     { name: 'Top Offers', icon: Percent, href: '/products?discountedOnly=true', ariaLabel: 'Shop Top Offers and Discounts' },
-    { name: 'Mobiles', icon: ShoppingCart, href: '/products?category=Mobiles', ariaLabel: 'Shop Mobile Phones' }, // Assuming "Mobiles" is a category name
+    { name: 'Mobiles', icon: ShoppingCart, href: '/products?category=Mobiles', ariaLabel: 'Shop Mobile Phones' },
     { name: 'TVs', icon: Tv, href: '/products?category=Electronics&subcategory=TVs', ariaLabel: 'Shop Televisions' },
     { name: 'Electronics', icon: ShoppingCart, href: '/products?category=Electronics', ariaLabel: 'Shop Electronics' },
     { name: 'Fashion', icon: Shirt, href: '/products?category=Apparel', ariaLabel: 'Shop Fashion and Apparel' },
@@ -105,12 +110,12 @@ export default function Home() {
             Object.entries(currentFilters.categories)
                 .filter(([, checked]) => checked)
                 .forEach(([filterKey]) => {
-                    const parts = filterKey.split('_SUB_'); // Use a more distinct separator
-                    if (parts.length === 2) { // categoryId_SUB_subcategoryName
+                    const parts = filterKey.split('_SUB_');
+                    if (parts.length === 2) {
                         selectedCategoryFilters.push({ categoryId: parts[0], subcategoryName: parts[1] });
                          params.append('subcategory', parts[1]);
                          params.append('category', parts[0]);
-                    } else if (parts.length === 1) { // categoryId only
+                    } else if (parts.length === 1) {
                         selectedCategoryFilters.push({ categoryId: parts[0] });
                         params.append('category', parts[0]);
                     }
@@ -124,7 +129,7 @@ export default function Home() {
                 params.append('discountedOnly', 'true');
             }
              params.append('limit', '12');
-             params.append('populate', 'category'); // Ensure category is populated
+             params.append('populate', 'category');
 
             const response = await fetch(`/api/products?${params.toString()}`);
             if (!response.ok) {
@@ -135,26 +140,28 @@ export default function Home() {
             }
             const data = await response.json();
             const fetchedProducts: PopulatedProduct[] = Array.isArray(data.products) ? data.products : [];
-            setProducts(fetchedProducts.map(p => ({...p, _id: p._id.toString(), colors: p.colors || []})));
+            setProducts(fetchedProducts.map(p => ({...p, _id: p._id.toString(), colors: (p.colors || []).map(c => ({...c, imageIndices: c.imageIndices || []}))})));
 
 
-             // Fetch all categories (including subcategories) for filter population if not already fetched
              if (availableCategoriesAndSubcategories.length === 0) {
                 const categoriesResponse = await fetch('/api/categories');
-                if (!categoriesResponse.ok) throw new Error('Failed to fetch categories for filters');
+                if (!categoriesResponse.ok) {
+                     const errorText = await categoriesResponse.text();
+                     console.error("Failed to fetch categories. Status:", categoriesResponse.status, "Response:", errorText);
+                     throw new Error(`Failed to fetch categories for filters. Status: ${categoriesResponse.status}`);
+                 }
                 const categoriesData = await categoriesResponse.json();
                 const allCats: ICategory[] = Array.isArray(categoriesData.categories) ? categoriesData.categories : [];
                 setAvailableCategoriesAndSubcategories(allCats);
 
-                // Initialize category filters
                 const initialCatFilters: { [key: string]: boolean } = {};
                 allCats.forEach(cat => {
                     if (cat.subcategories && cat.subcategories.length > 0) {
                         cat.subcategories.forEach(sub => {
-                            initialCatFilters[`${cat._id}_SUB_${sub}`] = false; // Key: categoryId_SUB_subcategoryName
+                            initialCatFilters[`${cat._id}_SUB_${sub}`] = false;
                         });
                     } else {
-                        initialCatFilters[cat._id.toString()] = false; // Key: categoryId
+                        initialCatFilters[cat._id.toString()] = false;
                     }
                 });
                 setFilters(prev => ({ ...prev, categories: initialCatFilters }));
@@ -176,8 +183,7 @@ export default function Home() {
    }, []);
 
 
-  const handleAddToCart = (product: PopulatedProduct, selectedColor?: IProductColor) => {
-    // If color is selected, potentially add specific variant to cart
+  const handleAddToCart = (product: PopulatedProduct, selectedColor?: PopulatedProductColor) => {
     const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
     console.log(`Adding ${itemToAdd} to cart`);
     toast({
@@ -260,11 +266,15 @@ export default function Home() {
          document.getElementById('close-filter-sheet')?.click();
     };
 
-  // State for selected color of a product, product ID as key
-  const [selectedProductColors, setSelectedProductColors] = useState<Record<string, number | undefined>>({}); // Store imageIndex
+  const [selectedProductColorImageIndices, setSelectedProductColorImageIndices] = useState<Record<string, number | undefined>>({}); // Store first imageIndex of selected color
 
-  const handleColorSelection = (productId: string, imageIndex: number | undefined) => {
-      setSelectedProductColors(prev => ({ ...prev, [productId]: imageIndex }));
+  const handleColorSelection = (productId: string, color?: PopulatedProductColor) => {
+      if (color && color.imageIndices && color.imageIndices.length > 0) {
+          setSelectedProductColorImageIndices(prev => ({ ...prev, [productId]: color.imageIndices[0] }));
+      } else {
+           // If no color selected or color has no images, show default product image (index 0)
+          setSelectedProductColorImageIndices(prev => ({ ...prev, [productId]: 0 }));
+      }
   };
 
 
@@ -356,7 +366,7 @@ export default function Home() {
                                             <p className="font-medium text-xs pt-2 text-muted-foreground">{cat.name}</p>
                                             {cat.subcategories.map(sub => {
                                                 const filterKey = `${cat._id}_SUB_${sub}`;
-                                                const label = sub; // Display only subcategory name
+                                                const label = sub;
                                                 return (
                                                     <div key={filterKey} className="flex items-center space-x-2 pl-2">
                                                         <Checkbox
@@ -451,10 +461,10 @@ export default function Home() {
                 ) : products.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map((product) => {
-                        const displayImageIndex = selectedProductColors[product._id.toString()] ?? 0;
-                        // Ensure product.images exists and is an array before accessing
-                        const displayImage = (product.images && product.images.length > displayImageIndex ? product.images[displayImageIndex] : product.image) || 'https://picsum.photos/300/200?random=placeholder';
-                        const selectedColorObject = product.colors?.find(c => c.imageIndex === displayImageIndex);
+                        const selectedImageDisplayIndex = selectedProductColorImageIndices[product._id.toString()] ?? 0;
+                        const displayImage = (product.images && product.images.length > selectedImageDisplayIndex ? product.images[selectedImageDisplayIndex] : product.image) || 'https://picsum.photos/300/200?random=placeholder';
+                        
+                        const selectedColorObject = product.colors?.find(c => c.imageIndices.includes(selectedImageDisplayIndex));
 
                         return (
                         <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
@@ -487,18 +497,17 @@ export default function Home() {
                                 <span className="text-xs text-muted-foreground ml-1">({product.rating?.toFixed(1) ?? 'N/A'})</span>
                             </div>
 
-                             {/* Color Swatches */}
                             {product.colors && product.colors.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2 items-center">
                                     <Palette className="h-4 w-4 text-muted-foreground mr-1"/>
                                     {product.colors.map((color, index) => (
                                         <button
-                                            key={color._id?.toString() || `${color.name}-${index}`} // Ensure unique key
+                                            key={color._id?.toString() || `${color.name}-${index}`}
                                             title={color.name}
                                             aria-label={`Select color ${color.name}`}
-                                            onClick={() => handleColorSelection(product._id.toString(), color.imageIndex)}
+                                            onClick={() => handleColorSelection(product._id.toString(), color)}
                                             className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary
-                                                ${selectedProductColors[product._id.toString()] === color.imageIndex || (selectedProductColors[product._id.toString()] === undefined && color.imageIndex === 0) ? 'ring-2 ring-primary ring-offset-1' : 'border-muted-foreground/30'}`}
+                                                ${selectedProductColorImageIndices[product._id.toString()] !== undefined && color.imageIndices.includes(selectedProductColorImageIndices[product._id.toString()]!) ? 'ring-2 ring-primary ring-offset-1' : 'border-muted-foreground/30'}`}
                                             style={{ backgroundColor: color.hexCode || 'transparent' }}
                                         >
                                            {!color.hexCode && <span className="sr-only">{color.name}</span>}

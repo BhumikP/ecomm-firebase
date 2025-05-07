@@ -48,42 +48,32 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: IProductColor[] };
+    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: Array<Omit<IProductColor, '_id' | 'id'> & { imageIndices: number[], _id?: string }> };
+
 
      if (Object.keys(body).length === 0) {
         return NextResponse.json({ message: 'No update data provided' }, { status: 400 });
      }
-     // Basic field validations
      if (body.price !== undefined && body.price < 0) return NextResponse.json({ message: 'Price cannot be negative' }, { status: 400 });
      if (body.stock !== undefined && body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
      if (body.discount !== undefined && (body.discount === null || (body.discount >= 0 && body.discount <= 100))) {/* valid */} else if (body.discount !== undefined) return NextResponse.json({ message: 'Discount must be between 0 and 100, or null' }, { status: 400 });
 
     const updateData: any = { ...body };
 
-    // Handle images array and primary image consistency
     if (body.images && Array.isArray(body.images)) {
         updateData.images = body.images.map(img => String(img).trim()).filter(img => img);
         if (updateData.images.length > 0) {
-            // If 'image' field (primary image) is not explicitly set or is empty,
-            // and 'images' array has items, set primary image to the first item of 'images'.
              if (!body.image || String(body.image).trim() === '') {
                 updateData.image = updateData.images[0];
              }
         } else if (body.image && String(body.image).trim() !== '') {
-            // If 'images' is empty but 'image' is set, ensure 'images' contains 'image'
             updateData.images = [String(body.image).trim()];
-        } else {
-             // If both are empty, this might be an issue depending on requirements.
-             // For now, let's allow it if other fields are being updated.
-             // A more robust validation might require at least one image.
         }
     } else if (body.image && String(body.image).trim() !== '' && (!updateData.images || updateData.images.length === 0) ) {
-        // If only primary image is updated, ensure it's in the images array too
         updateData.images = [String(body.image).trim()];
     }
 
 
-    // Validate category
     if (body.category) {
         if (!mongoose.Types.ObjectId.isValid(body.category)) return NextResponse.json({ message: 'Invalid category ID format for update' }, { status: 400 });
         const categoryExists = await Category.findById(body.category);
@@ -108,7 +98,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
         }
     }
 
-    // Validate and process colors
     if (body.colors && Array.isArray(body.colors)) {
         const parsedColors: Partial<IProductColor>[] = [];
         const imageCount = updateData.images ? updateData.images.length : (await Product.findById(id).select('images'))?.images.length || 0;
@@ -117,20 +106,27 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
                 return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
             }
-            if (color.imageIndex === undefined || typeof color.imageIndex !== 'number' || color.imageIndex < 0 || color.imageIndex >= imageCount) {
-                return NextResponse.json({ message: `Invalid imageIndex for color '${color.name}'. Must be a valid index of the product's images array (0 to ${imageCount - 1}).` }, { status: 400 });
+            if (!Array.isArray(color.imageIndices) || color.imageIndices.length === 0) {
+                return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image index.` }, { status: 400 });
+            }
+            for (const imageIndex of color.imageIndices) {
+                 if (typeof imageIndex !== 'number' || imageIndex < 0 || imageIndex >= imageCount) {
+                    return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. Must be a valid index of the product's images array (0 to ${imageCount - 1}).` }, { status: 400 });
+                 }
             }
             if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
                 return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number or undefined.` }, { status: 400 });
             }
-             // Reconstruct color object to ensure only valid fields are passed
              const newColor: Partial<IProductColor> = {
                 name: color.name.trim(),
-                imageIndex: color.imageIndex,
+                imageIndices: color.imageIndices,
              };
              if (color.hexCode) newColor.hexCode = color.hexCode.trim();
              if (color.stock !== undefined) newColor.stock = color.stock;
-             if (color._id && mongoose.Types.ObjectId.isValid(color._id.toString())) newColor._id = color._id; // Preserve _id for existing subdocs
+             if (color._id && mongoose.Types.ObjectId.isValid(color._id.toString())) {
+                newColor._id = new mongoose.Types.ObjectId(color._id.toString()) as Types.ObjectId;
+             }
+
 
             parsedColors.push(newColor);
         }
@@ -181,3 +177,4 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
+

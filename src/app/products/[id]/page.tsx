@@ -18,11 +18,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
 
 // Define Product Type matching the backend model, ensuring category is populated
-type ProductDetail = Omit<IProduct, 'category' | 'colors'> & {
+interface ProductDetail extends Omit<IProduct, 'category' | 'colors'> {
   _id: string;
-  category: { _id: string; name: string; subcategories: string[] }; // Assuming populated category
-  colors: IProductColor[];
-};
+  category: { _id: string; name: string; subcategories: string[] };
+  colors: PopulatedProductColor[]; // Use PopulatedProductColor
+}
+
+interface PopulatedProductColor extends Omit<IProductColor, '_id' | 'imageIndices'> {
+    _id?: string; // Mongoose subdocument _id is optional on client
+    imageIndices: number[]; // Ensure this is an array of numbers
+}
 
 
 export default function ProductDetailPage() {
@@ -33,8 +38,8 @@ export default function ProductDetailPage() {
    const [product, setProduct] = useState<ProductDetail | null>(null);
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState<string | null>(null);
-   const [selectedImageIndex, setSelectedImageIndex] = useState(0); // For main image display
-   const [selectedColor, setSelectedColor] = useState<IProductColor | undefined>(undefined);
+   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+   const [selectedColor, setSelectedColor] = useState<PopulatedProductColor | undefined>(undefined);
 
    useEffect(() => {
         const fetchProduct = async () => {
@@ -46,7 +51,7 @@ export default function ProductDetailPage() {
                     setLoading(false);
                     return;
                  }
-                 const response = await fetch(`/api/products/${id}?populate=category`); // Ensure category is populated
+                 const response = await fetch(`/api/products/${id}?populate=category`);
 
                  if (response.status === 404) {
                     setError("Product not found");
@@ -61,15 +66,24 @@ export default function ProductDetailPage() {
                 }
 
                 const productData: ProductDetail = await response.json();
-                setProduct({...productData, colors: productData.colors || []}); // Ensure colors is an array
+                // Ensure colors and imageIndices within colors are arrays
+                const processedProductData = {
+                    ...productData,
+                    colors: (productData.colors || []).map(c => ({...c, imageIndices: Array.isArray(c.imageIndices) ? c.imageIndices : []}))
+                };
+                setProduct(processedProductData);
 
-                if (productData) {
-                     document.title = `${productData.title} | eShop Simplified`;
-                     // Set initial selected color and image
-                     if (productData.colors && productData.colors.length > 0) {
-                         setSelectedColor(productData.colors[0]);
-                         setSelectedImageIndex(productData.colors[0].imageIndex);
-                     } else if (productData.images && productData.images.length > 0) {
+                if (processedProductData) {
+                     document.title = `${processedProductData.title} | eShop Simplified`;
+                     if (processedProductData.colors && processedProductData.colors.length > 0) {
+                         const firstColor = processedProductData.colors[0];
+                         setSelectedColor(firstColor);
+                         if (firstColor.imageIndices && firstColor.imageIndices.length > 0) {
+                            setSelectedImageIndex(firstColor.imageIndices[0]);
+                         } else if (processedProductData.images && processedProductData.images.length > 0) {
+                            setSelectedImageIndex(0);
+                         }
+                     } else if (processedProductData.images && processedProductData.images.length > 0) {
                          setSelectedImageIndex(0);
                      }
                 } else {
@@ -88,7 +102,7 @@ export default function ProductDetailPage() {
 
         if (id) {
            fetchProduct();
-        } else if (pageParams) {
+        } else if (pageParams) { // This condition might be redundant if id is derived from pageParams
            setError("Product ID not available in route parameters.");
            setLoading(false);
         }
@@ -105,19 +119,22 @@ export default function ProductDetailPage() {
     }
    };
 
-    const handleColorSelect = (color: IProductColor) => {
+    const handleColorSelect = (color: PopulatedProductColor) => {
         setSelectedColor(color);
-        setSelectedImageIndex(color.imageIndex);
+        if (color.imageIndices && color.imageIndices.length > 0) {
+            setSelectedImageIndex(color.imageIndices[0]); // Show the first image of the selected color
+        } else if (product?.images && product.images.length > 0) {
+            setSelectedImageIndex(0); // Fallback to the product's primary image
+        }
     };
 
     const handleThumbnailClick = (index: number) => {
         setSelectedImageIndex(index);
-        // If a color is linked to this image index, select that color
-        const matchingColor = product?.colors.find(c => c.imageIndex === index);
+        const matchingColor = product?.colors.find(c => c.imageIndices.includes(index));
         if (matchingColor) {
             setSelectedColor(matchingColor);
         } else {
-            setSelectedColor(undefined); // No specific color for this general image
+            setSelectedColor(undefined);
         }
     };
 
@@ -182,7 +199,7 @@ export default function ProductDetailPage() {
                          <Skeleton className="h-4 w-5/6 bg-muted rounded" />
                          <Skeleton className="h-4 w-full bg-muted rounded" />
                          <Skeleton className="h-8 w-1/2 bg-muted rounded my-4" />
-                         <Skeleton className="h-6 w-1/4 bg-muted rounded my-2" /> {/* Color swatches placeholder */}
+                         <Skeleton className="h-6 w-1/4 bg-muted rounded my-2" />
                          <div className="pt-4 space-y-2">
                              <Skeleton className="h-6 w-1/3 bg-muted rounded mb-2" />
                              <Skeleton className="h-4 w-full bg-muted rounded" />
@@ -223,7 +240,7 @@ export default function ProductDetailPage() {
 
   const displayImageSrc = product.images && product.images.length > selectedImageIndex
                          ? product.images[selectedImageIndex]
-                         : product.image; // Fallback to primary image
+                         : product.image;
 
   const currentStock = selectedColor?.stock !== undefined ? selectedColor.stock : product.stock;
   const isOutOfStock = currentStock <= 0;
@@ -241,7 +258,6 @@ export default function ProductDetailPage() {
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start max-w-6xl mx-auto">
-          {/* Product Image Gallery */}
           <div className="flex flex-col gap-4">
              <div className="relative aspect-square md:aspect-[4/3] bg-muted rounded-lg overflow-hidden shadow-md">
                 <Image
@@ -257,7 +273,6 @@ export default function ProductDetailPage() {
                     <Badge variant="destructive" className="absolute top-4 left-4 text-sm md:text-base px-3 py-1 shadow-md">{product.discount}% OFF</Badge>
                  )}
              </div>
-             {/* Thumbnails */}
              {product.images && product.images.length > 1 && (
                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                      {product.images.map((imgUrl, index) => (
@@ -283,7 +298,6 @@ export default function ProductDetailPage() {
           </div>
 
 
-          {/* Product Details */}
           <div className="flex flex-col space-y-4">
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{product.title}</h1>
 
@@ -317,7 +331,6 @@ export default function ProductDetailPage() {
                  )}
              </div>
 
-            {/* Color Selection */}
             {product.colors && product.colors.length > 0 && (
                 <div className="pt-2">
                     <h3 className="text-md font-semibold mb-2 flex items-center gap-2 text-foreground"><Palette className="h-5 w-5"/> Select Color: <span className="text-muted-foreground">{selectedColor?.name || 'Default'}</span></h3>

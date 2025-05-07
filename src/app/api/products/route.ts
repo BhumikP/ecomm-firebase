@@ -56,7 +56,6 @@ export async function GET(req: NextRequest) {
             .limit(limit);
 
         if (populateCategory) {
-            // Populate 'category' field and select only 'name' and 'subcategories'
             query = query.populate<{ category: ICategory }>('category', 'name subcategories _id');
         }
 
@@ -80,7 +79,8 @@ export async function POST(req: NextRequest) {
     // TODO: Implement admin check
 
     try {
-        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string; colors?: IProductColor[] };
+        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating' | 'colors'> & { category: string; colors?: Array<Omit<IProductColor, '_id' | 'id'> & {imageIndices: number[]}> };
+
 
         if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.image) {
             return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category, image.' }, { status: 400 });
@@ -102,23 +102,26 @@ export async function POST(req: NextRequest) {
             body.subcategory = undefined;
         }
 
-        // Validate images: primary image must exist if images array is empty or not provided
-        const imagesToSave = Array.isArray(body.images) && body.images.length > 0 ? body.images : [body.image];
-        if (!body.image && imagesToSave.length === 0) {
-             return NextResponse.json({ message: 'Primary image (image field or first in images array) is required.' }, { status: 400 });
+        const imagesToSave = Array.isArray(body.images) && body.images.length > 0 ? body.images.map(img => img.trim()).filter(img => img) : [body.image.trim()].filter(img => img);
+        if (imagesToSave.length === 0) {
+             return NextResponse.json({ message: 'At least one image URL is required.' }, { status: 400 });
         }
-        const primaryImage = body.image || imagesToSave[0];
+        const primaryImage = imagesToSave[0];
 
 
-        // Validate colors
         const parsedColors: IProductColor[] = [];
         if (body.colors && Array.isArray(body.colors)) {
             for (const color of body.colors) {
                 if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
                     return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
                 }
-                if (color.imageIndex === undefined || typeof color.imageIndex !== 'number' || color.imageIndex < 0 || color.imageIndex >= imagesToSave.length) {
-                    return NextResponse.json({ message: `Invalid imageIndex for color '${color.name}'. It must be a valid index of the 'images' array.` }, { status: 400 });
+                if (!Array.isArray(color.imageIndices) || color.imageIndices.length === 0) {
+                    return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image index.` }, { status: 400 });
+                }
+                for (const imageIndex of color.imageIndices) {
+                    if (typeof imageIndex !== 'number' || imageIndex < 0 || imageIndex >= imagesToSave.length) {
+                        return NextResponse.json({ message: `Invalid imageIndex '${imageIndex}' for color '${color.name}'. It must be a valid index of the product's 'images' array (0 to ${imagesToSave.length - 1}).` }, { status: 400 });
+                    }
                 }
                 if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
                      return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number or undefined.` }, { status: 400 });
@@ -126,7 +129,7 @@ export async function POST(req: NextRequest) {
                 parsedColors.push({
                     name: color.name.trim(),
                     hexCode: color.hexCode?.trim() || undefined,
-                    imageIndex: color.imageIndex,
+                    imageIndices: color.imageIndices,
                     stock: color.stock
                 } as IProductColor);
             }
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
         const newProduct = new Product({
             ...body,
             image: primaryImage,
-            images: imagesToSave.map(img => img.trim()).filter(img => img), // Ensure URLs are trimmed and not empty
+            images: imagesToSave,
             colors: parsedColors,
             category: new mongoose.Types.ObjectId(body.category),
             rating: body.rating ?? 0,
@@ -156,3 +159,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
 }
+

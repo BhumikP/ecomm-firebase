@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, Search, Loader2, ImageIcon, Star, Palette } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { IProduct, IProductColor } from '@/models/Product'; // Import IProduct and IProductColor
+import type { IProduct, IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,26 +21,26 @@ import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter }
 
 
 // Define ProductColor for frontend state
-type ProductColorData = Omit<IProductColor, '_id' | 'id'> & { // Omit mongoose specific subdocument _id
+type ProductColorData = Omit<IProductColor, '_id' | 'id'> & {
     name: string;
     hexCode?: string;
-    imageIndex: number;
+    imageIndices: number[]; // Changed from imageIndex to imageIndices
     stock?: number;
 };
 
 // Define Product Type for frontend state
 type ProductData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | 'colors' | '_id'> & {
     _id: string;
-    category: string | ICategory; // Store category ID as string for form, or populated object for display
-    images: string[]; // Array of image URLs
-    colors: ProductColorData[]; // Array of color variants
+    category: string | ICategory;
+    images: string[];
+    colors: ProductColorData[];
     createdAt?: Date;
     updatedAt?: Date;
 };
 
 
 const emptyProduct: Omit<ProductData, '_id' | 'createdAt' | 'updatedAt' | 'rating'> = {
-    image: '', // Primary image
+    image: '',
     images: [],
     title: '',
     price: 0,
@@ -48,7 +48,7 @@ const emptyProduct: Omit<ProductData, '_id' | 'createdAt' | 'updatedAt' | 'ratin
     category: '',
     subcategory: '',
     description: '',
-    stock: 0, // Overall stock
+    stock: 0,
     features: [],
     colors: [],
 };
@@ -67,9 +67,8 @@ export default function AdminProductsPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // State for raw text input for images and colors
-  const [imagesInput, setImagesInput] = useState(''); // URLs, one per line
-  const [colorsInput, setColorsInput] = useState(''); // CSV like: Name,Hex,ImageIndex,Stock (one per line)
+  const [imagesInput, setImagesInput] = useState('');
+  const [colorsInput, setColorsInput] = useState(''); // CSV: Name,Hex,ImageIndices (e.g., 0;1;2),Stock
 
   const fetchProductsAndCategories = async () => {
     setIsLoading(true);
@@ -121,7 +120,7 @@ export default function AdminProductsPage() {
       });
       setImagesInput((product.images || []).join('\n'));
       setColorsInput(
-        (product.colors || []).map(c => `${c.name},${c.hexCode || ''},${c.imageIndex},${c.stock ?? ''}`).join('\n')
+        (product.colors || []).map(c => `${c.name},${c.hexCode || ''},${(c.imageIndices || []).join(';')},${c.stock ?? ''}`).join('\n')
       );
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
@@ -189,46 +188,58 @@ export default function AdminProductsPage() {
     const primaryImageToSave = parsedImages.length > 0 ? parsedImages[0] : currentProduct.image;
 
 
-    const parsedColors: ProductColorData[] = colorsInput
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .map((line, lineIndex) => {
-            const parts = line.split(',');
-            const name = parts[0]?.trim();
-            const hexCode = parts[1]?.trim() || undefined;
-            const imageIndex = parseInt(parts[2], 10);
-            const stockVal = parts[3]?.trim();
-            const stock = stockVal !== '' && stockVal !== undefined ? parseInt(stockVal, 10) : undefined;
+    const parsedColors: ProductColorData[] = [];
+    const colorLines = colorsInput.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-            if (!name) {
-                toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is missing on line ${lineIndex + 1}.` });
-                throw new Error("Invalid color data");
-            }
+    for (let i = 0; i < colorLines.length; i++) {
+        const line = colorLines[i];
+        const parts = line.split(',');
+        const name = parts[0]?.trim();
+        const hexCode = parts[1]?.trim() || undefined;
+        const imageIndicesString = parts[2]?.trim();
+        const stockVal = parts[3]?.trim();
+        const stock = stockVal !== '' && stockVal !== undefined ? parseInt(stockVal, 10) : undefined;
+
+        if (!name) {
+            toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is missing on line ${i + 1}.` });
+            setIsDialogLoading(false); return;
+        }
+
+        const imageIndices = (imageIndicesString || '')
+            .split(';')
+            .map(idxStr => idxStr.trim())
+            .filter(idxStr => idxStr !== '')
+            .map(idxStr => parseInt(idxStr, 10));
+
+        if (imageIndices.length === 0) {
+             toast({ variant: "destructive", title: "Color Validation Error", description: `At least one Image Index is required for color "${name}" on line ${i+1}.` });
+             setIsDialogLoading(false); return;
+        }
+
+        for (const imageIndex of imageIndices) {
             if (isNaN(imageIndex) || imageIndex < 0 || imageIndex >= parsedImages.length) {
-                 toast({ variant: "destructive", title: "Color Validation Error", description: `Invalid Image Index for color "${name}" on line ${lineIndex+1}. Must be between 0 and ${parsedImages.length -1}.` });
-                 throw new Error("Invalid color data");
+                 toast({ variant: "destructive", title: "Color Validation Error", description: `Invalid Image Index "${imageIndex}" for color "${name}" on line ${i+1}. Must be between 0 and ${parsedImages.length -1}.` });
+                 setIsDialogLoading(false); return;
             }
-             if (stock !== undefined && isNaN(stock)) {
-                 toast({ variant: "destructive", title: "Color Validation Error", description: `Invalid Stock for color "${name}" on line ${lineIndex+1}. Must be a number or blank.`});
-                 throw new Error("Invalid color data");
-             }
-
-            return { name, hexCode, imageIndex, stock };
-        });
+        }
+         if (stock !== undefined && isNaN(stock)) {
+             toast({ variant: "destructive", title: "Color Validation Error", description: `Invalid Stock for color "${name}" on line ${i+1}. Must be a number or blank.`});
+             setIsDialogLoading(false); return;
+         }
+        parsedColors.push({ name, hexCode, imageIndices, stock });
+    }
 
 
     const productToSave = {
         ...currentProduct,
-        image: primaryImageToSave, // Main image
-        images: parsedImages,     // All images
-        colors: parsedColors,     // Parsed colors
+        image: primaryImageToSave,
+        images: parsedImages,
+        colors: parsedColors,
         category: selectedCategoryId,
         features: Array.isArray(currentProduct.features) ? currentProduct.features : [],
     };
 
 
-    // Basic Client-Side Validation
     if (!productToSave.title || !productToSave.category || !productToSave.image || !productToSave.description || productToSave.price == null || productToSave.price < 0 || productToSave.stock == null || productToSave.stock < 0) {
         toast({ variant: "destructive", title: "Validation Error", description: "Please fill in Title, Category, Primary Image URL, Description, Price (>=0), and Stock (>=0)." });
         setIsDialogLoading(false);
@@ -257,7 +268,7 @@ export default function AdminProductsPage() {
             });
             successMessage = `"${productToSave.title}" has been updated.`;
         } else {
-            const { _id, ...newProductData } = productToSave as any; // _id is not part of new product
+            const { _id, ...newProductData } = productToSave as any;
             response = await fetch('/api/products', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -338,49 +349,47 @@ export default function AdminProductsPage() {
                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                     <div className="space-y-2">
-                         <Label htmlFor="title">Title</Label>
-                         <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" />
-                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="title">Title</Label>
+                        <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" />
+                    </div>
+                    <div className="space-y-2">
                         <Label htmlFor="category">Category</Label>
                         <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}>
                             <SelectTrigger className="w-full"><SelectValue placeholder="Select a category" /></SelectTrigger>
                             <SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent>
                         </Select>
-                     </div>
+                    </div>
                     {selectedCategoryId && currentSubcategories.length > 0 && (
-                         <div className="space-y-2">
-                             <Label htmlFor="subcategory">Subcategory</Label>
-                             <Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}>
-                                 <SelectTrigger className="w-full"><SelectValue placeholder="Select a subcategory" /></SelectTrigger>
-                                 <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
-                             </Select>
-                         </div>
-                     )}
-                     
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                         <div className="space-y-2">
-                            <Label htmlFor="price">Price ($)</Label>
-                            <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} />
+                            <Label htmlFor="subcategory">Subcategory</Label>
+                            <Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}>
+                                <SelectTrigger className="w-full"><SelectValue placeholder="Select a subcategory" /></SelectTrigger>
+                                <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
+                            </Select>
                         </div>
-                        <div className="space-y-2">
-                             <Label htmlFor="discount">Discount (%)</Label>
-                             <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
-                        </div>
-                        <div className="space-y-2">
-                             <Label htmlFor="stock">Stock</Label>
-                             <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} />
-                        </div>
-                     </div>
-                     <div className="space-y-2">
-                         <Label htmlFor="description">Description</Label>
-                         <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="w-full min-h-[100px]" />
-                     </div>
-                     <div className="space-y-2">
-                         <Label htmlFor="features">Features (Comma-separated)</Label>
-                         <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="w-full min-h-[80px]" placeholder="Feature 1, Feature 2" />
-                     </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="price">Price ($)</Label>
+                        <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} />
+                    </div>
+                    <div className="space-y-2">
+                            <Label htmlFor="discount">Discount (%)</Label>
+                            <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                    </div>
+                    <div className="space-y-2">
+                            <Label htmlFor="stock">Stock</Label>
+                            <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="w-full min-h-[100px]" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="features">Features (Comma-separated)</Label>
+                        <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="w-full min-h-[80px]" placeholder="Feature 1, Feature 2" />
+                    </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="images">Image URLs (One per line)</Label>
@@ -393,7 +402,7 @@ export default function AdminProductsPage() {
                             placeholder="https://example.com/image1.jpg
 https://example.com/image2.jpg"
                         />
-                         <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                             The first URL will be the primary image. Ensure URLs are valid (start with http:// or https://).
                         </p>
                     </div>
@@ -406,15 +415,14 @@ https://example.com/image2.jpg"
                             value={colorsInput}
                             onChange={(e) => setColorsInput(e.target.value)}
                             className="w-full min-h-[100px]"
-                            placeholder="Red,#FF0000,0,10
-Blue,#0000FF,1,5
-Green,,2, (Hex & Stock are optional)"
+                            placeholder="Red,#FF0000,0;1,10
+Blue,#0000FF,2,5
+Green,,3, (Hex & Stock are optional. Image Indices are semicolon-separated)"
                         />
                         <p className="text-xs text-muted-foreground">
-                            Format: ColorName,HexCode,ImageIndex,Stock. ImageIndex refers to the line number in 'Image URLs' (0-based). Leave stock blank to use overall product stock for that color.
+                            Format: ColorName,HexCode,ImageIndices (e.g., 0;1),Stock. ImageIndices refer to line numbers in 'Image URLs' (0-based). Leave stock blank to use overall product stock.
                         </p>
                     </div>
-
                 </div>
                 <DialogFooter>
                    <DialogClose asChild>
@@ -453,7 +461,7 @@ Green,,2, (Hex & Stock are optional)"
                         <TableCell><Skeleton className="h-5 w-3/4 bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-24 bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell> {/* Colors column skeleton */}
+                        <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto bg-muted" /></TableCell>
                         <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
@@ -467,7 +475,7 @@ Green,,2, (Hex & Stock are optional)"
                  <TableRow key={product._id.toString()}>
                       <TableCell>
                            <Image
-                                src={product.image || '/placeholder.svg'} // Use primary image
+                                src={product.image || '/placeholder.svg'}
                                 alt={product.title}
                                 width={40}
                                 height={40}
@@ -482,7 +490,7 @@ Green,,2, (Hex & Stock are optional)"
                      <TableCell>
                         {product.colors && product.colors.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
-                                {product.colors.slice(0, 3).map((color, idx) => ( // Show max 3 colors, add "..." if more
+                                {product.colors.slice(0, 3).map((color, idx) => (
                                     <Badge key={idx} variant="outline" style={color.hexCode ? { backgroundColor: color.hexCode, color: getContrastColor(color.hexCode) } : {}}>
                                         {color.name}
                                     </Badge>
@@ -543,7 +551,7 @@ Green,,2, (Hex & Stock are optional)"
                 })
             ) : (
                 <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground"> {/* Adjusted colSpan */}
+                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                         No products found{searchTerm ? ' matching your search' : ''}.
                     </TableCell>
                  </TableRow>
@@ -555,9 +563,8 @@ Green,,2, (Hex & Stock are optional)"
   );
 }
 
-// Helper function to get contrasting text color for a given background hex color
 function getContrastColor(hexcolor: string | undefined): string {
-    if (!hexcolor) return '#000000'; // Default to black if no hexcode
+    if (!hexcolor) return '#000000';
     hexcolor = hexcolor.replace("#", "");
     const r = parseInt(hexcolor.substring(0, 2), 16);
     const g = parseInt(hexcolor.substring(2, 4), 16);
@@ -572,4 +579,3 @@ const PlaceholderSvg = () => (
         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
     </svg>
 );
-

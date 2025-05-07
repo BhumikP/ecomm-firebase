@@ -6,7 +6,7 @@ import type { ICategory } from './Category'; // Import ICategory
 export interface IProductColor extends Types.Subdocument {
   name: string;
   hexCode?: string; // Optional: for color swatch display (e.g., #FF0000)
-  imageIndex: number; // Index in the 'images' array for this color variant
+  imageIndices: number[]; // Indices in the 'images' array for this color variant
   stock?: number; // Optional: stock specific to this color/variant
 }
 
@@ -14,9 +14,9 @@ export interface IProductColor extends Types.Subdocument {
 const ProductColorSchema: Schema<IProductColor> = new Schema({
   name: { type: String, required: true, trim: true },
   hexCode: { type: String, trim: true },
-  imageIndex: { type: Number, required: true, min: 0 },
+  imageIndices: [{ type: Number, required: true, min: 0 }], // Array of numbers
   stock: { type: Number, min: 0 },
-}, { _id: true }); // Keep _id for subdocuments if they might be individually referenced/updated, or set to false if not.
+}, { _id: true });
 
 
 export interface IProduct extends Document {
@@ -31,7 +31,7 @@ export interface IProduct extends Document {
   rating: number; // Average rating
   stock: number; // Overall stock for the product. If using per-color stock, this might be sum or base.
   features: string[];
-  colors: IProductColor[]; // Array of color variants
+  colors: IProductColor[]; // Array of color variants, ensuring it's an array.
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,10 +48,11 @@ const ProductSchema: Schema<IProduct> = new Schema({
   rating: { type: Number, default: 0, min: 0, max: 5 },
   stock: { type: Number, required: true, min: 0, default: 0 }, // Total/base stock
   features: [{ type: String }],
-  colors: [ProductColorSchema], // Array of color variants
+  colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array
 }, { timestamps: true });
 
 // Avoid recompiling the model if it already exists
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 
 export default Product;
+
