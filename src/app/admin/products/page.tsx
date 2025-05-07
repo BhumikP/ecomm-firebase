@@ -55,7 +55,7 @@ const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'r
     category: '',
     subcategory: '',
     description: '',
-    stock: 0,
+    stock: 0, // Default overall stock
     features: [],
     colors: [], // Start with no colors
 };
@@ -143,6 +143,7 @@ export default function AdminProductsPage() {
             imageUrls: c.imageUrls || [],
             stock: c.stock,
         })),
+        stock: product.stock, // Include the overall stock from fetched data
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
@@ -208,7 +209,7 @@ export default function AdminProductsPage() {
   const handleAddColor = () => {
       setCurrentProduct(prev => ({
            ...(prev as ProductFormData),
-          colors: [...prev.colors, { name: '', imageUrls: [], stock: 1 }] // No thumbnail here
+          colors: [...prev.colors, { name: '', imageUrls: [''], stock: 0 }] // Start with one empty URL and 0 stock
       }));
   };
 
@@ -250,6 +251,10 @@ export default function AdminProductsPage() {
             const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
             colorToUpdate.imageUrls = colorToUpdate.imageUrls.filter((_, i) => i !== imageIndex);
+             // Ensure there's always at least one image URL field if removing the last one
+            if (colorToUpdate.imageUrls.length === 0) {
+                colorToUpdate.imageUrls.push('');
+            }
             updatedColors[colorIndex] = colorToUpdate;
             return { ...productData, colors: updatedColors };
         });
@@ -276,72 +281,82 @@ export default function AdminProductsPage() {
     setIsDialogLoading(true);
 
     const productData = currentProduct as ProductFormData;
+    let finalStock = 0;
+    let finalColors: ClientProductColorUpdateData[] = [];
 
-    // Validate and parse colors from currentProduct.colors
-    const finalColors = [];
-    for (let i = 0; i < productData.colors.length; i++) {
-        const colorForm = productData.colors[i];
-        if (!colorForm.name || colorForm.name.trim() === '') {
-            toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is required for color variant #${i + 1}.` });
-            setIsDialogLoading(false); return;
-        }
-         if (!Array.isArray(colorForm.imageUrls) || colorForm.imageUrls.length === 0) {
-             toast({ variant: "destructive", title: "Color Validation Error", description: `At least one Image URL is required for color "${colorForm.name}".` });
-             setIsDialogLoading(false); return;
-         }
-        if (colorForm.stock === undefined || colorForm.stock === null || isNaN(Number(colorForm.stock)) || Number(colorForm.stock) < 0) {
-            toast({ variant: "destructive", title: "Color Validation Error", description: `Stock for color "${colorForm.name}" is required and must be a non-negative number.` });
-            setIsDialogLoading(false); return;
-        }
-         // Ensure each image URL is valid and trimmed
-         const validImageUrls = colorForm.imageUrls.map(url => typeof url === 'string' ? url.trim() : '').filter(url => url);
-         if (validImageUrls.length === 0) {
-             toast({ variant: "destructive", title: "Color Validation Error", description: `At least one valid Image URL is required for color "${colorForm.name}".` });
-             setIsDialogLoading(false); return;
-         }
-
-
-        finalColors.push({
-            name: colorForm.name.trim(),
-            hexCode: colorForm.hexCode?.trim() || undefined,
-            imageUrls: validImageUrls, // Use the validated and trimmed URLs
-            stock: Number(colorForm.stock),
-            _id: colorForm._id // Include _id if present for updates
-        });
+    // --- Validation and Data Preparation ---
+    if (!productData.title || !productData.category || !productData.description || productData.price == null || productData.price < 0) {
+        toast({ variant: "destructive", title: "Validation Error", description: "Please fill in Title, Category, Description, and Price (>=0)." });
+        setIsDialogLoading(false); return;
+    }
+    if (!productData.thumbnailUrl || productData.thumbnailUrl.trim() === '') {
+        toast({ variant: "destructive", title: "Validation Error", description: "A primary Thumbnail URL is required." });
+        setIsDialogLoading(false); return;
+    }
+    if (productData.discount != null && (productData.discount < 0 || productData.discount > 100)) {
+        toast({ variant: "destructive", title: "Validation Error", description: "Discount must be between 0 and 100, or leave blank." });
+        setIsDialogLoading(false); return;
+    }
+    const chosenCategoryObj = availableCategories.find(c => c._id === selectedCategoryId);
+    if (chosenCategoryObj && chosenCategoryObj.subcategories.length > 0 && !productData.subcategory) {
+       // Optional: Make subcategory mandatory if available
+       // toast({ variant: "destructive", title: "Validation Error", description: "Please select a subcategory." });
+       // setIsDialogLoading(false); return;
     }
 
+    // Validate colors and stock based on whether colors are present
+    if (productData.colors && productData.colors.length > 0) {
+        // Validate each color variant
+        for (let i = 0; i < productData.colors.length; i++) {
+            const colorForm = productData.colors[i];
+            if (!colorForm.name || colorForm.name.trim() === '') {
+                toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is required for color variant #${i + 1}.` });
+                setIsDialogLoading(false); return;
+            }
+            if (!Array.isArray(colorForm.imageUrls) || colorForm.imageUrls.length === 0 || colorForm.imageUrls.every(url => !url || url.trim() === '')) {
+                 toast({ variant: "destructive", title: "Color Validation Error", description: `At least one Image URL is required for color "${colorForm.name}".` });
+                 setIsDialogLoading(false); return;
+             }
+            if (colorForm.stock === undefined || colorForm.stock === null || isNaN(Number(colorForm.stock)) || Number(colorForm.stock) < 0) {
+                toast({ variant: "destructive", title: "Color Validation Error", description: `Stock for color "${colorForm.name}" is required and must be a non-negative number.` });
+                setIsDialogLoading(false); return;
+            }
+
+             // Ensure each image URL is valid and trimmed
+             const validImageUrls = colorForm.imageUrls.map(url => typeof url === 'string' ? url.trim() : '').filter(url => url);
+             if (validImageUrls.length === 0) {
+                 toast({ variant: "destructive", title: "Color Validation Error", description: `At least one valid Image URL is required for color "${colorForm.name}".` });
+                 setIsDialogLoading(false); return;
+             }
+
+            finalColors.push({
+                name: colorForm.name.trim(),
+                hexCode: colorForm.hexCode?.trim() || undefined,
+                imageUrls: validImageUrls,
+                stock: Number(colorForm.stock),
+                _id: colorForm._id // Include _id if present for updates
+            });
+        }
+        // Calculate total stock from colors
+        finalStock = finalColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
+    } else {
+        // No colors, validate overall stock
+        if (productData.stock == null || productData.stock < 0) {
+            toast({ variant: "destructive", title: "Validation Error", description: "Overall Stock is required and must be non-negative when no color variants are added." });
+            setIsDialogLoading(false);
+            return;
+        }
+        finalStock = productData.stock;
+    }
+    // --- End Validation ---
 
     const productToSave = {
         ...productData,
         colors: finalColors, // Use the parsed and validated colors
         category: selectedCategoryId,
          thumbnailUrl: productData.thumbnailUrl.trim(), // Trim thumbnail URL
+         stock: finalStock, // Set the final calculated or provided stock
     };
-
-
-    if (!productToSave.title || !productToSave.category || !productToSave.description || productToSave.price == null || productToSave.price < 0 || productToSave.stock == null || productToSave.stock < 0) {
-        toast({ variant: "destructive", title: "Validation Error", description: "Please fill in Title, Category, Description, Price (>=0), and Stock (>=0)." });
-        setIsDialogLoading(false);
-        return;
-    }
-     // Check specifically for primary image URL
-     if (!productToSave.thumbnailUrl || productToSave.thumbnailUrl.trim() === '') {
-        toast({ variant: "destructive", title: "Validation Error", description: "A primary Thumbnail URL is required." });
-        setIsDialogLoading(false);
-        return;
-    }
-
-    if (productToSave.discount != null && (productToSave.discount < 0 || productToSave.discount > 100)) {
-        toast({ variant: "destructive", title: "Validation Error", description: "Discount must be between 0 and 100, or leave blank." });
-        setIsDialogLoading(false);
-        return;
-    }
-    const chosenCategoryObj = availableCategories.find(c => c._id === selectedCategoryId);
-    if (chosenCategoryObj && chosenCategoryObj.subcategories.length > 0 && !productToSave.subcategory) {
-        // Optional: Make subcategory mandatory if available
-        // toast({ variant: "destructive", title: "Validation Error", description: "Please select a subcategory." });
-        // setIsDialogLoading(false); return;
-    }
 
 
     try {
@@ -419,6 +434,14 @@ export default function AdminProductsPage() {
         return cat ? cat.subcategories : [];
    }, [selectedCategoryId, availableCategories]);
 
+  const calculateTotalStock = (product: FetchedProduct): number => {
+      if (product.colors && product.colors.length > 0) {
+          return product.colors.reduce((sum, color) => sum + (color.stock || 0), 0);
+      }
+      return product.stock || 0;
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -481,10 +504,16 @@ export default function AdminProductsPage() {
                         <Label htmlFor="discount">Discount (%)</Label>
                         <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10 or leave blank" disabled={isDialogLoading}/>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="stock">Overall Stock</Label>
-                        <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
-                    </div>
+
+                     {/* Conditionally render Overall Stock */}
+                     {(!currentProduct.colors || currentProduct.colors.length === 0) && (
+                         <div className="space-y-2">
+                            <Label htmlFor="stock">Overall Stock</Label>
+                            <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
+                            <p className="text-xs text-muted-foreground">Required only if no color variants are added.</p>
+                         </div>
+                     )}
+
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>
@@ -498,6 +527,7 @@ export default function AdminProductsPage() {
                     {/* Color Variants Section */}
                     <div className="space-y-4 border p-4 rounded-md">
                         <Label className="text-base font-semibold">Color Variants</Label>
+                        <p className="text-xs text-muted-foreground">Add color variants if applicable. Stock added here will override the "Overall Stock".</p>
                         {currentProduct.colors.map((color, index) => (
                             <div key={index} className="space-y-3 border-b pb-3 last:border-b-0">
                                 <div className="flex justify-between items-center">
@@ -508,8 +538,8 @@ export default function AdminProductsPage() {
                                 </div>
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     <div className="space-y-1">
-                                        <Label htmlFor={`colorName-${index}`} className="text-xs">Name</Label>
-                                        <Input id={`colorName-${index}`} value={color.name} onChange={(e) => handleColorFieldChange(index, 'name', e.target.value)} placeholder="e.g., Ocean Blue" disabled={isDialogLoading}/>
+                                        <Label htmlFor={`colorName-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
+                                        <Input id={`colorName-${index}`} value={color.name} onChange={(e) => handleColorFieldChange(index, 'name', e.target.value)} placeholder="e.g., Ocean Blue" required disabled={isDialogLoading}/>
                                     </div>
                                     <div className="space-y-1">
                                         <Label htmlFor={`colorHex-${index}`} className="text-xs">Hex Code</Label>
@@ -520,7 +550,7 @@ export default function AdminProductsPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs for this Color</Label>
+                                    <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs for this Color <span className="text-destructive">*</span></Label>
                                     {color.imageUrls && color.imageUrls.map((url, i) => (
                                         <div key={i} className="flex gap-2 items-center">
                                             <Input
@@ -528,6 +558,7 @@ export default function AdminProductsPage() {
                                                 value={url}
                                                 onChange={(e) => handleImageUrlChange(index, i, e.target.value)}
                                                 placeholder={`Image URL ${i + 1}`}
+                                                required={i === 0} // Make first image URL required
                                                 disabled={isDialogLoading}
                                                 className="flex-grow"
                                              />
@@ -536,7 +567,7 @@ export default function AdminProductsPage() {
                                                  variant="ghost"
                                                  size="icon"
                                                  onClick={() => handleRemoveImageFromColor(index, i)}
-                                                 disabled={isDialogLoading}
+                                                 disabled={isDialogLoading || color.imageUrls.length <= 1} // Disable remove if only one field left
                                                  className="h-7 w-7 text-destructive hover:text-destructive"
                                              >
                                                 <X className="h-4 w-4" />
@@ -548,8 +579,8 @@ export default function AdminProductsPage() {
                                     </Button>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor={`colorStock-${index}`} className="text-xs">Stock for this color</Label>
-                                    <Input id={`colorStock-${index}`} type="number" min="0" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(index, 'stock', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Enter stock" required disabled={isDialogLoading}/>
+                                    <Label htmlFor={`colorStock-${index}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label>
+                                    <Input id={`colorStock-${index}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(index, 'stock', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Enter stock" required disabled={isDialogLoading}/>
                                 </div>
                             </div>
                         ))}
@@ -605,6 +636,8 @@ export default function AdminProductsPage() {
              ) : products.length > 0 ? (
                 products.map((product) => {
                     const categoryDisplay = typeof product.category === 'object' && product.category !== null ? (product.category as ICategory).name : 'N/A';
+                    const totalStock = calculateTotalStock(product);
+                    const isInStock = totalStock > 0;
                     return (
                  <TableRow key={product._id.toString()}>
                       <TableCell>
@@ -626,7 +659,7 @@ export default function AdminProductsPage() {
                             <div className="flex flex-wrap gap-1">
                                 {product.colors.slice(0, 3).map((color, idx) => (
                                     <Badge key={color._id?.toString() || idx} variant="outline" style={color.hexCode ? { backgroundColor: color.hexCode, color: getContrastColor(color.hexCode) } : {}}>
-                                        {color.name}
+                                        {color.name} ({color.stock})
                                     </Badge>
                                 ))}
                                 {product.colors.length > 3 && <Badge variant="outline">...</Badge>}
@@ -637,11 +670,16 @@ export default function AdminProductsPage() {
                         ${product.price.toFixed(2)}
                         {product.discount && product.discount > 0 && <span className="ml-1 text-xs text-destructive">(-{product.discount}%)</span>}
                     </TableCell>
-                     <TableCell className="text-right">{product.stock}</TableCell>
+                     <TableCell className="text-right">
+                         {totalStock}
+                         {product.colors && product.colors.length > 0 && (
+                            <span className="text-xs text-muted-foreground block"> (from colors)</span>
+                         )}
+                         </TableCell>
                       <TableCell>
-                          <Badge variant={product.stock > 0 ? 'default' : 'destructive'}
-                                 className={product.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                              {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                          <Badge variant={isInStock ? 'default' : 'destructive'}
+                                 className={isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                              {isInStock ? 'In Stock' : 'Out of Stock'}
                           </Badge>
                       </TableCell>
                     <TableCell className="text-center">
@@ -712,10 +750,3 @@ function getContrastColor(hexcolor: string | undefined): string {
     const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
     return (yiq >= 128) ? '#000000' : '#FFFFFF';
 }
-
-// const PlaceholderSvg = () => (
-//     <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="bg-muted text-muted-foreground">
-//         <rect width="100" height="100" rx="8"/>
-//         <ImageIcon stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" transform="scale(0.5) translate(50 50)" />
-//     </svg>
-// );

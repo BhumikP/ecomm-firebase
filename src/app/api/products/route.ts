@@ -21,7 +21,7 @@ interface ClientProductPOSTData {
     category: string; // Category ID string
     subcategory?: string;
     rating?: number;
-    stock: number;
+    stock: number; // Can be overall stock or will be overridden by color stock sum
     features?: string[];
     colors?: ClientProductColorData[];
     thumbnailUrl: string;
@@ -104,12 +104,16 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json() as ClientProductPOSTData;
 
-        if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.thumbnailUrl) {
-            return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category, thumbnailUrl.' }, { status: 400 });
+        if (!body.title || !body.description || body.price == null || !body.category || !body.thumbnailUrl) {
+            return NextResponse.json({ message: 'Missing required product fields: title, description, price, category, thumbnailUrl.' }, { status: 400 });
         }
          if (body.thumbnailUrl.trim() === '') {
              return NextResponse.json({ message: 'Primary Thumbnail URL cannot be empty.' }, { status: 400 });
          }
+         if (body.price < 0) {
+            return NextResponse.json({ message: 'Price cannot be negative.' }, { status: 400 });
+         }
+
 
         // Validate category
         if (!mongoose.Types.ObjectId.isValid(body.category)) {
@@ -130,15 +134,17 @@ export async function POST(req: NextRequest) {
         }
 
 
-        // Validate and parse colors
+        // Validate and parse colors, calculate total stock
+        let finalStock = 0;
         const parsedColorsForDB: ClientProductColorData[] = [];
-        if (body.colors && Array.isArray(body.colors)) {
+        if (body.colors && Array.isArray(body.colors) && body.colors.length > 0) {
+            // If colors array exists and is not empty, validate each color and sum their stock
             for (const clientColor of body.colors) {
                 if (!clientColor.name || typeof clientColor.name !== 'string' || clientColor.name.trim() === '') {
                     return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
                 }
-                 if (!Array.isArray(clientColor.imageUrls) || clientColor.imageUrls.length === 0) {
-                    return NextResponse.json({ message: `Each color variant ('${clientColor.name}') must have at least one image URL.` }, { status: 400 });
+                 if (!Array.isArray(clientColor.imageUrls) || clientColor.imageUrls.length === 0 || clientColor.imageUrls.every(url => !url || url.trim() === '')) {
+                    return NextResponse.json({ message: `Each color variant ('${clientColor.name}') must have at least one valid image URL.` }, { status: 400 });
                  }
                   if (clientColor.stock === undefined || typeof clientColor.stock !== 'number' || clientColor.stock < 0) {
                      return NextResponse.json({ message: `Stock for color '${clientColor.name}' must be a non-negative number.` }, { status: 400 });
@@ -153,7 +159,14 @@ export async function POST(req: NextRequest) {
                     imageUrls: validImageUrls,
                     stock: Number(clientColor.stock),
                 });
+                finalStock += Number(clientColor.stock); // Sum stock from colors
             }
+        } else {
+            // If no colors or empty colors array, use the provided overall stock
+            if (body.stock == null || body.stock < 0) {
+                 return NextResponse.json({ message: 'Overall Stock is required and must be non-negative when no color variants are added.' }, { status: 400 });
+            }
+            finalStock = body.stock;
         }
 
 
@@ -163,9 +176,9 @@ export async function POST(req: NextRequest) {
             price: body.price,
             thumbnailUrl: body.thumbnailUrl.trim(),
             category: new mongoose.Types.ObjectId(body.category),
-            stock: body.stock,
+            stock: finalStock, // Set the calculated or provided overall stock
         };
-        
+
         if (body.discount !== undefined && body.discount !== null) newProductDataForDB.discount = body.discount;
         if (subcategoryToSave) newProductDataForDB.subcategory = subcategoryToSave;
         if (body.rating !== undefined) newProductDataForDB.rating = body.rating ?? 0;

@@ -26,7 +26,7 @@ interface ClientProductPUTData {
     category?: string; // Category ID string
     subcategory?: string;
     rating?: number;
-    stock?: number;
+    stock?: number; // Can be overall stock or will be overridden by color stock sum
     features?: string[];
     colors?: ClientProductColorUpdateData[];
     thumbnailUrl?: string;
@@ -91,10 +91,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         if (body.thumbnailUrl.trim() === '') return NextResponse.json({ message: 'Primary Thumbnail URL cannot be empty' }, { status: 400 });
         updateDataForDB.thumbnailUrl = body.thumbnailUrl.trim();
     }
-    if (body.stock !== undefined) {
-        if (body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
-        updateDataForDB.stock = body.stock;
-    }
+
     if (body.discount !== undefined) {
         if (body.discount === null || (body.discount >= 0 && body.discount <= 100)) {
             updateDataForDB.discount = body.discount;
@@ -117,7 +114,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             updateDataForDB.subcategory = body.subcategory.trim();
         } else {
-             updateDataForDB.subcategory = undefined; 
+             updateDataForDB.subcategory = undefined;
         }
     } else if (body.hasOwnProperty('subcategory')) {
         const existingProduct = await Product.findById(id).populate('category');
@@ -131,15 +128,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
         }
     }
 
-    // Handle color updates
+    // Handle color updates and calculate total stock
+    let finalStock = 0;
     if (body.colors && Array.isArray(body.colors)) {
         const parsedColorsForUpdate: any[] = [];
         for (const clientColor of body.colors) {
             if (!clientColor.name || typeof clientColor.name !== 'string' || clientColor.name.trim() === '') {
                 return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
             }
-            if (!Array.isArray(clientColor.imageUrls) || clientColor.imageUrls.length === 0) {
-                return NextResponse.json({ message: `Each color variant ('${clientColor.name}') must have at least one image URL.` }, { status: 400 });
+            if (!Array.isArray(clientColor.imageUrls) || clientColor.imageUrls.length === 0 || clientColor.imageUrls.every(url => !url || url.trim() === '')) {
+                return NextResponse.json({ message: `Each color variant ('${clientColor.name}') must have at least one valid image URL.` }, { status: 400 });
             }
              if (clientColor.stock === undefined || typeof clientColor.stock !== 'number' || clientColor.stock < 0) {
                 return NextResponse.json({ message: `Stock for color '${clientColor.name}' must be a non-negative number.` }, { status: 400 });
@@ -156,14 +154,35 @@ export async function PUT(req: NextRequest, { params }: Params) {
             };
             if (clientColor._id && mongoose.Types.ObjectId.isValid(clientColor._id.toString())) {
                 colorUpdateData._id = new mongoose.Types.ObjectId(clientColor._id.toString());
+            } else {
+                // If no _id, generate a new one for Mongoose subdocument identification during update
+                 colorUpdateData._id = new mongoose.Types.ObjectId();
             }
             parsedColorsForUpdate.push(colorUpdateData);
+             finalStock += Number(clientColor.stock); // Sum stock from colors
         }
         updateDataForDB.colors = parsedColorsForUpdate;
+         updateDataForDB.stock = finalStock; // Update total stock based on colors
+
     } else if (body.hasOwnProperty('colors') && body.colors === null) {
+        // Handle explicitly setting colors to empty array
         updateDataForDB.colors = [];
+        // Use overall stock if provided, otherwise default or keep existing
+        if (body.stock !== undefined) {
+             if (body.stock < 0) return NextResponse.json({ message: 'Overall Stock cannot be negative when no colors are provided' }, { status: 400 });
+             updateDataForDB.stock = body.stock;
+        } else {
+            // If colors are removed and no new overall stock is provided,
+            // we might want to keep the old total stock or default to 0.
+            // Here, we'll keep the existing logic (stock might be updated separately or not at all if not in body).
+            // If overall stock MUST be provided when colors are removed, add validation here.
+        }
+    } else if (body.stock !== undefined) {
+         // Only update overall stock if 'colors' field is not in the request or is undefined
+         if (body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
+         updateDataForDB.stock = body.stock;
     }
-    
+
     if (Object.keys(updateDataForDB).length === 0) {
       return NextResponse.json({ message: 'No valid fields to update' }, { status: 400 });
     }
@@ -171,7 +190,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
       { $set: updateDataForDB },
-      { new: true, runValidators: true } 
+      { new: true, runValidators: true, overwrite: false } // Use overwrite: false with $set
     ).populate<{ category: ICategory }>('category', 'name subcategories _id');
 
     if (!updatedProduct) {
@@ -184,6 +203,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
      if ((error as any).name === 'ValidationError') {
        console.error('Mongoose Validation Errors during PUT:', (error as any).errors);
        return NextResponse.json({ message: 'Validation failed. Check product data.', errors: (error as any).errors }, { status: 400 });
+     }
+     if ((error as mongoose.Error.CastError).kind === 'ObjectId') {
+       return NextResponse.json({ message: 'Invalid ID format provided in request body.' }, { status: 400 });
      }
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
