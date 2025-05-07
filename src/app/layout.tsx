@@ -104,24 +104,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning={true}> {/* Add suppressHydrationWarning here */}
-       <head>
-          {/* Inline JSON-LD Structured Data */}
-          <Script
-             id="organization-schema"
-             type="application/ld+json"
-             dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-          />
-          {/* Add other head elements like favicon links if needed */}
-       </head>
+    <html lang="en" suppressHydrationWarning={true}>
+      <head>
+        {/* Inline JSON-LD Structured Data */}
+        <Script
+          id="organization-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        {/* Add other head elements like favicon links if needed */}
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
         {/* Wrap children with Sentry Error Boundary */}
-         {/* Using Suspense to handle potential async operations within Sentry setup or children */}
-         <Suspense fallback={<div>Loading...</div>}>
-             <Sentry.ErrorBoundary fallback={<div>An error has occurred</div>}>
-                 {children}
-             </Sentry.ErrorBoundary>
-         </Suspense>
+        {/* Using Suspense to handle potential async operations within Sentry setup or children */}
+        <Suspense fallback={<div>Loading...</div>}>
+          <Sentry.ErrorBoundary fallback={<div>An error has occurred</div>}>
+            {children}
+          </Sentry.ErrorBoundary>
+        </Suspense>
         <Toaster />
       </body>
     </html>
