@@ -1,3 +1,6 @@
+
+'use client'; // Add this line if it's not already a client component
+
 import type { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -7,11 +10,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button"; // Import Button component
 
-export const metadata: Metadata = {
-  title: 'FAQ - Frequently Asked Questions',
-  description: 'Find answers to common questions about shopping on eShop Simplified, orders, shipping, returns, and your account.',
-};
+// Client-side metadata setting (workaround if this page must be client component)
+if (typeof window !== 'undefined') {
+    document.title = 'FAQ - Frequently Asked Questions | eShop Simplified';
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+        metaDescription.setAttribute('content', 'Find answers to common questions about shopping on eShop Simplified, orders, shipping, returns, and your account.');
+    }
+}
+
 
 // Define FAQ items
 const faqItems = [
