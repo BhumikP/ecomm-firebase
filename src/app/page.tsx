@@ -45,7 +45,7 @@ interface PopulatedProduct extends Omit<IProduct, 'category' | 'colors'> {
 
 
 interface FilterState {
-  categories: { [key: string]: boolean }; // Key is categoryId_subcategoryName or just categoryId if no subcategory
+  categories: { [key: string]: boolean }; // Key is categoryId_SUB_subcategoryName or just categoryId if no subcategory
   priceRange: [number];
   discountedOnly: boolean;
   searchQuery: string;
@@ -130,6 +130,7 @@ export default function Home() {
             if (!response.ok) {
                  const errorText = await response.text();
                  console.error("API Error Response:", errorText);
+                  setError(`Failed to fetch products. Server responded with ${response.status} ${response.statusText}. ${errorText}`);
                  throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
             }
             const data = await response.json();
