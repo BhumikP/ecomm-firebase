@@ -28,7 +28,7 @@ const ProductColorSchema: Schema<IProductColor> = new Schema({
     ]
   },
   stock: { type: Number, required: true, min: 0 },
-}, { _id: true }); // Enable _id for subdocuments
+}, { _id: true }); // Enable _id for subdocuments. Mongoose adds _id by default.
 
 
 export interface IProduct extends Document {
@@ -62,7 +62,7 @@ const ProductSchema: Schema<IProduct> = new Schema({
 }, { timestamps: true });
 
 
-
+// Minor comment to try and force cache refresh if that's an issue.
 // Avoid recompiling the model if it already exists
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 

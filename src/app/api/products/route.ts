@@ -5,6 +5,29 @@ import Product, { IProduct, IProductColor } from '@/models/Product';
 import Category, { ICategory } from '@/models/Category'; // Import Category model
 import mongoose from 'mongoose';
 
+// Define interfaces for client data to ensure strictness
+interface ClientProductColorData {
+    name: string;
+    hexCode?: string;
+    imageUrls: string[];
+    stock: number;
+}
+
+interface ClientProductPOSTData {
+    title: string;
+    description: string;
+    price: number;
+    discount?: number | null;
+    category: string; // Category ID string
+    subcategory?: string;
+    rating?: number;
+    stock: number;
+    features?: string[];
+    colors?: ClientProductColorData[];
+    thumbnailUrl: string;
+}
+
+
 // GET all products (or filtered products)
 export async function GET(req: NextRequest) {
     await connectDb();
@@ -79,8 +102,7 @@ export async function POST(req: NextRequest) {
     // TODO: Implement admin check
 
     try {
-        // Expect ProductFormData structure from the client (includes thumbnailUrl, colors without thumbnailUrl)
-        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string; colors?: Array<Omit<IProductColor, '_id'> & {imageUrls: string[]}> }; // Removed thumbnailUrl from color
+        const body = await req.json() as ClientProductPOSTData;
 
         if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.thumbnailUrl) {
             return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category, thumbnailUrl.' }, { status: 400 });
@@ -99,60 +121,59 @@ export async function POST(req: NextRequest) {
         }
 
         // Validate subcategory
+        let subcategoryToSave: string | undefined = undefined;
         if (body.subcategory && body.subcategory.trim() !== '') {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) {
                 return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             }
-            body.subcategory = body.subcategory.trim();
-        } else {
-            body.subcategory = undefined;
+            subcategoryToSave = body.subcategory.trim();
         }
 
 
         // Validate and parse colors
-        const parsedColors: Partial<IProductColor>[] = []; // Use Partial for constructing
+        const parsedColorsForDB: ClientProductColorData[] = [];
         if (body.colors && Array.isArray(body.colors)) {
-            for (const color of body.colors) {
-                if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
+            for (const clientColor of body.colors) {
+                if (!clientColor.name || typeof clientColor.name !== 'string' || clientColor.name.trim() === '') {
                     return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
                 }
-                 if (!Array.isArray(color.imageUrls) || color.imageUrls.length === 0) {
-                    return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one image URL.` }, { status: 400 });
+                 if (!Array.isArray(clientColor.imageUrls) || clientColor.imageUrls.length === 0) {
+                    return NextResponse.json({ message: `Each color variant ('${clientColor.name}') must have at least one image URL.` }, { status: 400 });
                  }
-                  if (color.stock === undefined || typeof color.stock !== 'number' || color.stock < 0) {
-                     return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number.` }, { status: 400 });
+                  if (clientColor.stock === undefined || typeof clientColor.stock !== 'number' || clientColor.stock < 0) {
+                     return NextResponse.json({ message: `Stock for color '${clientColor.name}' must be a non-negative number.` }, { status: 400 });
                  }
 
-                const parsedImageUrls = color.imageUrls.map(img => String(img).trim()).filter(img => img);
-                if (parsedImageUrls.length === 0)  return NextResponse.json({ message: `Each color variant ('${color.name}') must have at least one valid image URL.` }, { status: 400 });
+                const validImageUrls = clientColor.imageUrls.map(img => String(img).trim()).filter(img => img);
+                if (validImageUrls.length === 0)  return NextResponse.json({ message: `Each color variant ('${clientColor.name}') must have at least one valid image URL.` }, { status: 400 });
 
-
-                parsedColors.push({
-                    name: color.name.trim(),
-                    hexCode: color.hexCode?.trim() || undefined,
-                    imageUrls: parsedImageUrls,
-                    stock: color.stock,
+                parsedColorsForDB.push({
+                    name: clientColor.name.trim(),
+                    hexCode: clientColor.hexCode?.trim() || undefined,
+                    imageUrls: validImageUrls,
+                    stock: Number(clientColor.stock),
                 });
             }
         }
 
 
-        const newProductData: Partial<IProduct> = {
+        const newProductDataForDB: Partial<IProduct> = {
             title: body.title,
             description: body.description,
             price: body.price,
-            discount: body.discount,
+            thumbnailUrl: body.thumbnailUrl.trim(),
             category: new mongoose.Types.ObjectId(body.category),
-            subcategory: body.subcategory, // Already processed
-            rating: body.rating ?? 0,
             stock: body.stock,
-            features: body.features,
-            colors: parsedColors as any, // Set the validated colors array
-            thumbnailUrl: body.thumbnailUrl.trim(), // Main thumbnail
         };
+        
+        if (body.discount !== undefined && body.discount !== null) newProductDataForDB.discount = body.discount;
+        if (subcategoryToSave) newProductDataForDB.subcategory = subcategoryToSave;
+        if (body.rating !== undefined) newProductDataForDB.rating = body.rating ?? 0;
+        if (body.features && Array.isArray(body.features)) newProductDataForDB.features = body.features;
+        if (parsedColorsForDB.length > 0) newProductDataForDB.colors = parsedColorsForDB as any;
 
 
-        const newProduct = new Product(newProductData);
+        const newProduct = new Product(newProductDataForDB);
 
         const savedProduct = await newProduct.save();
         const populatedProduct = await Product.findById(savedProduct._id).populate('category');
@@ -162,7 +183,6 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         console.error('Error creating product:', error);
          if ((error as any).name === 'ValidationError') {
-           // Log detailed validation errors for debugging
            console.error('Mongoose Validation Errors:', (error as any).errors);
            return NextResponse.json({ message: 'Validation failed. Check product data.', errors: (error as any).errors }, { status: 400 });
          }
