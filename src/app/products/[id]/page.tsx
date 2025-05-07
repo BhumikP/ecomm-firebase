@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from 'react';
 import { IProduct } from '@/models/Product';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { useParams } from 'next/navigation'; // Import useParams
 
 // Define Product Type matching the backend model (ensure consistency)
 type ProductDetail = IProduct & { _id: string };
@@ -89,7 +90,10 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 */
 
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
+export default function ProductDetailPage() { // Removed params from props
+   const pageParams = useParams<{ id: string }>(); // Use useParams hook
+   const id = pageParams?.id; // Extract id from pageParams
+
    const { toast } = useToast();
    const [product, setProduct] = useState<ProductDetail | null>(null);
    const [loading, setLoading] = useState(true);
@@ -101,13 +105,13 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             setLoading(true);
             setError(null);
             try {
-                 if (!params.id) {
+                 if (!id) { // Use id from useParams
                     setError("Product ID is missing.");
                     setLoading(false);
                     return;
                  }
                  // Use relative path for client-side fetch
-                 const response = await fetch(`/api/products/${params.id}`);
+                 const response = await fetch(`/api/products/${id}`); // Use id from useParams
 
                  if (response.status === 404) {
                     setError("Product not found");
@@ -143,14 +147,20 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             }
         };
 
-        fetchProduct();
+        if (id) { // Ensure id is available before fetching
+           fetchProduct();
+        } else if (pageParams) { // Only set error if pageParams itself is loaded but id is missing
+           setError("Product ID not available in route parameters.");
+           setLoading(false);
+        }
+        // else: pageParams might still be loading, wait for it.
 
         // Cleanup function to reset title if component unmounts before product loads
         return () => {
            // Reset title or set to default if needed
         };
 
-   }, [params.id]); // Re-run effect if ID changes
+   }, [id, pageParams]); // Re-run effect if id or pageParams changes
 
    const handleAddToCart = () => {
     if (product) {
