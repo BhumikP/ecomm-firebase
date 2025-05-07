@@ -1,8 +1,8 @@
 // src/app/api/products/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
-import Product, { IProduct } from '@/models/Product';
-import Category from '@/models/Category'; // Import Category model
+import Product, { IProduct, IProductColor } from '@/models/Product';
+import Category, { ICategory } from '@/models/Category'; // Import Category model
 import mongoose from 'mongoose';
 
 // GET all products (or filtered products)
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const filters: any = {};
-    const categoryIdQuery = searchParams.get('category'); // Expecting category ID
+    const categoryIdQuery = searchParams.get('category');
     const subcategoryQuery = searchParams.get('subcategory');
     const searchQuery = searchParams.get('searchQuery');
     const maxPrice = searchParams.get('maxPrice');
@@ -22,13 +22,12 @@ export async function GET(req: NextRequest) {
         filters.category = categoryIdQuery;
     }
     if (subcategoryQuery) {
-        filters.subcategory = { $regex: subcategoryQuery, $options: 'i' };
+        filters.subcategory = { $regex: `^${subcategoryQuery}$`, $options: 'i' }; // Exact match for subcategory
     }
     if (searchQuery) {
         filters.$or = [
             { title: { $regex: searchQuery, $options: 'i' } },
             { description: { $regex: searchQuery, $options: 'i' } }
-            // Consider searching by populated category name if needed, but more complex
         ];
     }
      if (maxPrice) {
@@ -57,7 +56,8 @@ export async function GET(req: NextRequest) {
             .limit(limit);
 
         if (populateCategory) {
-            query = query.populate<{ category: typeof Category }>('category', 'name subcategories _id');
+            // Populate 'category' field and select only 'name' and 'subcategories'
+            query = query.populate<{ category: ICategory }>('category', 'name subcategories _id');
         }
 
         const products = await query.exec();
@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
     // TODO: Implement admin check
 
     try {
-        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string }; // category is ID string
+        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string; colors?: IProductColor[] };
 
         if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.image) {
-            return NextResponse.json({ message: 'Missing required product fields' }, { status: 400 });
+            return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category, image.' }, { status: 400 });
         }
         if (!mongoose.Types.ObjectId.isValid(body.category)) {
             return NextResponse.json({ message: 'Invalid category ID format' }, { status: 400 });
@@ -94,26 +94,56 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: 'Selected category does not exist' }, { status: 400 });
         }
 
-        // Validate subcategory if provided
         if (body.subcategory && body.subcategory.trim() !== '') {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) {
                 return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             }
         } else {
-            // If subcategory is empty or not provided, ensure it's not stored as empty string, make it undefined
             body.subcategory = undefined;
+        }
+
+        // Validate images: primary image must exist if images array is empty or not provided
+        const imagesToSave = Array.isArray(body.images) && body.images.length > 0 ? body.images : [body.image];
+        if (!body.image && imagesToSave.length === 0) {
+             return NextResponse.json({ message: 'Primary image (image field or first in images array) is required.' }, { status: 400 });
+        }
+        const primaryImage = body.image || imagesToSave[0];
+
+
+        // Validate colors
+        const parsedColors: IProductColor[] = [];
+        if (body.colors && Array.isArray(body.colors)) {
+            for (const color of body.colors) {
+                if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
+                    return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
+                }
+                if (color.imageIndex === undefined || typeof color.imageIndex !== 'number' || color.imageIndex < 0 || color.imageIndex >= imagesToSave.length) {
+                    return NextResponse.json({ message: `Invalid imageIndex for color '${color.name}'. It must be a valid index of the 'images' array.` }, { status: 400 });
+                }
+                if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
+                     return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number or undefined.` }, { status: 400 });
+                }
+                parsedColors.push({
+                    name: color.name.trim(),
+                    hexCode: color.hexCode?.trim() || undefined,
+                    imageIndex: color.imageIndex,
+                    stock: color.stock
+                } as IProductColor);
+            }
         }
 
 
         const newProduct = new Product({
             ...body,
-            category: new mongoose.Types.ObjectId(body.category), // Convert string ID to ObjectId
+            image: primaryImage,
+            images: imagesToSave.map(img => img.trim()).filter(img => img), // Ensure URLs are trimmed and not empty
+            colors: parsedColors,
+            category: new mongoose.Types.ObjectId(body.category),
             rating: body.rating ?? 0,
-            subcategory: body.subcategory ? body.subcategory.trim() : undefined, // Save trimmed or undefined
+            subcategory: body.subcategory ? body.subcategory.trim() : undefined,
         });
 
         const savedProduct = await newProduct.save();
-        // Optionally populate category before sending response
         const populatedProduct = await Product.findById(savedProduct._id).populate('category');
 
         return NextResponse.json(populatedProduct, { status: 201 });

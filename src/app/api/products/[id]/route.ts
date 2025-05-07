@@ -1,8 +1,8 @@
 // src/app/api/products/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
-import Product, { IProduct } from '@/models/Product';
-import Category from '@/models/Category'; // Import Category model
+import Product, { IProduct, IProductColor } from '@/models/Product';
+import Category, { ICategory } from '@/models/Category'; // Import Category model
 import mongoose from 'mongoose';
 
 interface Params {
@@ -13,13 +13,20 @@ interface Params {
 export async function GET(req: NextRequest, { params }: Params) {
   await connectDb();
   const { id } = params;
+  const { searchParams } = new URL(req.url);
+  const populateCategory = searchParams.get('populate') === 'category';
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ message: 'Invalid product ID format' }, { status: 400 });
   }
 
   try {
-    const product = await Product.findById(id).populate<{ category: typeof Category }>('category', 'name subcategories _id');
+    let query = Product.findById(id);
+    if (populateCategory) {
+        query = query.populate<{ category: ICategory }>('category', 'name subcategories _id');
+    }
+    const product = await query.exec();
+
     if (!product) {
       return NextResponse.json({ message: 'Product not found' }, { status: 404 });
     }
@@ -41,59 +48,93 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt'>> & { category?: string };
+    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: IProductColor[] };
 
      if (Object.keys(body).length === 0) {
         return NextResponse.json({ message: 'No update data provided' }, { status: 400 });
      }
-     if (body.price !== undefined && body.price < 0) {
-          return NextResponse.json({ message: 'Price cannot be negative' }, { status: 400 });
-     }
-      if (body.stock !== undefined && body.stock < 0) {
-          return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
-     }
-      if (body.discount !== undefined && (body.discount === null || (body.discount >= 0 && body.discount <= 100))) {
-         // valid discount or null
-      } else if (body.discount !== undefined) {
-           return NextResponse.json({ message: 'Discount must be between 0 and 100, or null' }, { status: 400 });
-      }
+     // Basic field validations
+     if (body.price !== undefined && body.price < 0) return NextResponse.json({ message: 'Price cannot be negative' }, { status: 400 });
+     if (body.stock !== undefined && body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
+     if (body.discount !== undefined && (body.discount === null || (body.discount >= 0 && body.discount <= 100))) {/* valid */} else if (body.discount !== undefined) return NextResponse.json({ message: 'Discount must be between 0 and 100, or null' }, { status: 400 });
 
     const updateData: any = { ...body };
 
+    // Handle images array and primary image consistency
+    if (body.images && Array.isArray(body.images)) {
+        updateData.images = body.images.map(img => String(img).trim()).filter(img => img);
+        if (updateData.images.length > 0) {
+            // If 'image' field (primary image) is not explicitly set or is empty,
+            // and 'images' array has items, set primary image to the first item of 'images'.
+             if (!body.image || String(body.image).trim() === '') {
+                updateData.image = updateData.images[0];
+             }
+        } else if (body.image && String(body.image).trim() !== '') {
+            // If 'images' is empty but 'image' is set, ensure 'images' contains 'image'
+            updateData.images = [String(body.image).trim()];
+        } else {
+             // If both are empty, this might be an issue depending on requirements.
+             // For now, let's allow it if other fields are being updated.
+             // A more robust validation might require at least one image.
+        }
+    } else if (body.image && String(body.image).trim() !== '' && (!updateData.images || updateData.images.length === 0) ) {
+        // If only primary image is updated, ensure it's in the images array too
+        updateData.images = [String(body.image).trim()];
+    }
+
+
+    // Validate category
     if (body.category) {
-        if (!mongoose.Types.ObjectId.isValid(body.category)) {
-            return NextResponse.json({ message: 'Invalid category ID format for update' }, { status: 400 });
-        }
+        if (!mongoose.Types.ObjectId.isValid(body.category)) return NextResponse.json({ message: 'Invalid category ID format for update' }, { status: 400 });
         const categoryExists = await Category.findById(body.category);
-        if (!categoryExists) {
-            return NextResponse.json({ message: 'Selected category for update does not exist' }, { status: 400 });
-        }
+        if (!categoryExists) return NextResponse.json({ message: 'Selected category for update does not exist' }, { status: 400 });
         updateData.category = new mongoose.Types.ObjectId(body.category);
 
-        // Validate or clear subcategory based on new category
         if (body.subcategory && body.subcategory.trim() !== '') {
-            if (!categoryExists.subcategories.includes(body.subcategory.trim())) {
-                return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
-            }
+            if (!categoryExists.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             updateData.subcategory = body.subcategory.trim();
         } else {
-            // If subcategory field is present but empty, or if category changes and subcategory is not re-validated
-            updateData.subcategory = undefined; // Clear subcategory if not valid for new category or explicitly emptied
+            updateData.subcategory = undefined;
         }
-    } else if (body.hasOwnProperty('subcategory')) { // If only subcategory is being updated
+    } else if (body.hasOwnProperty('subcategory')) {
         const existingProduct = await Product.findById(id).populate('category');
-        if (!existingProduct) {
-            return NextResponse.json({ message: 'Product not found for subcategory update' }, { status: 404 });
-        }
-        const productCategory = existingProduct.category as unknown as ICategory; // Cast to ICategory
+        if (!existingProduct) return NextResponse.json({ message: 'Product not found for subcategory update' }, { status: 404 });
+        const productCategory = existingProduct.category as ICategory;
         if (body.subcategory && body.subcategory.trim() !== '') {
-            if (!productCategory || !productCategory.subcategories.includes(body.subcategory.trim())) {
-                return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in product's current category '${productCategory?.name}'` }, { status: 400 });
-            }
+            if (!productCategory || !productCategory.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in product's current category '${productCategory?.name}'` }, { status: 400 });
             updateData.subcategory = body.subcategory.trim();
         } else {
-             updateData.subcategory = undefined; // Clear subcategory if explicitly emptied
+             updateData.subcategory = undefined;
         }
+    }
+
+    // Validate and process colors
+    if (body.colors && Array.isArray(body.colors)) {
+        const parsedColors: Partial<IProductColor>[] = [];
+        const imageCount = updateData.images ? updateData.images.length : (await Product.findById(id).select('images'))?.images.length || 0;
+
+        for (const color of body.colors) {
+            if (!color.name || typeof color.name !== 'string' || color.name.trim() === '') {
+                return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
+            }
+            if (color.imageIndex === undefined || typeof color.imageIndex !== 'number' || color.imageIndex < 0 || color.imageIndex >= imageCount) {
+                return NextResponse.json({ message: `Invalid imageIndex for color '${color.name}'. Must be a valid index of the product's images array (0 to ${imageCount - 1}).` }, { status: 400 });
+            }
+            if (color.stock !== undefined && (typeof color.stock !== 'number' || color.stock < 0)) {
+                return NextResponse.json({ message: `Stock for color '${color.name}' must be a non-negative number or undefined.` }, { status: 400 });
+            }
+             // Reconstruct color object to ensure only valid fields are passed
+             const newColor: Partial<IProductColor> = {
+                name: color.name.trim(),
+                imageIndex: color.imageIndex,
+             };
+             if (color.hexCode) newColor.hexCode = color.hexCode.trim();
+             if (color.stock !== undefined) newColor.stock = color.stock;
+             if (color._id && mongoose.Types.ObjectId.isValid(color._id.toString())) newColor._id = color._id; // Preserve _id for existing subdocs
+
+            parsedColors.push(newColor);
+        }
+        updateData.colors = parsedColors;
     }
 
 
@@ -101,7 +142,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       id,
       { $set: updateData },
       { new: true, runValidators: true }
-    ).populate<{ category: typeof Category }>('category', 'name subcategories _id');
+    ).populate<{ category: ICategory }>('category', 'name subcategories _id');
 
     if (!updatedProduct) {
       return NextResponse.json({ message: 'Product not found' }, { status: 404 });

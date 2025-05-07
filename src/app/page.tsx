@@ -1,3 +1,4 @@
+// src/app/page.tsx
 'use client';
 
 import Image from 'next/image';
@@ -9,7 +10,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star } from 'lucide-react'; // Import Star
+import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star, Palette } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -26,17 +27,24 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel"
-import Autoplay from "embla-carousel-autoplay" // Import Autoplay
+import Autoplay from "embla-carousel-autoplay"
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import { IProduct } from '@/models/Product'; // Import IProduct interface
+import type { IProduct, IProductColor } from '@/models/Product'; // Import IProduct and IProductColor
+import type { ICategory } from '@/models/Category';
 
-// Define types for filter state
+
+interface PopulatedProduct extends Omit<IProduct, 'category' | 'colors'> {
+  category: ICategory; // Category is populated
+  colors: IProductColor[]; // Ensure colors has the correct type
+}
+
+
 interface FilterState {
-  categories: { [key: string]: boolean };
+  categories: { [key: string]: boolean }; // Key is categoryId_subcategoryName or just categoryId if no subcategory
   priceRange: [number];
   discountedOnly: boolean;
   searchQuery: string;
@@ -46,16 +54,16 @@ interface CategoryLink {
     name: string;
     icon: React.ElementType;
     href: string;
-    ariaLabel: string; // Added for accessibility
+    ariaLabel: string;
 }
 
 const categoryLinks: CategoryLink[] = [
     { name: 'Top Offers', icon: Percent, href: '/products?discountedOnly=true', ariaLabel: 'Shop Top Offers and Discounts' },
-    { name: 'Mobiles', icon: ShoppingCart, href: '/products?category=Mobiles', ariaLabel: 'Shop Mobile Phones' },
-    { name: 'TVs', icon: Tv, href: '/products?category=Electronics', ariaLabel: 'Shop Televisions and Electronics' },
+    { name: 'Mobiles', icon: ShoppingCart, href: '/products?category=Mobiles', ariaLabel: 'Shop Mobile Phones' }, // Assuming "Mobiles" is a category name
+    { name: 'TVs', icon: Tv, href: '/products?category=Electronics&subcategory=TVs', ariaLabel: 'Shop Televisions' },
     { name: 'Electronics', icon: ShoppingCart, href: '/products?category=Electronics', ariaLabel: 'Shop Electronics' },
     { name: 'Fashion', icon: Shirt, href: '/products?category=Apparel', ariaLabel: 'Shop Fashion and Apparel' },
-    { name: 'Home Goods', icon: HomeGoodsIcon, href: '/products?category=Home Goods', ariaLabel: 'Shop Home Goods' },
+    { name: 'Home Goods', icon: HomeGoodsIcon, href: '/products?category=Home%20Goods', ariaLabel: 'Shop Home Goods' },
     { name: 'Footwear', icon: Footprints, href: '/products?category=Footwear', ariaLabel: 'Shop Footwear' },
     { name: 'Accessories', icon: Blocks, href: '/products?category=Accessories', ariaLabel: 'Shop Accessories' },
 ];
@@ -68,10 +76,11 @@ const bannerImages = [
 
 export default function Home() {
   const { toast } = useToast();
-  const [products, setProducts] = useState<IProduct[]>([]);
+  const [products, setProducts] = useState<PopulatedProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
+
 
   const [filters, setFilters] = useState<FilterState>({
     categories: {},
@@ -82,8 +91,7 @@ export default function Home() {
   const [priceValue, setPriceValue] = useState([500]);
 
 
-  // Fetch Products Function
-  const fetchProducts = async (currentFilters: FilterState) => {
+  const fetchProductsAndCategories = async (currentFilters: FilterState) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -91,19 +99,22 @@ export default function Home() {
             if (currentFilters.searchQuery) {
                 params.append('searchQuery', currentFilters.searchQuery);
             }
-            const selectedCategories = Object.entries(currentFilters.categories)
-                .filter(([, checked]) => checked)
-                .map(([cat]) => cat);
 
-            if (selectedCategories.length > 0) {
-                 // If your API supports multiple category values, adjust accordingly
-                 // Example for single category filter (common):
-                 // if (selectedCategories.length === 1) {
-                 //     params.append('category', selectedCategories[0]);
-                 // }
-                 // Example for multiple categories (if API supports `category=cat1&category=cat2`):
-                 selectedCategories.forEach(cat => params.append('category', cat));
-            }
+            const selectedCategoryFilters: { categoryId?: string; subcategoryName?: string }[] = [];
+            Object.entries(currentFilters.categories)
+                .filter(([, checked]) => checked)
+                .forEach(([filterKey]) => {
+                    const parts = filterKey.split('_');
+                    if (parts.length === 2) { // categoryId_subcategoryName
+                        selectedCategoryFilters.push({ categoryId: parts[0], subcategoryName: parts[1] });
+                         params.append('subcategory', parts[1]); // Assuming API filters by subcategory name
+                         params.append('category', parts[0]); // And also by parent category ID
+                    } else if (parts.length === 1) { // categoryId only
+                        selectedCategoryFilters.push({ categoryId: parts[0] });
+                        params.append('category', parts[0]);
+                    }
+                });
+
 
             if (currentFilters.priceRange[0] < 500) {
                 params.append('maxPrice', currentFilters.priceRange[0].toString());
@@ -112,94 +123,85 @@ export default function Home() {
                 params.append('discountedOnly', 'true');
             }
              params.append('limit', '12');
+             params.append('populate', 'category'); // Ensure category is populated
 
             const response = await fetch(`/api/products?${params.toString()}`);
             if (!response.ok) {
-                 const errorText = await response.text(); // Get more error details
+                 const errorText = await response.text();
                  console.error("API Error Response:", errorText);
                  throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
             }
             const data = await response.json();
+            const fetchedProducts: PopulatedProduct[] = Array.isArray(data.products) ? data.products : [];
+            setProducts(fetchedProducts.map(p => ({...p, colors: p.colors || []})));
 
-            // Ensure data.products is always an array
-            const fetchedProducts = Array.isArray(data.products) ? data.products : [];
-            setProducts(fetchedProducts);
 
-             // --- Dynamic Category Loading Logic ---
-             // Only fetch categories if they haven't been loaded yet.
-             // This prevents filters from resetting when applying filters.
-             // A dedicated categories API endpoint is generally better.
-             if (availableCategories.length === 0 && fetchedProducts.length > 0) {
-                 console.log("Fetching initial categories from products...");
-                 const uniqueCats = Array.from(new Set(fetchedProducts.map((p: IProduct) => p.category))) as string[];
-                 console.log("Unique categories found:", uniqueCats);
-                 setAvailableCategories(uniqueCats);
-                 // Initialize category filters only once
-                 setFilters(prev => ({
-                     ...prev,
-                     categories: uniqueCats.reduce((acc, cat) => ({ ...acc, [cat]: false }), {})
-                 }));
-             } else if (availableCategories.length === 0 && !isLoading && fetchedProducts.length === 0) {
-                  // Handle case where initial fetch returns no products or categories are empty
-                 console.log("No products found on initial load, setting categories to empty.");
-                 setAvailableCategories([]);
-                 setFilters(prev => ({ ...prev, categories: {} }));
-             }
-            // --- End Category Loading Logic ---
+             // Fetch all categories (including subcategories) for filter population if not already fetched
+             if (availableCategoriesAndSubcategories.length === 0) {
+                const categoriesResponse = await fetch('/api/categories');
+                if (!categoriesResponse.ok) throw new Error('Failed to fetch categories for filters');
+                const categoriesData = await categoriesResponse.json();
+                const allCats: ICategory[] = Array.isArray(categoriesData.categories) ? categoriesData.categories : [];
+                setAvailableCategoriesAndSubcategories(allCats);
+
+                // Initialize category filters
+                const initialCatFilters: { [key: string]: boolean } = {};
+                allCats.forEach(cat => {
+                    if (cat.subcategories && cat.subcategories.length > 0) {
+                        cat.subcategories.forEach(sub => {
+                            initialCatFilters[`${cat._id}_${sub}`] = false; // Key: categoryId_subcategoryName
+                        });
+                    } else {
+                        initialCatFilters[cat._id] = false; // Key: categoryId
+                    }
+                });
+                setFilters(prev => ({ ...prev, categories: initialCatFilters }));
+            }
 
 
         } catch (err: any) {
-            console.error("Error fetching products:", err);
+            console.error("Error fetching data:", err);
             setError(err.message || "Could not load products.");
             setProducts([]);
-            // Don't reset categories on error, allow retry with existing filters
-            // setAvailableCategories([]);
-            // setFilters(prev => ({...prev, categories: {}}));
         } finally {
             setIsLoading(false);
         }
     };
 
-   // Initial fetch on component mount
    useEffect(() => {
-       console.log("Initial fetch triggered");
-       fetchProducts(filters);
+       fetchProductsAndCategories(filters);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, []); // Fetch only once initially
+   }, []);
 
 
-  const handleAddToCart = (product: IProduct) => {
-    console.log(`Adding ${product.title} to cart`);
-    // TODO: Implement actual add to cart logic
+  const handleAddToCart = (product: PopulatedProduct, selectedColor?: IProductColor) => {
+    // If color is selected, potentially add specific variant to cart
+    const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
+    console.log(`Adding ${itemToAdd} to cart`);
     toast({
       title: "Added to Cart",
-      description: `${product.title} has been added to your cart.`,
+      description: `${itemToAdd} has been added to your cart.`,
     });
   };
 
-   // Handler to apply filters and fetch new data
   const handleApplyFilters = () => {
      const newFilters = {
          ...filters,
          priceRange: [priceValue[0]] as [number],
      };
      setFilters(newFilters);
-     fetchProducts(newFilters);
-     toast({
-      title: "Filters Applied",
-      description: "Product list updated.",
-    });
-     // Close the sheet after applying
+     fetchProductsAndCategories(newFilters); // Changed to fetchProductsAndCategories
+     toast({ title: "Filters Applied", description: "Product list updated." });
      document.getElementById('close-filter-sheet')?.click();
   };
 
- const handleCategoryChange = (category: string, checked: boolean | "indeterminate") => {
+ const handleCategoryChange = (filterKey: string, checked: boolean | "indeterminate") => {
      if (typeof checked === 'boolean') {
          setFilters(prevFilters => ({
              ...prevFilters,
              categories: {
                  ...prevFilters.categories,
-                 [category]: checked
+                 [filterKey]: checked
              }
          }));
      }
@@ -220,43 +222,54 @@ export default function Home() {
           ...prevFilters,
           searchQuery: query
       }));
-      // Debounced fetch or trigger on button click
   };
 
-  // Debounced search fetch (optional, example with immediate fetch on change)
   useEffect(() => {
       const debounceTimer = setTimeout(() => {
-          // Check if searchQuery is not undefined and has actually changed
           if (filters.searchQuery !== undefined) {
-               console.log("Debounced search fetch for:", filters.searchQuery);
-               fetchProducts(filters); // Fetch whenever search query changes after debounce
+               fetchProductsAndCategories(filters); // Changed to fetchProductsAndCategories
           }
-      }, 500); // 500ms debounce
-
+      }, 500);
       return () => clearTimeout(debounceTimer);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.searchQuery]); // Dependency on searchQuery
+  }, [filters.searchQuery]);
 
-  // Reset Filters Function
    const handleClearFilters = () => {
+        const initialCatFilters: { [key: string]: boolean } = {};
+        availableCategoriesAndSubcategories.forEach(cat => {
+            if (cat.subcategories && cat.subcategories.length > 0) {
+                cat.subcategories.forEach(sub => {
+                    initialCatFilters[`${cat._id}_${sub}`] = false;
+                });
+            } else {
+                initialCatFilters[cat._id] = false;
+            }
+        });
         const defaultFilters: FilterState = {
-            categories: availableCategories.reduce((acc, cat) => ({ ...acc, [cat]: false }), {}),
+            categories: initialCatFilters,
             priceRange: [500],
             discountedOnly: false,
             searchQuery: '',
         };
-        setPriceValue([500]); // Reset slider display
+        setPriceValue([500]);
         setFilters(defaultFilters);
-        fetchProducts(defaultFilters); // Fetch with default filters
+        fetchProductsAndCategories(defaultFilters); // Changed to fetchProductsAndCategories
         toast({ title: "Filters Cleared", description: "Showing all products." });
-         document.getElementById('close-filter-sheet')?.click(); // Close sheet if open
+         document.getElementById('close-filter-sheet')?.click();
     };
+
+  // State for selected color of a product, product ID as key
+  const [selectedProductColors, setSelectedProductColors] = useState<Record<string, number | undefined>>({}); // Store imageIndex
+
+  const handleColorSelection = (productId: string, imageIndex: number | undefined) => {
+      setSelectedProductColors(prev => ({ ...prev, [productId]: imageIndex }));
+  };
+
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
       <main className="flex-grow">
-        {/* Category Links Section */}
         <section aria-labelledby="category-navigation" className="bg-secondary shadow-sm py-3 mb-6 print:hidden">
              <div className="container mx-auto px-4">
                  <h2 id="category-navigation" className="sr-only">Shop by Category</h2>
@@ -278,8 +291,6 @@ export default function Home() {
              </div>
          </section>
 
-
-         {/* Promotional Banner Carousel */}
         <section aria-label="Promotional Banners" className="container mx-auto px-4 mb-8 print:hidden">
            <Carousel
                 plugins={[ Autoplay({ delay: 5000, stopOnInteraction: true }) ]}
@@ -291,10 +302,10 @@ export default function Home() {
                         <CarouselItem key={index}>
                              <Image
                                 src={banner.src}
-                                alt={banner.alt} // Descriptive alt text is crucial for SEO/Accessibility
+                                alt={banner.alt}
                                 width={1200}
                                 height={400}
-                                className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px]" // Adjust height for different screens
+                                className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px]"
                                 priority={index === 0}
                                 data-ai-hint={banner.dataAiHint}
                              />
@@ -309,13 +320,12 @@ export default function Home() {
 
         <div className="container mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 print:hidden">
-             {/* More descriptive H1 for SEO */}
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Shop Our Latest Products</h1>
             <div className="flex gap-2 w-full md:w-auto">
                 <div className="relative flex-grow md:flex-grow-0">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        type="search" // Use type="search" for semantics
+                        type="search"
                         placeholder="Search products..."
                         className="pl-10 w-full md:w-64 bg-background"
                         value={filters.searchQuery}
@@ -332,31 +342,47 @@ export default function Home() {
                 <SheetContent className="overflow-y-auto">
                     <SheetHeader>
                     <SheetTitle>Filter Products</SheetTitle>
-                    <SheetDescription>
-                        Refine your search.
-                    </SheetDescription>
+                    <SheetDescription>Refine your search.</SheetDescription>
                     </SheetHeader>
                     <div className="grid gap-4 py-4">
-                        {/* Categories */}
                         <fieldset className="space-y-2">
                             <legend className="font-semibold mb-1 text-sm">Category</legend>
-                            {availableCategories.length > 0 ? availableCategories.map(category => (
-                                <div key={category} className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id={`cat-${category.toLowerCase().replace(/\s+/g, '-')}`}
-                                        checked={filters.categories[category] || false}
-                                        onCheckedChange={(checked) => handleCategoryChange(category, checked)}
-                                        aria-labelledby={`label-cat-${category.toLowerCase().replace(/\s+/g, '-')}`}
-                                    />
-                                    <Label id={`label-cat-${category.toLowerCase().replace(/\s+/g, '-')}`} htmlFor={`cat-${category.toLowerCase().replace(/\s+/g, '-')}`} className="cursor-pointer">{category}</Label>
-                                </div>
+                            {availableCategoriesAndSubcategories.length > 0 ? availableCategoriesAndSubcategories.map(cat => (
+                                <React.Fragment key={cat._id}>
+                                    {cat.subcategories && cat.subcategories.length > 0 ? (
+                                        cat.subcategories.map(sub => {
+                                            const filterKey = `${cat._id}_${sub}`;
+                                            const label = `${cat.name} - ${sub}`;
+                                            return (
+                                                <div key={filterKey} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`cat-${filterKey}`}
+                                                        checked={filters.categories[filterKey] || false}
+                                                        onCheckedChange={(checked) => handleCategoryChange(filterKey, checked)}
+                                                        aria-labelledby={`label-cat-${filterKey}`}
+                                                    />
+                                                    <Label id={`label-cat-${filterKey}`} htmlFor={`cat-${filterKey}`} className="cursor-pointer">{label}</Label>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div key={cat._id} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`cat-${cat._id}`}
+                                                checked={filters.categories[cat._id] || false}
+                                                onCheckedChange={(checked) => handleCategoryChange(cat._id, checked)}
+                                                aria-labelledby={`label-cat-${cat._id}`}
+                                            />
+                                            <Label id={`label-cat-${cat._id}`} htmlFor={`cat-${cat._id}`} className="cursor-pointer">{cat.name}</Label>
+                                        </div>
+                                    )}
+                                </React.Fragment>
                             )) : isLoading ? (
                                 <Skeleton className="h-5 w-24 bg-muted" />
                             ) : (
                                 <p className="text-sm text-muted-foreground">No categories available.</p>
                             )}
                         </fieldset>
-                        {/* Price Slider */}
                         <div className="space-y-2">
                              <Label className="font-semibold text-sm" htmlFor="price-range">Max Price: ${priceValue[0]}</Label>
                             <Slider
@@ -372,7 +398,6 @@ export default function Home() {
                                 <span>$500</span>
                             </div>
                         </div>
-                        {/* Discount Checkbox */}
                         <div className="flex items-center space-x-2 pt-2">
                             <Checkbox
                                 id="discounted"
@@ -386,7 +411,6 @@ export default function Home() {
                      <div className="mt-6 flex flex-col gap-2">
                         <Button id="apply-filters-button" type="button" onClick={handleApplyFilters} className="w-full bg-primary hover:bg-primary/90">Apply Filters</Button>
                         <Button id="clear-filters-button" type="button" variant="outline" onClick={handleClearFilters} className="w-full">Clear Filters</Button>
-                         {/* SheetClose is implicitly handled by clicking outside or the X button */}
                          <SheetClose id="close-filter-sheet" className="hidden" />
                     </div>
                 </SheetContent>
@@ -394,7 +418,6 @@ export default function Home() {
             </div>
             </div>
 
-            {/* Product Grid */}
             <section aria-live="polite" aria-busy={isLoading}>
                 {isLoading ? (
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -416,24 +439,29 @@ export default function Home() {
                      <div className="text-center py-10 text-destructive bg-red-50 border border-destructive rounded-md p-6">
                          <h2 className="text-lg font-semibold mb-2">Failed to Load Products</h2>
                         <p className="mb-4">{error}</p>
-                        <Button onClick={() => fetchProducts(filters)} variant="destructive" className="mt-4">
+                        <Button onClick={() => fetchProductsAndCategories(filters)} variant="destructive" className="mt-4">
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Retry
                         </Button>
                      </div>
                 ) : products.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {products.map((product) => (
+                    {products.map((product) => {
+                        const displayImageIndex = selectedProductColors[product._id.toString()] ?? 0;
+                        const displayImage = product.images && product.images.length > displayImageIndex ? product.images[displayImageIndex] : product.image;
+                        const selectedColorObject = product.colors.find(c => c.imageIndex === displayImageIndex);
+
+                        return (
                         <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
                         <CardHeader className="p-0 relative">
                             <Link href={`/products/${product._id.toString()}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
                                 <Image
-                                src={product.image || 'https://picsum.photos/300/200?random=placeholder'}
-                                alt={product.title} // Use product title as alt text
+                                src={displayImage || 'https://picsum.photos/300/200?random=placeholder'}
+                                alt={product.title}
                                 width={300}
                                 height={200}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" // Optimize image loading
-                                loading="lazy" // Lazy load images below the fold
+                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                                loading="lazy"
                                 data-ai-hint="product image retail fashion electronics"
                                 />
                             </Link>
@@ -445,14 +473,34 @@ export default function Home() {
                             <Link href={`/products/${product._id.toString()}`}>
                                 <CardTitle className="text-base md:text-lg font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2">{product.title}</CardTitle>
                             </Link>
-                            {/* Hide description on main grid or keep it short */}
-                             {/* <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</p> */}
+                             {product.category && <p className="text-xs text-muted-foreground mb-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
                             <div className="flex items-center gap-1 mt-1">
                                  {[...Array(5)].map((_, i) => (
                                      <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
                                  ))}
                                 <span className="text-xs text-muted-foreground ml-1">({product.rating?.toFixed(1) ?? 'N/A'})</span>
                             </div>
+
+                             {/* Color Swatches */}
+                            {product.colors && product.colors.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                    <Palette className="h-4 w-4 text-muted-foreground mr-1"/>
+                                    {product.colors.map((color, index) => (
+                                        <button
+                                            key={index}
+                                            title={color.name}
+                                            aria-label={`Select color ${color.name}`}
+                                            onClick={() => handleColorSelection(product._id.toString(), color.imageIndex)}
+                                            className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary
+                                                ${selectedProductColors[product._id.toString()] === color.imageIndex || (selectedProductColors[product._id.toString()] === undefined && index === 0) ? 'ring-2 ring-primary ring-offset-1' : 'border-muted-foreground/30'}`}
+                                            style={{ backgroundColor: color.hexCode || 'transparent' }}
+                                        >
+                                           {!color.hexCode && <span className="sr-only">{color.name}</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
                         </CardContent>
                         <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto">
                             <div className="flex flex-col">
@@ -471,16 +519,17 @@ export default function Home() {
                                 size="sm"
                                 variant="outline"
                                 className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                                onClick={() => handleAddToCart(product)}
+                                onClick={() => handleAddToCart(product, selectedColorObject)}
                                 aria-label={`Add ${product.title} to cart`}
-                                disabled={product.stock <= 0} // Disable if out of stock
+                                disabled={product.stock <= 0 || (selectedColorObject?.stock === 0)}
                             >
-                                {product.stock > 0 ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
-                                {product.stock > 0 ? 'Add' : 'Out'}
+                                {(product.stock > 0 && (selectedColorObject ? selectedColorObject.stock !== 0 : true)) ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
+                                {(product.stock <= 0 || (selectedColorObject?.stock === 0)) ? 'Out' : 'Add'}
                             </Button>
                         </CardFooter>
                         </Card>
-                    ))}
+                    );
+                    })}
                     </div>
                 ) : (
                     <div className="text-center py-10 col-span-full bg-muted/50 rounded-md p-6">
@@ -497,3 +546,4 @@ export default function Home() {
     </div>
   );
 }
+
