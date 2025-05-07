@@ -6,7 +6,7 @@ import type { ICategory } from './Category'; // Import ICategory
 export interface IProductColor extends Types.Subdocument {
   name: string;
   hexCode?: string; // Optional: for color swatch display (e.g., #FF0000)
-  imageUrls: string[]; // Array of image URLs for this color variant
+  imageUrls: string[]; // Array of image URLs for this color variant - REQUIRED
   stock: number; // Stock specific to this color/variant
 }
 
@@ -20,6 +20,7 @@ const ProductColorSchema: Schema<IProductColor> = new Schema({
     validate: [
       {
         validator: function(arr: string[]) {
+          // Check if it's an array, not empty, and all elements are non-empty strings
           return Array.isArray(arr) && arr.length > 0 && arr.every(url => typeof url === 'string' && url.trim() !== '');
         },
         message: 'imageUrls array must contain at least one non-empty string URL.'

@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     try {
         // Expect ProductFormData structure from the client (includes thumbnailUrl, colors without thumbnailUrl)
-        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string; colors?: Array<Omit<IProductColor, '_id' | 'thumbnailUrl' > & {imageUrls: string[]}> };
+        const body = await req.json() as Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'rating'> & { category: string; colors?: Array<Omit<IProductColor, '_id'> & {imageUrls: string[]}> }; // Removed thumbnailUrl from color
 
         if (!body.title || !body.description || body.price == null || body.stock == null || !body.category || !body.thumbnailUrl) {
             return NextResponse.json({ message: 'Missing required product fields: title, description, price, stock, category, thumbnailUrl.' }, { status: 400 });
@@ -132,7 +132,6 @@ export async function POST(req: NextRequest) {
                     hexCode: color.hexCode?.trim() || undefined,
                     imageUrls: parsedImageUrls,
                     stock: color.stock,
-                    // No thumbnailUrl for color variants
                 });
             }
         }

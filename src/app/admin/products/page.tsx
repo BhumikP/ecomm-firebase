@@ -102,7 +102,13 @@ export default function AdminProductsPage() {
         ? productsData.products.map((p: FetchedProduct) => ({
             ...p,
             _id: p._id.toString(),
-            colors: p.colors || [], // Ensure colors is an array
+            colors: (p.colors || []).map(c => ({ // Process colors to match frontend structure if needed
+                _id: c._id?.toString(),
+                name: c.name,
+                hexCode: c.hexCode,
+                imageUrls: c.imageUrls || [],
+                stock: c.stock
+            })),
           }))
         : [];
       setProducts(processedProducts);
@@ -167,6 +173,15 @@ export default function AdminProductsPage() {
          setCurrentProduct(prev => ({ ...prev as ProductFormData, features: featuresArray }));
          return;
     }
+     // Ensure thumbnailUrl only takes one URL
+     if (name === 'thumbnailUrl') {
+         const firstUrl = value.split(' ')[0]; // Take only the first part if multiple URLs are pasted
+         setCurrentProduct(prev => ({
+             ...(prev as ProductFormData),
+             thumbnailUrl: firstUrl,
+         }));
+         return;
+     }
     setCurrentProduct(prev => ({
         ...(prev as ProductFormData),
         [name]: numericFields.includes(name) ? (value === '' ? null : Number(value)) : value,
@@ -223,7 +238,7 @@ export default function AdminProductsPage() {
                 colorToUpdate.imageUrls = [];
             }
 
-            colorToUpdate.imageUrls.push(''); // Add a new empty URL
+            colorToUpdate.imageUrls.push(''); // Add a new empty URL field
             updatedColors[colorIndex] = colorToUpdate;
             return { ...productData, colors: updatedColors };
         });
@@ -245,7 +260,12 @@ export default function AdminProductsPage() {
              const productData = prev as ProductFormData;
             const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
-            colorToUpdate.imageUrls[imageIndex] = value;
+             // Only update the specific image URL at the given index
+             const newImageUrls = [...colorToUpdate.imageUrls];
+             const firstUrl = value.split(' ')[0]; // Take only first part if multiple URLs pasted
+             newImageUrls[imageIndex] = firstUrl;
+
+            colorToUpdate.imageUrls = newImageUrls;
             updatedColors[colorIndex] = colorToUpdate;
             return { ...productData, colors: updatedColors };
         });
@@ -273,7 +293,8 @@ export default function AdminProductsPage() {
             toast({ variant: "destructive", title: "Color Validation Error", description: `Stock for color "${colorForm.name}" is required and must be a non-negative number.` });
             setIsDialogLoading(false); return;
         }
-        const validImageUrls = colorForm.imageUrls.map(url => url.trim()).filter(url => url);
+         // Ensure each image URL is valid and trimmed
+         const validImageUrls = colorForm.imageUrls.map(url => typeof url === 'string' ? url.trim() : '').filter(url => url);
          if (validImageUrls.length === 0) {
              toast({ variant: "destructive", title: "Color Validation Error", description: `At least one valid Image URL is required for color "${colorForm.name}".` });
              setIsDialogLoading(false); return;
@@ -283,7 +304,7 @@ export default function AdminProductsPage() {
         finalColors.push({
             name: colorForm.name.trim(),
             hexCode: colorForm.hexCode?.trim() || undefined,
-            imageUrls: validImageUrls,
+            imageUrls: validImageUrls, // Use the validated and trimmed URLs
             stock: Number(colorForm.stock),
             _id: colorForm._id // Include _id if present for updates
         });
@@ -294,6 +315,7 @@ export default function AdminProductsPage() {
         ...productData,
         colors: finalColors, // Use the parsed and validated colors
         category: selectedCategoryId,
+         thumbnailUrl: productData.thumbnailUrl.trim(), // Trim thumbnail URL
     };
 
 

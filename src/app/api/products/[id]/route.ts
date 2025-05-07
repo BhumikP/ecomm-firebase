@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   try {
     // Expecting structure similar to ProductFormData (or IProduct subset) from client
-    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: Array<Partial<Omit<IProductColor, '_id' | 'thumbnailUrl'>> & { imageUrls: string[], _id?: string }> };
+    const body = await req.json() as Partial<Omit<IProduct, '_id' | 'createdAt' | 'updatedAt' | 'colors'>> & { category?: string; colors?: Array<Partial<Omit<IProductColor, '_id'>> & { imageUrls: string[], _id?: string }> }; // Removed thumbnailUrl from color type
 
 
      if (Object.keys(body).length === 0) {
