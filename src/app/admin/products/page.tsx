@@ -24,10 +24,8 @@ import { Checkbox } from '@/components/ui/checkbox'; // Import Checkbox
 interface ProductColorFormData {
     _id?: string; // For existing colors, to help identify them if needed during update
     name: string;
-    hexCode?: string;
     imageUrls: string[]; // Array of image URLs for this color
     stock: number;
-    thumbnailUrl: string; // One image to use as thumbnail for the color
 }
 
 // Define Product Type for frontend state, using ProductColorFormData
@@ -122,10 +120,8 @@ export default function AdminProductsPage() {
         colors: (product.colors || []).map(c => ({
             _id: c._id?.toString(),
             name: c.name,
-            hexCode: c.hexCode,
             imageUrls: c.imageIndices || [],
             stock: c.stock,
-            thumbnailUrl: product.image
         })),
       });
       setSelectedCategoryId(categoryId);
@@ -183,7 +179,7 @@ export default function AdminProductsPage() {
   const handleAddColor = () => {
       setCurrentProduct(prev => ({
           ...prev,
-          colors: [...prev.colors, { name: '', imageUrls: [], thumbnailUrl: '', hexCode: '#000000', stock: 1 }]
+          colors: [...prev.colors, { name: '', imageUrls: [], stock: 1 }]
       }));
   };
 
@@ -237,14 +233,6 @@ export default function AdminProductsPage() {
             return { ...prev, colors: updatedColors };
         });
     };
-    const handlethumbnailUrlChange = (index: number, value: string) => {
-        setCurrentProduct(prev => ({
-            ...prev,
-            colors: prev.colors.map((color, i) =>
-                i === index ? { ...color, thumbnailUrl: value } : color
-            )
-        }));
-    };
 
 
   const handleSaveProduct = async () => {
@@ -257,10 +245,6 @@ export default function AdminProductsPage() {
         const colorForm = currentProduct.colors[i];
         if (!colorForm.name || colorForm.name.trim() === '') {
             toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is required for color variant #${i + 1}.` });
-            setIsDialogLoading(false); return;
-        }
-       if (!colorForm.thumbnailUrl || colorForm.thumbnailUrl.trim() === '') {
-            toast({ variant: "destructive", title: "Color Validation Error", description: `Thumbnail URL is required for color variant #${i + 1}.` });
             setIsDialogLoading(false); return;
         }
 
@@ -441,14 +425,13 @@ export default function AdminProductsPage() {
                                     <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
                                 </Select>
                             </div>
-                        
-                            <div className="space-y-2">
-                                <Label htmlFor="stock">Overall Stock</Label>
-                                <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
-                            </div>
+                        )}
+                        <div className="space-y-2">
+                            <Label htmlFor="thumbnailUrl">Thumbnail URL</Label>
+                            <Input id="thumbnailUrl" name="thumbnailUrl" type="text" value={currentProduct.thumbnailUrl} onChange={handleInputChange} className="w-full" disabled={isDialogLoading} />
                         </div>
-                    }
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="price">Price ($)</Label>
                             <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/>
@@ -458,6 +441,13 @@ export default function AdminProductsPage() {
                             <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10 or leave blank" disabled={isDialogLoading}/>
                         </div>
                     </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="stock">Overall Stock</Label>
+                            <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
+                        </div>
+                         <div></div>
+                     </div>
                     
                    
                     <div className="space-y-2">
@@ -493,11 +483,6 @@ export default function AdminProductsPage() {
                                             <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} className="p-0 h-8 w-8 border-none rounded-md" disabled={isDialogLoading}/>
                                         </div>
                                     </div>
-                                </div>
-                                 <div className="space-y-1">
-                                    <Label htmlFor={`thumbnailUrl-${index}`} className="text-xs">Thumbnail URL</Label>
-                                    <Input id={`thumbnailUrl-${index}`} type="text" value={color.thumbnailUrl || ''} onChange={(e) => handlethumbnailUrlChange(index, e.target.value)} placeholder="Add Thumbnail URL" disabled={isDialogLoading}/>
-
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs</Label>
@@ -589,7 +574,7 @@ export default function AdminProductsPage() {
                  <TableRow key={product._id.toString()}>
                       <TableCell>
                            <Image
-                                src={product.image || '/placeholder.svg'}
+                                src={product.thumbnailUrl || '/placeholder.svg'}
                                 alt={product.title}
                                 width={40}
                                 height={40}
