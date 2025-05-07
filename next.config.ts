@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -12,23 +13,26 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**', // Allow any hostname for HTTPS
-        port: '', // Allow any port
-        pathname: '/**', // Allow any path
+        hostname: 'picsum.photos',
       },
-      // Specifically allow the domain causing the error
       {
         protocol: 'https',
-        hostname: 'encrypted-tbn0.gstatic.com',
-        port: '',
-        pathname: '/**',
+        hostname: 'images.samsung.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'encrypted-tbn0.gstatic.com', // Added this line
+      },
+      // Allow any hostname for HTTPS as a broad fallback,
+      // but it's better to specify known hostnames.
+      {
+        protocol: 'https',
+        hostname: '**',
       },
       // If you also need to support HTTP from all domains (less secure):
       // {
       //   protocol: 'http',
       //   hostname: '**',
-      //   port: '',
-      //   pathname: '/**',
       // }
     ],
   },
