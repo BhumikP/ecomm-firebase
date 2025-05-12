@@ -1,7 +1,7 @@
 // src/app/page.tsx
 'use client';
 
-import React from 'react'; // Make sure React is imported
+import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
@@ -27,25 +27,22 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "@/components/ui/carousel"
-import Autoplay from "embla-carousel-autoplay"
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProduct, IProductColor } from '@/models/Product'; // Import base types
+import type { IProduct, IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 
-
-// Type for product data fetched from API (with populated category and correct color structure)
 interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
-  category: ICategory; // Assumes category is populated
-  colors: IProductColor[]; // Colors as defined in the backend model
-  thumbnailUrl: string; // Main thumbnail URL
+  category: ICategory;
+  colors: IProductColor[];
+  thumbnailUrl: string;
 }
-
 
 interface FilterState {
   categories: { [key: string]: boolean };
@@ -78,113 +75,188 @@ const bannerImages = [
     { src: 'https://picsum.photos/1200/400?random=banner3', alt: 'Upgrade your home appliances with our offers', dataAiHint: 'home appliance discount kitchen' },
 ];
 
+const MAX_HOMEPAGE_CATEGORIES = 4;
+const MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE = 4;
+const DEFAULT_MAX_PRICE = 50000;
+
+
 export default function Home() {
   const { toast } = useToast();
-  const [products, setProducts] = useState<FetchedProduct[]>([]); // Use FetchedProduct type
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // State for filtered products view
+  const [filteredProducts, setFilteredProducts] = useState<FetchedProduct[]>([]);
+  const [isFilteredLoading, setIsFilteredLoading] = useState(false);
+  const [filteredError, setFilteredError] = useState<string | null>(null);
+
+  // State for homepage category-wise display
+  const [productsByCat, setProductsByCat] = useState<Record<string, FetchedProduct[]>>({});
+  const [homepageCategories, setHomepageCategories] = useState<ICategory[]>([]);
+  const [isHomepageContentLoading, setIsHomepageContentLoading] = useState(true);
+
+  // Common state
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
-
+  
+  const initialFilterCategoriesState = useMemo(() => {
+    const cats: { [key: string]: boolean } = {};
+    availableCategoriesAndSubcategories.forEach(cat => {
+        if (cat.subcategories && cat.subcategories.length > 0) {
+            cat.subcategories.forEach(sub => {
+                cats[`${cat._id}_SUB_${sub}`] = false;
+            });
+        } else {
+            cats[cat._id.toString()] = false;
+        }
+    });
+    return cats;
+  }, [availableCategoriesAndSubcategories]);
 
   const [filters, setFilters] = useState<FilterState>({
-    categories: {},
-    priceRange: [50000], // Adjusted for INR
+    categories: {}, // Will be initialized after categories are fetched
+    priceRange: [DEFAULT_MAX_PRICE],
     discountedOnly: false,
     searchQuery: '',
   });
-  const [priceValue, setPriceValue] = useState([50000]); // Adjusted for INR
+  const [priceValue, setPriceValue] = useState([DEFAULT_MAX_PRICE]);
+  const [isFilteredView, setIsFilteredView] = useState(false);
 
 
-  const fetchProductsAndCategories = async (currentFilters: FilterState) => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const params = new URLSearchParams();
-            if (currentFilters.searchQuery) {
-                params.append('searchQuery', currentFilters.searchQuery);
-            }
+  const fetchHomepageData = async () => {
+    setIsHomepageContentLoading(true);
+    try {
+      const categoriesResponse = await fetch('/api/categories');
+      if (!categoriesResponse.ok) {
+        const errorText = await categoriesResponse.text();
+        console.error("Failed to fetch categories. Status:", categoriesResponse.status, "Response:", errorText);
+        throw new Error(`Failed to fetch categories for homepage. Status: ${categoriesResponse.status}`);
+      }
+      const categoriesData = await categoriesResponse.json();
+      const allCats: ICategory[] = Array.isArray(categoriesData.categories) ? categoriesData.categories : [];
+      setAvailableCategoriesAndSubcategories(allCats);
 
-            const selectedCategoryFilters: { categoryId?: string; subcategoryName?: string }[] = [];
-            Object.entries(currentFilters.categories)
-                .filter(([, checked]) => checked)
-                .forEach(([filterKey]) => {
-                    const parts = filterKey.split('_SUB_');
-                    if (parts.length === 2) {
-                        selectedCategoryFilters.push({ categoryId: parts[0], subcategoryName: parts[1] });
-                         params.append('subcategory', parts[1]);
-                         params.append('category', parts[0]);
-                    } else if (parts.length === 1) {
-                        selectedCategoryFilters.push({ categoryId: parts[0] });
-                        params.append('category', parts[0]);
-                    }
-                });
-
-
-            if (currentFilters.priceRange[0] < 50000) { // Adjusted for INR
-                params.append('maxPrice', currentFilters.priceRange[0].toString());
-            }
-            if (currentFilters.discountedOnly) {
-                params.append('discountedOnly', 'true');
-            }
-             params.append('limit', '12');
-             params.append('populate', 'category');
-
-            const response = await fetch(`/api/products?${params.toString()}`);
-            if (!response.ok) {
-                 const errorText = await response.text();
-                 console.error("API Error Response:", errorText);
-                  setError(`Failed to fetch products. Server responded with ${response.status} ${response.statusText}. ${errorText}`);
-                 throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
-            }
-            const data = await response.json();
-             // Ensure data.products is an array and process it
-            const fetchedProducts: FetchedProduct[] = (Array.isArray(data.products) ? data.products : []).map((p: FetchedProduct) => ({
-                ...p,
-                _id: p._id.toString(),
-                colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })), // Ensure imageUrls is array
-            }));
-            setProducts(fetchedProducts);
+      const initialCatFilters: { [key: string]: boolean } = {};
+      allCats.forEach(cat => {
+          if (cat.subcategories && cat.subcategories.length > 0) {
+              cat.subcategories.forEach(sub => {
+                  initialCatFilters[`${cat._id}_SUB_${sub}`] = false;
+              });
+          } else {
+              initialCatFilters[cat._id.toString()] = false;
+          }
+      });
+      setFilters(prev => ({ ...prev, categories: initialCatFilters }));
 
 
-             if (availableCategoriesAndSubcategories.length === 0) {
-                const categoriesResponse = await fetch('/api/categories');
-                if (!categoriesResponse.ok) {
-                     const errorText = await categoriesResponse.text();
-                     console.error("Failed to fetch categories. Status:", categoriesResponse.status, "Response:", errorText);
-                     throw new Error(`Failed to fetch categories for filters. Status: ${categoriesResponse.status}`);
-                 }
-                const categoriesData = await categoriesResponse.json();
-                const allCats: ICategory[] = Array.isArray(categoriesData.categories) ? categoriesData.categories : [];
-                setAvailableCategoriesAndSubcategories(allCats);
+      const displayCats = allCats.slice(0, MAX_HOMEPAGE_CATEGORIES);
+      setHomepageCategories(displayCats);
 
-                const initialCatFilters: { [key: string]: boolean } = {};
-                allCats.forEach(cat => {
-                    if (cat.subcategories && cat.subcategories.length > 0) {
-                        cat.subcategories.forEach(sub => {
-                            initialCatFilters[`${cat._id}_SUB_${sub}`] = false;
-                        });
-                    } else {
-                        initialCatFilters[cat._id.toString()] = false;
-                    }
-                });
-                setFilters(prev => ({ ...prev, categories: initialCatFilters }));
-            }
-
-
-        } catch (err: any) {
-            console.error("Error fetching data:", err);
-            setError(err.message || "Could not load products.");
-            setProducts([]);
-        } finally {
-            setIsLoading(false);
+      const productsByCategoryPromises = displayCats.map(cat =>
+        fetch(`/api/products?category=${cat._id}&limit=${MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE}&populate=category`)
+          .then(res => res.ok ? res.json() : Promise.reject(new Error(`Failed for category ${cat.name}`)))
+          .then(data => ({
+            categoryId: cat._id.toString(),
+            products: (Array.isArray(data.products) ? data.products : []).map((p: FetchedProduct) => ({
+              ...p,
+              _id: p._id.toString(),
+              colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
+            }))
+          }))
+      );
+      
+      const results = await Promise.allSettled(productsByCategoryPromises);
+      const newProductsByCat: Record<string, FetchedProduct[]> = {};
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+          newProductsByCat[result.value.categoryId] = result.value.products;
+        } else if (result.status === 'rejected') {
+          console.error("Error fetching products for a category:", result.reason);
         }
-    };
+      });
+      setProductsByCat(newProductsByCat);
 
-   useEffect(() => {
-       fetchProductsAndCategories(filters);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, []);
+    } catch (err) {
+      console.error("Error fetching homepage data:", err);
+      // Set a general error for homepage content, or handle gracefully
+    } finally {
+      setIsHomepageContentLoading(false);
+    }
+  };
+
+  const fetchFilteredProducts = async (currentFilters: FilterState) => {
+    setIsFilteredLoading(true);
+    setFilteredError(null);
+    try {
+        const params = new URLSearchParams();
+        if (currentFilters.searchQuery) {
+            params.append('searchQuery', currentFilters.searchQuery);
+        }
+
+        Object.entries(currentFilters.categories)
+            .filter(([, checked]) => checked)
+            .forEach(([filterKey]) => {
+                const parts = filterKey.split('_SUB_');
+                if (parts.length === 2) { // format: "categoryId_SUB_subcategoryName"
+                    params.append('category', parts[0]);
+                    params.append('subcategory', parts[1]);
+                } else { // format: "categoryId"
+                    params.append('category', parts[0]);
+                }
+            });
+
+        if (currentFilters.priceRange[0] < DEFAULT_MAX_PRICE) {
+            params.append('maxPrice', currentFilters.priceRange[0].toString());
+        }
+        if (currentFilters.discountedOnly) {
+            params.append('discountedOnly', 'true');
+        }
+        params.append('limit', '12');
+        params.append('populate', 'category');
+
+        const response = await fetch(`/api/products?${params.toString()}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("API Error Response (Filtered):", errorText);
+            setFilteredError(`Failed to fetch products. Server responded with ${response.status}.`);
+            throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        const fetchedProductsList: FetchedProduct[] = (Array.isArray(data.products) ? data.products : []).map((p: FetchedProduct) => ({
+            ...p,
+            _id: p._id.toString(),
+            colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
+        }));
+        setFilteredProducts(fetchedProductsList);
+    } catch (err: any) {
+        console.error("Error fetching filtered products:", err);
+        setFilteredError(err.message || "Could not load products.");
+        setFilteredProducts([]);
+    } finally {
+        setIsFilteredLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHomepageData();
+  }, []);
+
+  useEffect(() => {
+    const activeFilter = filters.searchQuery || 
+                         Object.values(filters.categories).some(v => v) || 
+                         filters.priceRange[0] < DEFAULT_MAX_PRICE ||
+                         filters.discountedOnly;
+    
+    if (activeFilter) {
+        setIsFilteredView(true);
+        const debounceTimer = setTimeout(() => {
+            fetchFilteredProducts(filters);
+        }, 500); // Debounce search and filter application
+        return () => clearTimeout(debounceTimer);
+    } else {
+        setIsFilteredView(false); 
+        // Optionally, if you want to refresh homepage data when all filters are cleared:
+        // fetchHomepageData(); // Or rely on initial load
+    }
+  }, [filters]);
 
 
   const handleAddToCart = (product: FetchedProduct, selectedColor?: IProductColor) => {
@@ -195,14 +267,14 @@ export default function Home() {
       description: `${itemToAdd} has been added to your cart.`,
     });
   };
-
+  
   const handleApplyFilters = () => {
-     const newFilters = {
+     const newFiltersState = {
          ...filters,
          priceRange: [priceValue[0]] as [number],
      };
-     setFilters(newFilters);
-     fetchProductsAndCategories(newFilters);
+     setFilters(newFiltersState);
+     // useEffect will trigger fetchFilteredProducts due to filters change
      toast({ title: "Filters Applied", description: "Product list updated." });
      document.getElementById('close-filter-sheet')?.click();
   };
@@ -236,44 +308,111 @@ export default function Home() {
       }));
   };
 
-  useEffect(() => {
-      const debounceTimer = setTimeout(() => {
-          if (filters.searchQuery !== undefined) {
-               fetchProductsAndCategories(filters);
-          }
-      }, 500);
-      return () => clearTimeout(debounceTimer);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.searchQuery]);
-
    const handleClearFilters = () => {
-        const initialCatFilters: { [key: string]: boolean } = {};
-        availableCategoriesAndSubcategories.forEach(cat => {
-            if (cat.subcategories && cat.subcategories.length > 0) {
-                cat.subcategories.forEach(sub => {
-                    initialCatFilters[`${cat._id}_SUB_${sub}`] = false;
-                });
-            } else {
-                initialCatFilters[cat._id.toString()] = false;
-            }
-        });
         const defaultFilters: FilterState = {
-            categories: initialCatFilters,
-            priceRange: [50000], // Adjusted for INR
+            categories: initialFilterCategoriesState,
+            priceRange: [DEFAULT_MAX_PRICE], 
             discountedOnly: false,
             searchQuery: '',
         };
-        setPriceValue([50000]); // Adjusted for INR
+        setPriceValue([DEFAULT_MAX_PRICE]); 
         setFilters(defaultFilters);
-        fetchProductsAndCategories(defaultFilters);
-        toast({ title: "Filters Cleared", description: "Showing all products." });
-         document.getElementById('close-filter-sheet')?.click();
+        setIsFilteredView(false); // Switch back to homepage view
+        toast({ title: "Filters Cleared", description: "Showing default homepage view." });
+        document.getElementById('close-filter-sheet')?.click();
     };
 
   const handleColorSelection = (productId: string, color?: IProductColor) => {
       setSelectedColorPerProduct(prev => ({ ...prev, [productId]: color }));
   };
 
+  const renderProductCard = (product: FetchedProduct) => {
+    const selectedColor = selectedColorPerProduct[product._id];
+    const displayImage = selectedColor?.imageUrls?.[0] ?? product.thumbnailUrl ?? 'https://picsum.photos/300/200?random=placeholder';
+    return (
+        <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
+        <CardHeader className="p-0 relative">
+            <Link href={`/products/${product._id.toString()}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
+                <Image
+                src={displayImage}
+                alt={product.title}
+                width={300}
+                height={200}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                loading="lazy"
+                data-ai-hint="product image retail fashion electronics"
+                onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/300/200?random=onerror'; }}
+                />
+            </Link>
+            {product.discount && product.discount > 0 && (
+            <Badge variant="destructive" className="absolute top-2 right-2 shadow-md">{product.discount}% OFF</Badge>
+            )}
+        </CardHeader>
+        <CardContent className="p-4 flex-grow">
+            <Link href={`/products/${product._id.toString()}`}>
+                <CardTitle className="text-base md:text-lg font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2">{product.title}</CardTitle>
+            </Link>
+             {product.category && <p className="text-xs text-muted-foreground mb-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
+            <div className="flex items-center gap-1 mt-1">
+                 {[...Array(5)].map((_, i) => (
+                     <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                 ))}
+                <span className="text-xs text-muted-foreground ml-1">({product.rating?.toFixed(1) ?? 'N/A'})</span>
+            </div>
+
+            {product.colors && product.colors.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2 items-center">
+                    <Palette className="h-4 w-4 text-muted-foreground mr-1"/>
+                    {product.colors.map((color, index) => (
+                        <button
+                            key={color._id?.toString() || `${color.name}-${index}`}
+                            title={color.name}
+                            aria-label={`Select color ${color.name}`}
+                            onClick={() => handleColorSelection(product._id.toString(), color)}
+                            className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary transition-all
+                                ${selectedColor === color ? 'ring-2 ring-primary ring-offset-1 border-primary' : 'border-muted-foreground/30'}
+                                ${color.stock === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+                                `}
+                            style={{ backgroundColor: color.hexCode || 'transparent' }}
+                            disabled={color.stock === 0}
+                        >
+                           {!color.hexCode && <span className="sr-only">{color.name}</span>}
+                            {color.stock === 0 && <X className="h-3 w-3 text-destructive-foreground absolute inset-0 m-auto opacity-70" />}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+        </CardContent>
+        <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto">
+            <div className="flex flex-col">
+                <span className="text-lg font-bold text-foreground">
+                    ₹{product.discount && product.discount > 0
+                        ? (product.price * (1 - product.discount / 100)).toFixed(2)
+                        : product.price.toFixed(2)}
+                </span>
+                {product.discount && product.discount > 0 && (
+                    <span className="text-xs text-muted-foreground line-through">
+                        ₹{product.price.toFixed(2)}
+                    </span>
+                )}
+            </div>
+            <Button
+                size="sm"
+                variant="outline"
+                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+                onClick={() => handleAddToCart(product, selectedColor)}
+                aria-label={`Add ${product.title} to cart`}
+                disabled={product.stock === 0 || (selectedColor?.stock === 0)}
+            >
+                {(product.stock > 0 && (selectedColor ? selectedColor.stock > 0 : true)) ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
+                {(product.stock === 0 || (selectedColor?.stock === 0)) ? 'Out' : 'Add'}
+            </Button>
+        </CardFooter>
+        </Card>
+    );
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -329,7 +468,9 @@ export default function Home() {
 
         <div className="container mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 print:hidden">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Shop Our Latest Products</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+                {isFilteredView ? 'Filtered Products' : 'Shop By Category'}
+            </h1>
             <div className="flex gap-2 w-full md:w-auto">
                 <div className="relative flex-grow md:flex-grow-0">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -389,7 +530,7 @@ export default function Home() {
                                         </div>
                                     )}
                                 </React.Fragment>
-                            )) : isLoading ? (
+                            )) : isHomepageContentLoading || isFilteredLoading ? ( // Use specific loading state
                                 <Skeleton className="h-5 w-24 bg-muted" />
                             ) : (
                                 <p className="text-sm text-muted-foreground">No categories available.</p>
@@ -400,14 +541,14 @@ export default function Home() {
                             <Slider
                                 value={priceValue}
                                 onValueChange={setPriceValue}
-                                max={50000} // Adjusted for INR
-                                step={1000} // Adjusted for INR
+                                max={DEFAULT_MAX_PRICE}
+                                step={1000} 
                                 id="price-range"
                                 aria-label="Maximum price slider"
                              />
                             <div className="flex justify-between text-xs text-muted-foreground">
                                 <span>₹0</span>
-                                <span>₹50,000</span>
+                                <span>₹{DEFAULT_MAX_PRICE.toLocaleString('en-IN')}</span>
                             </div>
                         </div>
                         <div className="flex items-center space-x-2 pt-2">
@@ -430,129 +571,85 @@ export default function Home() {
             </div>
             </div>
 
-            <section aria-live="polite" aria-busy={isLoading}>
-                {isLoading ? (
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                         {[...Array(8)].map((_, i) => (
-                             <Card key={i} className="overflow-hidden shadow-md animate-pulse">
-                                 <Skeleton className="w-full h-48 bg-muted" />
-                                 <CardContent className="p-4">
-                                     <Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" />
-                                     <Skeleton className="h-4 w-1/2 bg-muted rounded" />
-                                 </CardContent>
-                                 <CardFooter className="p-4 pt-0 flex justify-between items-center">
-                                     <Skeleton className="h-6 w-1/4 bg-muted rounded" />
-                                     <Skeleton className="h-9 w-1/3 bg-muted rounded-md" />
-                                 </CardFooter>
-                             </Card>
-                         ))}
-                     </div>
-                ) : error ? (
-                     <div className="text-center py-10 text-destructive bg-red-50 border border-destructive rounded-md p-6">
-                         <h2 className="text-lg font-semibold mb-2">Failed to Load Products</h2>
-                        <p className="mb-4">{error}</p>
-                        <Button onClick={() => fetchProductsAndCategories(filters)} variant="destructive" className="mt-4">
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Retry
-                        </Button>
-                     </div>
-                ) : products.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {products.map((product) => {
-                         const selectedColor = selectedColorPerProduct[product._id];
-                         const displayImage = selectedColor?.imageUrls?.[0] ?? product.thumbnailUrl ?? 'https://picsum.photos/300/200?random=placeholder';
-
-                        return (
-                        <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
-                        <CardHeader className="p-0 relative">
-                            <Link href={`/products/${product._id.toString()}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
-                                <Image
-                                src={displayImage}
-                                alt={product.title}
-                                width={300}
-                                height={200}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                loading="lazy"
-                                data-ai-hint="product image retail fashion electronics"
-                                onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/300/200?random=onerror'; }}
-                                />
-                            </Link>
-                            {product.discount && product.discount > 0 && (
-                            <Badge variant="destructive" className="absolute top-2 right-2 shadow-md">{product.discount}% OFF</Badge>
-                            )}
-                        </CardHeader>
-                        <CardContent className="p-4 flex-grow">
-                            <Link href={`/products/${product._id.toString()}`}>
-                                <CardTitle className="text-base md:text-lg font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2">{product.title}</CardTitle>
-                            </Link>
-                             {product.category && <p className="text-xs text-muted-foreground mb-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
-                            <div className="flex items-center gap-1 mt-1">
-                                 {[...Array(5)].map((_, i) => (
-                                     <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
-                                 ))}
-                                <span className="text-xs text-muted-foreground ml-1">({product.rating?.toFixed(1) ?? 'N/A'})</span>
-                            </div>
-
-                            {product.colors && product.colors.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                    <Palette className="h-4 w-4 text-muted-foreground mr-1"/>
-                                    {product.colors.map((color, index) => (
-                                        <button
-                                            key={color._id?.toString() || `${color.name}-${index}`}
-                                            title={color.name}
-                                            aria-label={`Select color ${color.name}`}
-                                            onClick={() => handleColorSelection(product._id.toString(), color)}
-                                            className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary transition-all
-                                                ${selectedColor === color ? 'ring-2 ring-primary ring-offset-1 border-primary' : 'border-muted-foreground/30'}`}
-                                            style={{ backgroundColor: color.hexCode || 'transparent' }}
-                                            disabled={color.stock <= 0}
-                                        >
-                                           {!color.hexCode && <span className="sr-only">{color.name}</span>}
-                                            {color.stock <= 0 && <X className="h-3 w-3 text-destructive-foreground absolute inset-0 m-auto opacity-70" />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                        </CardContent>
-                        <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto">
-                            <div className="flex flex-col">
-                                <span className="text-lg font-bold text-foreground">
-                                    ₹{product.discount && product.discount > 0
-                                        ? (product.price * (1 - product.discount / 100)).toFixed(2)
-                                        : product.price.toFixed(2)}
-                                </span>
-                                {product.discount && product.discount > 0 && (
-                                    <span className="text-xs text-muted-foreground line-through">
-                                        ₹{product.price.toFixed(2)}
-                                    </span>
-                                )}
-                            </div>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                                onClick={() => handleAddToCart(product, selectedColor)}
-                                aria-label={`Add ${product.title} to cart`}
-                                disabled={product.stock <= 0 || (selectedColor?.stock === 0)}
-                            >
-                                {(product.stock > 0 && (selectedColor ? selectedColor.stock > 0 : true)) ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
-                                {(product.stock <= 0 || (selectedColor?.stock === 0)) ? 'Out' : 'Add'}
+            <section aria-live="polite">
+                {isFilteredView ? (
+                    // Filtered View
+                    isFilteredLoading ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {[...Array(8)].map((_, i) => (
+                                <Card key={i} className="overflow-hidden shadow-md animate-pulse">
+                                    <Skeleton className="w-full h-48 bg-muted" />
+                                    <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
+                                    <CardFooter className="p-4 pt-0 flex justify-between items-center"><Skeleton className="h-6 w-1/4 bg-muted rounded" /><Skeleton className="h-9 w-1/3 bg-muted rounded-md" /></CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : filteredError ? (
+                        <div className="text-center py-10 text-destructive bg-red-50 border border-destructive rounded-md p-6">
+                            <h2 className="text-lg font-semibold mb-2">Failed to Load Products</h2>
+                            <p className="mb-4">{filteredError}</p>
+                            <Button onClick={() => fetchFilteredProducts(filters)} variant="destructive" className="mt-4">
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Retry
                             </Button>
-                        </CardFooter>
-                        </Card>
-                    );
-                    })}
-                    </div>
+                        </div>
+                    ) : filteredProducts.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {filteredProducts.map(renderProductCard)}
+                        </div>
+                    ) : (
+                        <div className="text-center py-10 col-span-full bg-muted/50 rounded-md p-6">
+                            <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                            <p className="text-lg font-semibold text-foreground mb-2">No products found</p>
+                            <p className="text-muted-foreground mb-4">Try adjusting your filters or search query.</p>
+                            <Button onClick={handleClearFilters} variant="outline">Clear Filters</Button>
+                        </div>
+                    )
                 ) : (
-                    <div className="text-center py-10 col-span-full bg-muted/50 rounded-md p-6">
-                        <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <p className="text-lg font-semibold text-foreground mb-2">No products found</p>
-                        <p className="text-muted-foreground mb-4">Try adjusting your filters or search query.</p>
-                         <Button onClick={handleClearFilters} variant="outline">Clear Filters</Button>
-                    </div>
+                    // Homepage Category View
+                    isHomepageContentLoading ? (
+                        <div>
+                            {[...Array(MAX_HOMEPAGE_CATEGORIES)].map((_, catIndex) => (
+                                <div key={`skel-cat-${catIndex}`} className="mb-12">
+                                    <Skeleton className="h-8 w-1/2 md:w-1/3 mb-6 bg-muted rounded" />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {[...Array(MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE)].map((_, prodIndex) => (
+                                            <Card key={`skel-prod-${catIndex}-${prodIndex}`} className="overflow-hidden shadow-md animate-pulse">
+                                                <Skeleton className="w-full h-48 bg-muted" />
+                                                <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
+                                                <CardFooter className="p-4 pt-0 flex justify-between items-center"><Skeleton className="h-6 w-1/4 bg-muted rounded" /><Skeleton className="h-9 w-1/3 bg-muted rounded-md" /></CardFooter>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : homepageCategories.length > 0 ? (
+                        homepageCategories.map(category => (
+                            <section key={category._id.toString()} aria-labelledby={`category-title-${category._id.toString()}`} className="mb-12">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 id={`category-title-${category._id.toString()}`} className="text-2xl md:text-3xl font-bold text-foreground">{category.name}</h2>
+                                    <Button variant="link" asChild>
+                                        <Link href={`/products?category=${category._id.toString()}`}>View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
+                                    </Button>
+                                </div>
+                                {productsByCat[category._id.toString()] && productsByCat[category._id.toString()].length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {productsByCat[category._id.toString()].map(renderProductCard)}
+                                    </div>
+                                ) : (
+                                    <p className="text-muted-foreground">No products found in this category yet.</p>
+                                )}
+                            </section>
+                        ))
+                    ) : (
+                         <div className="text-center py-10 col-span-full bg-muted/50 rounded-md p-6">
+                            <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                            <p className="text-lg font-semibold text-foreground mb-2">No categories to display</p>
+                            <p className="text-muted-foreground">Check back later for more products.</p>
+                        </div>
+                    )
                 )}
-             </section>
+            </section>
         </div>
       </main>
       <Footer />
