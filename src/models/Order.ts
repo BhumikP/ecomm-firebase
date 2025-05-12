@@ -30,7 +30,7 @@ export interface IOrder extends Document {
   orderId: string; // Custom, potentially human-readable order ID (e.g., ORD-1001) - ensure uniqueness
   items: OrderItem[];
   total: number; // Total amount paid/due for the order
-  currency: string; // Currency code (e.g., 'USD', 'INR')
+  currency: string; // Currency code (e.g., 'INR', 'USD')
   status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Payment Failed';
   paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
   shippingAddress: ShippingAddress;
@@ -70,7 +70,7 @@ const OrderSchema: Schema<IOrder> = new Schema({
   orderId: { type: String, required: true, unique: true, index: true }, // Ensure unique order IDs
   items: { type: [OrderItemSchema], required: true },
   total: { type: Number, required: true, min: 0 },
-  currency: { type: String, required: true, default: 'USD' }, // Default currency
+  currency: { type: String, required: true, default: 'INR' }, // Default currency changed to INR
   status: {
     type: String,
     enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Payment Failed'],

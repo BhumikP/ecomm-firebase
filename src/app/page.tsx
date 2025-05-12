@@ -11,7 +11,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star, Palette } from 'lucide-react';
+import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star, Palette, X } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -89,11 +89,11 @@ export default function Home() {
 
   const [filters, setFilters] = useState<FilterState>({
     categories: {},
-    priceRange: [500],
+    priceRange: [50000], // Adjusted for INR
     discountedOnly: false,
     searchQuery: '',
   });
-  const [priceValue, setPriceValue] = useState([500]);
+  const [priceValue, setPriceValue] = useState([50000]); // Adjusted for INR
 
 
   const fetchProductsAndCategories = async (currentFilters: FilterState) => {
@@ -121,7 +121,7 @@ export default function Home() {
                 });
 
 
-            if (currentFilters.priceRange[0] < 500) {
+            if (currentFilters.priceRange[0] < 50000) { // Adjusted for INR
                 params.append('maxPrice', currentFilters.priceRange[0].toString());
             }
             if (currentFilters.discountedOnly) {
@@ -259,11 +259,11 @@ export default function Home() {
         });
         const defaultFilters: FilterState = {
             categories: initialCatFilters,
-            priceRange: [500],
+            priceRange: [50000], // Adjusted for INR
             discountedOnly: false,
             searchQuery: '',
         };
-        setPriceValue([500]);
+        setPriceValue([50000]); // Adjusted for INR
         setFilters(defaultFilters);
         fetchProductsAndCategories(defaultFilters);
         toast({ title: "Filters Cleared", description: "Showing all products." });
@@ -396,18 +396,18 @@ export default function Home() {
                             )}
                         </fieldset>
                         <div className="space-y-2">
-                             <Label className="font-semibold text-sm" htmlFor="price-range">Max Price: ${priceValue[0]}</Label>
+                             <Label className="font-semibold text-sm" htmlFor="price-range">Max Price: ₹{priceValue[0].toLocaleString('en-IN')}</Label>
                             <Slider
                                 value={priceValue}
                                 onValueChange={setPriceValue}
-                                max={500}
-                                step={10}
+                                max={50000} // Adjusted for INR
+                                step={1000} // Adjusted for INR
                                 id="price-range"
                                 aria-label="Maximum price slider"
                              />
                             <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>$0</span>
-                                <span>$500</span>
+                                <span>₹0</span>
+                                <span>₹50,000</span>
                             </div>
                         </div>
                         <div className="flex items-center space-x-2 pt-2">
@@ -518,13 +518,13 @@ export default function Home() {
                         <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto">
                             <div className="flex flex-col">
                                 <span className="text-lg font-bold text-foreground">
-                                    ${product.discount && product.discount > 0
+                                    ₹{product.discount && product.discount > 0
                                         ? (product.price * (1 - product.discount / 100)).toFixed(2)
                                         : product.price.toFixed(2)}
                                 </span>
                                 {product.discount && product.discount > 0 && (
                                     <span className="text-xs text-muted-foreground line-through">
-                                        ${product.price.toFixed(2)}
+                                        ₹{product.price.toFixed(2)}
                                     </span>
                                 )}
                             </div>

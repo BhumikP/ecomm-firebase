@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Search, Loader2, ImageIcon, Star, Palette, X, UploadCloud, Image as LucideImage } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Loader2, Star, Palette, X, UploadCloud, Image as LucideImage } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { IProduct } from '@/models/Product';
 import type { IProductColor } from '@/models/Product';
@@ -402,7 +402,7 @@ export default function AdminProductsPage() {
                     <div className="space-y-2"><Label htmlFor="title">Title <span className="text-destructive">*</span></Label><Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} disabled={isDialogLoading} /></div>
                     <div className="space-y-2"><Label htmlFor="category">Category <span className="text-destructive">*</span></Label><Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
                     {selectedCategoryId && currentSubcategories.length > 0 && (<div className="space-y-2"><Label htmlFor="subcategory">Subcategory</Label><Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}><SelectTrigger><SelectValue placeholder="Select subcategory" /></SelectTrigger><SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent></Select></div>)}
-                    <div className="space-y-2"><Label htmlFor="price">Price ($) <span className="text-destructive">*</span></Label><Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/></div>
+                    <div className="space-y-2"><Label htmlFor="price">Price (₹) <span className="text-destructive">*</span></Label><Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/></div>
                     <div className="space-y-2"><Label htmlFor="discount">Discount (%)</Label><Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" disabled={isDialogLoading}/></div>
                     <div className="space-y-2"><Label htmlFor="minOrderQuantity">Min Order Qty <span className="text-destructive">*</span></Label><Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/></div>
                     
@@ -529,7 +529,7 @@ export default function AdminProductsPage() {
                         ) : <span className="text-xs text-muted-foreground">None</span>}
                     </TableCell>
                     <TableCell className="text-right">
-                        ${product.price.toFixed(2)}
+                        ₹{product.price.toFixed(2)}
                         {product.discount && product.discount > 0 && <span className="ml-1 text-xs text-destructive">(-{product.discount}%)</span>}
                     </TableCell>
                      <TableCell className="text-right">

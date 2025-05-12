@@ -232,8 +232,8 @@ export default function OrderDetailPage() {
                       </Link>
                   </TableCell>
                   <TableCell className="text-center">{item.quantity}</TableCell>
-                  <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">${(item.price * item.quantity).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">₹{(item.price * item.quantity).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -279,20 +279,20 @@ export default function OrderDetailPage() {
              <div className="flex justify-between">
                <span>Subtotal ({order.items.reduce((sum, i) => sum + i.quantity, 0)} items)</span>
                {/* This assumes item.price already reflects discounts for simplicity */}
-               <span>${order.items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2)}</span>
+               <span>₹{order.items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2)}</span>
              </div>
              <div className="flex justify-between">
                 <span>Shipping</span>
-                <span>$0.00</span> {/* Placeholder */}
+                <span>₹0.00</span> {/* Placeholder */}
             </div>
              <div className="flex justify-between">
                 <span>Taxes</span>
-                <span>$0.00</span> {/* Placeholder */}
+                <span>₹0.00</span> {/* Placeholder */}
             </div>
             <Separator />
             <div className="flex justify-between font-semibold text-base">
               <span>Total Paid</span>
-              <span>${order.total.toFixed(2)}</span>
+              <span>₹{order.total.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>

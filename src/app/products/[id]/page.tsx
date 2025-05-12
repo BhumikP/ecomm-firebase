@@ -186,7 +186,7 @@ export default function ProductDetailPage() {
          "offers": {
            "@type": "Offer",
            "url": `https://YOUR_DOMAIN.com/products/${productData._id}`, // Replace with actual domain
-           "priceCurrency": "USD",
+           "priceCurrency": "INR",
            "price": discountedPriceValue,
            "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
            "itemCondition": "https://schema.org/NewCondition",
@@ -354,10 +354,10 @@ export default function ProductDetailPage() {
              <p className="text-base text-foreground/90 leading-relaxed">{product.description}</p>
 
             <div className="space-y-1">
-                <span className="text-3xl font-bold text-foreground">${discountedPrice}</span>
+                <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
                  {product.discount && product.discount > 0 && (
                     <span className="ml-3 text-lg text-muted-foreground line-through">
-                        ${product.price.toFixed(2)}
+                        ₹{product.price.toFixed(2)}
                     </span>
                  )}
              </div>

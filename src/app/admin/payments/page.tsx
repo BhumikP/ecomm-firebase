@@ -27,11 +27,11 @@ const fetchPayments = async (filters: any): Promise<{ payments: PaymentData[], t
 
     // Mock data based on Order structure
     const mockPayments: PaymentData[] = [
-        { _id: '60f...', orderId: 'ORD-1001', total: 105.98, currency: 'USD', paymentStatus: 'Paid', paymentMethod: 'Visa **** 4321', createdAt: new Date('2024-03-10'), paymentDetails: { transactionId: 'txn_123abc', gateway: 'Juspay' }, customerEmail: 'alice@example.com' },
-        { _id: '60f...', orderId: 'ORD-1002', total: 47.25, currency: 'USD', paymentStatus: 'Paid', paymentMethod: 'Mastercard **** 5678', createdAt: new Date('2024-03-15'), paymentDetails: { transactionId: 'txn_456def', gateway: 'Juspay' }, customerEmail: 'bob@example.com'},
-         { _id: '60f...', orderId: 'ORD-1003', total: 102.00, currency: 'USD', paymentStatus: 'Pending', paymentMethod: 'PayPal', createdAt: new Date('2024-03-18'), customerEmail: 'charlie@example.com' },
-        { _id: '60f...', orderId: 'ORD-1004', total: 25.00, currency: 'USD', paymentStatus: 'Failed', paymentMethod: 'Visa **** 9999', createdAt: new Date('2024-03-19'), paymentDetails: { gateway: 'Juspay' }, customerEmail: 'dave@example.com' },
-         { _id: '60f...', orderId: 'ORD-1005', total: 199.50, currency: 'USD', paymentStatus: 'Paid', paymentMethod: 'Amex **** 1001', createdAt: new Date('2024-03-20'), paymentDetails: { transactionId: 'txn_789ghi', gateway: 'Juspay' }, customerEmail: 'eve@example.com' },
+        { _id: '60f...', orderId: 'ORD-1001', total: 105.98, currency: 'INR', paymentStatus: 'Paid', paymentMethod: 'Visa **** 4321', createdAt: new Date('2024-03-10'), paymentDetails: { transactionId: 'txn_123abc', gateway: 'Juspay' }, customerEmail: 'alice@example.com' },
+        { _id: '60f...', orderId: 'ORD-1002', total: 47.25, currency: 'INR', paymentStatus: 'Paid', paymentMethod: 'Mastercard **** 5678', createdAt: new Date('2024-03-15'), paymentDetails: { transactionId: 'txn_456def', gateway: 'Juspay' }, customerEmail: 'bob@example.com'},
+         { _id: '60f...', orderId: 'ORD-1003', total: 102.00, currency: 'INR', paymentStatus: 'Pending', paymentMethod: 'PayPal', createdAt: new Date('2024-03-18'), customerEmail: 'charlie@example.com' },
+        { _id: '60f...', orderId: 'ORD-1004', total: 25.00, currency: 'INR', paymentStatus: 'Failed', paymentMethod: 'Visa **** 9999', createdAt: new Date('2024-03-19'), paymentDetails: { gateway: 'Juspay' }, customerEmail: 'dave@example.com' },
+         { _id: '60f...', orderId: 'ORD-1005', total: 199.50, currency: 'INR', paymentStatus: 'Paid', paymentMethod: 'Amex **** 1001', createdAt: new Date('2024-03-20'), paymentDetails: { transactionId: 'txn_789ghi', gateway: 'Juspay' }, customerEmail: 'eve@example.com' },
     ];
 
     // Basic mock filtering (implement properly in API)
@@ -205,7 +205,7 @@ export default function AdminPaymentsPage() {
                                         <TableCell className="text-xs text-muted-foreground">{payment.paymentDetails?.transactionId || 'N/A'}</TableCell>
                                         <TableCell>{payment.customerEmail || 'N/A'}</TableCell>
                                         <TableCell className="text-right font-medium">
-                                             {payment.currency}{payment.total.toFixed(2)}
+                                             {payment.currency === 'INR' ? '₹' : '$'}{payment.total.toFixed(2)}
                                         </TableCell>
                                         <TableCell>{payment.paymentMethod} ({payment.paymentDetails?.gateway || 'N/A'})</TableCell>
                                         <TableCell>

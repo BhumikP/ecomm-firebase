@@ -7,7 +7,7 @@ export interface PaymentDetails {
    */
   amount: number;
   /**
-   * The currency of the payment.
+   * The currency of the payment (e.g., INR, USD).
    */
   currency: string;
   /**
