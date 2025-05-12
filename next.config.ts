@@ -14,19 +14,33 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
-        pathname: '/products/**', // Specific path for product images on S3
+        port: '',
+        pathname: '/**', // Allow all paths within this bucket
       },
       {
         protocol: 'https',
         hostname: 'picsum.photos',
-        pathname: '/**', // Allow any path on picsum.photos
+        port: '',
+        pathname: '/**',
       },
-      // If other specific hostnames are needed, they should be added explicitly.
-      // The previous entry for "encrypted-tbn0.gstatic.com" has been removed
-      // as the primary issue was with the S3 bucket. If gstatic is needed,
-      // it should be added as a separate specific pattern.
+      {
+        protocol: 'https',
+        hostname: 'images.samsung.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'encrypted-tbn0.gstatic.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Add any other domains you might use for images
     ],
+    // domains property is deprecated in favor of remotePatterns if both are used.
+    // If you were using domains previously, ensure they are migrated to remotePatterns.
   },
 };
 
 export default nextConfig;
+
