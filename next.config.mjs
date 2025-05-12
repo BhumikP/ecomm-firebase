@@ -26,6 +26,12 @@ const nextConfig = defineNextConfig({
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
+        port: '',
+        pathname: '/**', // Allow all paths within this bucket
+      },
     ],
   },
   // Optional: Set experimental.serverActions.allowedOrigins if needed for Server Actions
@@ -46,21 +52,5 @@ export default withSentryConfig(
     silent: true,
     org: process.env.SENTRY_ORG, // Optional: Reads from .env.local
     project: process.env.SENTRY_PROJECT, // Optional: Reads from .env.local
-  },
-  {
-    // For all available options, see:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-    // Upload a larger set of source maps for better stack traces (increases build time)
-    widenClientFileUpload: true,
-
-    // Hides source maps from generated client bundles
-    hideSourceMaps: true,
-
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
-
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Requires Vercel Cron Monitors)
-    // automaticVercelMonitors: true,
   }
 );

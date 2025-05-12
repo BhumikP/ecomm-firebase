@@ -9,34 +9,34 @@ import { Footer } from '@/components/layout/footer';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart } from 'lucide-react';
+import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from 'react';
 import type { IProduct, IProductColor } from '@/models/Product'; // Use base interfaces
 import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
-import { Input } from '@/components/ui/input'; // Import Input
+import { Input } from '@/components/ui/input';
 
 // Define Product Type matching the backend model, ensuring category is populated
 interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: { _id: string; name: string; subcategories: string[] };
   colors: PopulatedProductColor[]; // Use PopulatedProductColor
-  thumbnailUrl: string; // Main thumbnail URL
+  thumbnailUrl: string;
   minOrderQuantity: number;
 }
 
-// Type for color data used in frontend (without separate thumbnail)
-interface PopulatedProductColor extends Omit<IProductColor, '_id' | 'thumbnailUrl'> {
-    _id?: string; // Mongoose subdocument _id is optional on client
-    imageUrls: string[]; // Image urls
+// Type for color data used in frontend
+interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
+    _id?: string;
+    imageUrls: string[];
 }
 
 
 export default function ProductDetailPage() {
-   const params = useParams<{ id: string }>();
-   const id = params?.id;
+   const params = useParams();
+   const id = params?.id as string;
 
    const { toast } = useToast();
    const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -77,18 +77,21 @@ export default function ProductDetailPage() {
                     minOrderQuantity: productData.minOrderQuantity || 1,
                 };
                 setProduct(processedProductData);
-                setQuantity(processedProductData.minOrderQuantity || 1);
+                setQuantity(processedProductData.minOrderQuantity || 1); // Initialize quantity with minOrderQuantity
 
 
                 if (processedProductData) {
                      document.title = `${processedProductData.title} | eShop Simplified`;
-                     const firstAvailableColor = processedProductData.colors?.find(c => c.stock > 0);
+                     const firstAvailableColor = processedProductData.colors?.find(c => c.stock > 0 && c.stock >= (processedProductData.minOrderQuantity || 1));
                      if (firstAvailableColor) {
                          setSelectedColor(firstAvailableColor);
                          setSelectedImageIndex(0);
-                     } else {
-                         setSelectedColor(processedProductData.colors?.[0]);
+                     } else if (processedProductData.colors && processedProductData.colors.length > 0) {
+                         setSelectedColor(processedProductData.colors[0]); // Select first color even if out of stock for display
                          setSelectedImageIndex(0);
+                     } else {
+                        setSelectedColor(undefined);
+                        setSelectedImageIndex(0);
                      }
 
                 } else {
@@ -107,11 +110,12 @@ export default function ProductDetailPage() {
 
         if (id) {
            fetchProduct();
-        } else if (params) {
+        } else if (params) { // Check if params itself is defined
            setError("Product ID not available in route parameters.");
            setLoading(false);
         }
-   }, [id, params]);
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [id]);
 
    const handleAddToCart = () => {
     if (product) {
@@ -127,8 +131,9 @@ export default function ProductDetailPage() {
     const handleColorSelect = (color: PopulatedProductColor) => {
         setSelectedColor(color);
          setSelectedImageIndex(0);
-         // Reset quantity to minOrderQuantity for the new color if its stock allows
-         setQuantity(product?.minOrderQuantity || 1);
+         // Reset quantity to minOrderQuantity for the new color if its stock allows, otherwise to minOrderQty or 1
+         const newMinQty = product?.minOrderQuantity || 1;
+         setQuantity(color.stock >= newMinQty ? newMinQty : (color.stock > 0 ? color.stock : newMinQty) );
     };
 
     const currentStock = selectedColor?.stock ?? product?.stock ?? 0;
@@ -136,9 +141,9 @@ export default function ProductDetailPage() {
 
     const handleQuantityChange = (change: number) => {
         setQuantity(prevQuantity => {
-            const newQuantity = prevQuantity + change;
-            if (newQuantity < minOrderQty) return minOrderQty;
-            if (newQuantity > currentStock) return currentStock; // Cannot exceed available stock
+            let newQuantity = prevQuantity + change;
+            if (newQuantity < minOrderQty) newQuantity = minOrderQty;
+            if (newQuantity > currentStock) newQuantity = currentStock;
             return newQuantity;
         });
     };
@@ -146,7 +151,7 @@ export default function ProductDetailPage() {
     const handleManualQuantityInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         let newQuantity = parseInt(e.target.value, 10);
         if (isNaN(newQuantity)) {
-            setQuantity(minOrderQty); // Or some other default/previous valid state
+            setQuantity(minOrderQty);
             return;
         }
         if (newQuantity < minOrderQty) newQuantity = minOrderQty;
@@ -170,7 +175,7 @@ export default function ProductDetailPage() {
          "@context": "https://schema.org/",
          "@type": "Product",
          "name": productData.title,
-         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg',
+         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg', // Replace with actual domain
          "description": productData.description,
          "sku": productData._id,
          "aggregateRating": productData.rating && productData.rating > 0 ? {
@@ -180,7 +185,7 @@ export default function ProductDetailPage() {
          } : undefined,
          "offers": {
            "@type": "Offer",
-           "url": `https://YOUR_DOMAIN.com/products/${productData._id}`,
+           "url": `https://YOUR_DOMAIN.com/products/${productData._id}`, // Replace with actual domain
            "priceCurrency": "USD",
            "price": discountedPriceValue,
            "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
@@ -266,7 +271,7 @@ export default function ProductDetailPage() {
     ? (product.price * (1 - product.discount / 100)).toFixed(2)
     : product.price.toFixed(2);
 
-   const isOutOfStock = currentStock <= 0 || quantity > currentStock;
+   const isOutOfStock = currentStock <= 0 || quantity > currentStock || currentStock < minOrderQty;
 
 
   return (
@@ -297,7 +302,7 @@ export default function ProductDetailPage() {
                     <Badge variant="destructive" className="absolute top-4 left-4 text-sm md:text-base px-3 py-1 shadow-md">{product.discount}% OFF</Badge>
                  )}
              </div>
-             {selectedColor && selectedColor.imageUrls && selectedColor.imageUrls.length > 1 && (
+             {selectedColor && selectedColor.imageUrls && selectedColor.imageUrls.length > 0 && (
                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                      {selectedColor.imageUrls.map((imgUrl, index) => (
                          <button
@@ -366,13 +371,14 @@ export default function ProductDetailPage() {
                                 key={color._id?.toString() || color.name}
                                 onClick={() => handleColorSelect(color)}
                                 className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary' : 'border-muted-foreground/30 hover:border-primary'}`}
+                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary' : 'border-muted-foreground/30 hover:border-primary'}
+                                    ${color.stock < minOrderQty ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 style={{ backgroundColor: color.hexCode || '#ccc' }}
-                                title={color.name}
-                                aria-label={`Select color ${color.name} ${color.stock <= 0 ? '(Out of stock)' : ''}`}
-                                disabled={color.stock <= 0}
+                                title={`${color.name} ${color.stock < minOrderQty ? '(Not enough stock)' : ''}`}
+                                aria-label={`Select color ${color.name} ${color.stock < minOrderQty ? '(Not enough stock)' : ''}`}
+                                disabled={color.stock < minOrderQty}
                             >
-                               {color.stock <= 0 && (
+                               {color.stock < minOrderQty && (
                                      <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
                                 )}
                             </button>
@@ -382,9 +388,9 @@ export default function ProductDetailPage() {
             )}
 
             <div className="pt-2">
-                 {currentStock <= 0 ? (
+                 {isOutOfStock ? (
                      <Badge variant="destructive" className="text-sm px-3 py-1">Out of Stock</Badge>
-                 ) : currentStock < 10 ? (
+                 ) : currentStock < 10 && currentStock >= minOrderQty ? (
                       <Badge variant="outline" className="text-sm px-3 py-1 border-yellow-500 text-yellow-600">Low Stock ({currentStock} left)</Badge>
                  ): (
                      <Badge variant="default" className="text-sm px-3 py-1 bg-green-100 text-green-800 border-green-200">In Stock</Badge>
@@ -427,7 +433,12 @@ export default function ProductDetailPage() {
                         <Plus className="h-4 w-4" />
                     </Button>
                 </div>
-                {minOrderQty > 1 && <p className="text-xs text-muted-foreground">Minimum order quantity: {minOrderQty}</p>}
+                 {minOrderQty > 1 && (
+                    <div className="flex items-center text-xs text-muted-foreground gap-1 mt-1">
+                        <Info className="h-3 w-3"/>
+                        <span>Minimum order quantity: {minOrderQty}</span>
+                    </div>
+                 )}
             </div>
 
 
@@ -447,10 +458,10 @@ export default function ProductDetailPage() {
                 size="lg"
                 className="w-full md:w-auto bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
                 onClick={handleAddToCart}
-                disabled={isOutOfStock || loading || quantity > currentStock}
+                disabled={isOutOfStock || loading}
                >
                  <ShoppingCart className="h-5 w-5"/>
-                 {isOutOfStock || quantity > currentStock ? 'Out of Stock' : 'Add to Cart'}
+                 {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
               </Button>
             </div>
           </div>
