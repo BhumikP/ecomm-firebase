@@ -15,25 +15,24 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
       },
-      // Add specific S3 hostname that was causing issues
       {
         protocol: 'https',
-        hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
+        hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com', // Specific S3 hostname
       },
-      // AWS S3 Bucket hostname. This relies on AWS_S3_BUCKET_NAME and AWS_S3_REGION environment variables.
-      // Example: if AWS_S3_BUCKET_NAME=my-eshop-bucket and AWS_S3_REGION=us-east-1,
-      // this will allow images from my-eshop-bucket.s3.us-east-1.amazonaws.com
+      // The following are more general patterns that might help if there are subtle variations
+      // or other S3 buckets. They are generally safe to include.
       {
         protocol: 'https',
-        hostname: `${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_S3_REGION}.amazonaws.com`,
+        hostname: '*.s3.amazonaws.com', // General pattern for S3
       },
-      // Allow any hostname for HTTPS as a broad fallback if absolutely necessary,
-      // but it's better to specify known hostnames. This was present before, retaining.
-      // Consider removing if all image sources are known and configured.
+       {
+        protocol: 'https',
+        hostname: '*.s3.*.amazonaws.com', // General pattern for region-specific S3
+      },
       {
         protocol: 'https',
-        hostname: '**',
-      },
+        hostname: 'encrypted-tbn0.gstatic.com', // Added for Google Shopping images encountered in previous errors
+      }
     ],
   },
 };
