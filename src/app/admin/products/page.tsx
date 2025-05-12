@@ -19,7 +19,7 @@ import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'; // Added Dropdown
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 
 interface ProductColorFormData {
@@ -36,7 +36,7 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
     colors: ProductColorFormData[];
     thumbnailUrl: string;
     minOrderQuantity: number;
-    isTopBuy?: boolean; // Added for top buy
+    isTopBuy?: boolean;
     createdAt?: Date;
     updatedAt?: Date;
 };
@@ -47,7 +47,7 @@ interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   colors: IProductColor[]; 
   minOrderQuantity: number;
   thumbnailUrl: string;
-  isTopBuy?: boolean; // Added for top buy
+  isTopBuy?: boolean;
 }
 
 const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' > = {
@@ -78,7 +78,7 @@ export default function AdminProductsPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); 
-  const [isUpdatingTopBuy, setIsUpdatingTopBuy] = useState<string | null>(null); // For top buy toggle
+  const [isUpdatingTopBuy, setIsUpdatingTopBuy] = useState<string | null>(null);
 
 
   const { toast } = useToast();
@@ -151,7 +151,7 @@ export default function AdminProductsPage() {
         })),
         stock: product.stock,
         minOrderQuantity: product.minOrderQuantity || 1,
-        isTopBuy: product.isTopBuy || false, // Set isTopBuy
+        isTopBuy: product.isTopBuy || false,
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
@@ -334,26 +334,34 @@ export default function AdminProductsPage() {
         finalStock = productData.stock;
     }
 
-    const productToSave: Omit<ProductFormData, 'rating'> & { stock: number, colors: ProductColorFormData[]} = {
+    const productToSave = {
         ...productData,
         colors: finalColors,
         category: selectedCategoryId,
         thumbnailUrl: productData.thumbnailUrl.trim(),
         stock: finalStock,
         minOrderQuantity: productData.minOrderQuantity,
-        isTopBuy: productData.isTopBuy || false, // Include isTopBuy
+        isTopBuy: typeof productData.isTopBuy === 'boolean' ? productData.isTopBuy : false, // Ensure boolean
     };
+
+    let finalPayload: any;
+    if (isEditing && productData._id) {
+        finalPayload = { ...productToSave };
+         // Ensure _id is part of the payload if it exists on productData
+        if (productData._id) finalPayload._id = productData._id;
+    } else { 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { _id, ...restOfProductToSave } = productToSave; 
+        finalPayload = restOfProductToSave;
+    }
 
 
     try {
         let response;
-        const payload: any = { ...productToSave };
-        if (!isEditing || !payload._id) delete payload._id;
-
-        if (isEditing && payload._id) {
-            response = await fetch(`/api/products/${payload._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (isEditing && finalPayload._id) {
+            response = await fetch(`/api/products/${finalPayload._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finalPayload) });
         } else {
-            response = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            response = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finalPayload) });
         }
 
         if (!response.ok) {
@@ -398,7 +406,7 @@ export default function AdminProductsPage() {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to update Top Buy status');
             }
-            await fetchProductsAndCategories(); // Re-fetch to update list
+            await fetchProductsAndCategories(); 
             toast({ title: "Success", description: `Product ${!currentIsTopBuy ? 'marked as' : 'removed from'} Top Buy.` });
         } catch (error: any) {
             toast({ variant: "destructive", title: "Error", description: error.message });
@@ -428,7 +436,7 @@ export default function AdminProductsPage() {
                  <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                  <DialogDescription>{isEditing ? `Update "${(currentProduct as ProductFormData).title}".` : 'New product details.'}</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-6 py-4"> {/* Increased space-y for better separation */}
                     {/* Thumbnail Upload */}
                     <div className="space-y-2">
                         <Label htmlFor="thumbnailFile">Primary Thumbnail Image <span className="text-destructive">*</span></Label>
@@ -451,14 +459,16 @@ export default function AdminProductsPage() {
                     <div className="space-y-2"><Label htmlFor="discount">Discount (%)</Label><Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" disabled={isDialogLoading}/></div>
                     {/* Min Order Quantity */}
                     <div className="space-y-2"><Label htmlFor="minOrderQuantity">Min Order Qty <span className="text-destructive">*</span></Label><Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/></div>
+                    
                     {/* Overall Stock (if no colors) */}
                     {(!currentProduct.colors || currentProduct.colors.length === 0) && (
                         <div className="space-y-2">
                             <Label htmlFor="stock">Overall Stock <span className="text-destructive">*</span></Label>
                             <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
-                            <p className="text-xs text-muted-foreground">Required if no color variants are added.</p>
+                            <p className="text-xs text-muted-foreground">Required if no color variants are added. This stock will be used for the product.</p>
                         </div>
                     )}
+
                     {/* Description */}
                     <div className="space-y-2"><Label htmlFor="description">Description <span className="text-destructive">*</span></Label><Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="min-h-[100px]" disabled={isDialogLoading}/></div>
                     {/* Features */}
@@ -467,10 +477,9 @@ export default function AdminProductsPage() {
                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox
                             id="isTopBuy"
-                            name="isTopBuy" // Important for handleInputChange
+                            name="isTopBuy"
                             checked={(currentProduct as ProductFormData).isTopBuy || false}
                             onCheckedChange={(checked) => {
-                                // Create a synthetic event for handleInputChange
                                 const event = { target: { name: 'isTopBuy', value: '', type: 'checkbox', checked: !!checked } } as React.ChangeEvent<HTMLInputElement>;
                                 handleInputChange(event);
                              }}
@@ -482,15 +491,19 @@ export default function AdminProductsPage() {
                     </div>
                     {/* Color Variants Section */}
                     <div className="space-y-4 border p-4 rounded-md">
-                        <Label className="text-base font-semibold">Color Variants</Label>
-                        <p className="text-xs text-muted-foreground">Add color variants. If added, "Overall Stock" is ignored. Each color variant needs at least one image and stock quantity.</p>
+                        <div className="flex justify-between items-center">
+                             <Label className="text-base font-semibold">Color Variants</Label>
+                             <Button type="button" variant="outline" size="sm" onClick={handleAddColor} disabled={isDialogLoading}><PlusCircle className="mr-2 h-4 w-4" /> Add Variant</Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Add color variants. If added, "Overall Stock" is ignored and total stock will be sum of variant stocks. Each color variant needs at least one image and stock quantity.</p>
+                        
                         {currentProduct.colors.map((color, colorIndex) => (
-                            <div key={color._id || colorIndex} className="space-y-3 border-b pb-4 mb-4 last:border-b-0 last:mb-0">
+                            <div key={color._id || colorIndex} className="space-y-4 border p-3 rounded-md"> {/* Increased space-y here */}
                                 <div className="flex justify-between items-center">
-                                     <Label className="text-sm font-medium">Color Variant #{colorIndex + 1}</Label>
+                                     <Label className="text-sm font-medium">Variant #{colorIndex + 1}</Label>
                                      <Button variant="ghost" size="icon" onClick={() => handleRemoveColor(colorIndex)} disabled={isDialogLoading} className="h-7 w-7 text-destructive hover:text-destructive"><X className="h-4 w-4" /></Button>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-2"> {/* Each field in its own line */}
                                     <Label htmlFor={`colorName-${colorIndex}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
                                     <Input id={`colorName-${colorIndex}`} value={color.name} onChange={(e) => handleColorFieldChange(colorIndex, 'name', e.target.value)} placeholder="e.g., Ocean Blue" disabled={isDialogLoading}/>
                                 </div>
@@ -514,6 +527,7 @@ export default function AdminProductsPage() {
                                     </div>
                                     <Input type="file" multiple accept="image/*" onChange={(e) => handleAddNewFilesToColor(colorIndex, e.target.files)} className="text-xs" disabled={isDialogLoading || !!uploadingColorImages[`${colorIndex}-new`]} />
                                     {Object.keys(uploadingColorImages).some(key => key.startsWith(`${colorIndex}-new`) && uploadingColorImages[key]) && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                                     <p className="text-xs text-muted-foreground">Upload one or more images for this color variant.</p>
                                 </div>
                                 
                                 <div className="space-y-2">
@@ -522,7 +536,6 @@ export default function AdminProductsPage() {
                                 </div>
                             </div>
                         ))}
-                        <Button type="button" variant="outline" size="sm" onClick={handleAddColor} disabled={isDialogLoading}><PlusCircle className="mr-2 h-4 w-4" /> Add Color Variant</Button>
                     </div>
                 </div>
                 <DialogFooter>
@@ -549,7 +562,7 @@ export default function AdminProductsPage() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Top Buy</TableHead> {/* New Column */}
+                <TableHead>Top Buy</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
             </TableRow>
             </TableHeader>
@@ -565,7 +578,7 @@ export default function AdminProductsPage() {
                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto bg-muted" /></TableCell>
                         <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-16 bg-muted" /></TableCell> {/* Skeleton for Top Buy */}
+                        <TableCell><Skeleton className="h-5 w-16 bg-muted" /></TableCell>
                         <TableCell className="text-center"><Skeleton className="h-8 w-20 mx-auto bg-muted" /></TableCell>
                     </TableRow>
                  ))
@@ -600,14 +613,14 @@ export default function AdminProductsPage() {
                     </TableCell>
                      <TableCell className="text-right">
                          {totalStock}
-                         {product.colors && product.colors.length > 0 && (<span className="text-xs text-muted-foreground block"> (from colors)</span>)}
+                         {product.colors && product.colors.length > 0 && (<span className="text-xs text-muted-foreground block"> (from variants)</span>)}
                       </TableCell>
                       <TableCell>
                           <Badge variant={isInStock ? 'default' : 'destructive'} className={isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                               {isInStock ? 'In Stock' : 'Out of Stock'}
                           </Badge>
                       </TableCell>
-                      <TableCell> {/* Top Buy Status Cell */}
+                      <TableCell>
                             <Badge variant={product.isTopBuy ? "default" : "outline"} className={product.isTopBuy ? 'bg-sky-100 text-sky-800 border-sky-200' : ''}>
                                 {product.isTopBuy ? 'Yes' : 'No'}
                             </Badge>
