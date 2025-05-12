@@ -10,46 +10,46 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Search, Loader2, ImageIcon, Star, Palette, X } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Loader2, ImageIcon, Star, Palette, X, UploadCloud, Image as LucideImage } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { IProduct } from '@/models/Product'; // Base IProduct from model
-import type { IProductColor } from '@/models/Product'; // Base IProductColor from model
+import type { IProduct } from '@/models/Product';
+import type { IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Define ProductColor for frontend state (without thumbnailUrl)
 interface ProductColorFormData {
-    _id?: string; // For existing colors, to help identify them if needed during update
+    _id?: string;
     name: string;
     hexCode?: string;
-    imageUrls: string[]; // Array of image URLs for this color
+    imageUrls: string[];
     stock: number;
+    // For managing file uploads temporarily on the client
+    pendingImageFiles?: File[];
 }
 
-// Define Product Type for frontend state, using ProductColorFormData
 type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | 'colors' | '_id'> & {
-    _id?: string; // Optional for new products
-    category: string; // Category ID
-    colors: ProductColorFormData[]; // Use ProductColorFormData without thumbnail
-    thumbnailUrl: string; // Main thumbnail is required
+    _id?: string;
+    category: string;
+    colors: ProductColorFormData[];
+    thumbnailUrl: string;
     minOrderQuantity: number;
     createdAt?: Date;
     updatedAt?: Date;
+    // For managing thumbnail file upload
+    pendingThumbnailFile?: File | null;
 };
 
-// Type for fetched product which includes populated category and original color structure
 interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
-  category: ICategory; // Assumes category is populated
-  colors: IProductColor[]; // Colors as defined in the backend model
+  category: ICategory;
+  colors: IProductColor[];
   minOrderQuantity: number;
 }
 
-
-const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating'> = {
+const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' | 'pendingThumbnailFile'> = {
     thumbnailUrl: '',
     title: '',
     price: 0,
@@ -63,19 +63,42 @@ const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'r
     minOrderQuantity: 1,
 };
 
-
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<FetchedProduct[]>([]); // Store fetched products
+  const [products, setProducts] = useState<FetchedProduct[]>([]);
   const [availableCategories, setAvailableCategories] = useState<ICategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState<ProductFormData | Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating'>>(emptyProduct);
+  const [currentProduct, setCurrentProduct] = useState<ProductFormData | Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' | 'pendingThumbnailFile'>>(emptyProduct);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogLoading, setIsDialogLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
+  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); // key: colorIndex-imageIndex
+
   const { toast } = useToast();
+
+    const handleImageUpload = async (file: File): Promise<string | null> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+            });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                return result.url;
+            } else {
+                toast({ variant: "destructive", title: "Upload Failed", description: result.message || "Could not upload image." });
+                return null;
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Upload Error", description: (err as Error).message || "An error occurred while uploading." });
+            return null;
+        }
+    };
 
   const fetchProductsAndCategories = async () => {
     setIsLoading(true);
@@ -85,35 +108,13 @@ export default function AdminProductsPage() {
         fetch('/api/categories')
       ]);
 
-      if (!productsResponse.ok) {
-        const errorText = await productsResponse.text();
-        console.error("Failed to fetch products. Status:", productsResponse.status, "Response:", errorText);
-        throw new Error(`Failed to fetch products. Status: ${productsResponse.status}`);
-      }
-      if (!categoriesResponse.ok) {
-        const errorText = await categoriesResponse.text();
-        console.error("Failed to fetch categories. Status:", categoriesResponse.status, "Response:", errorText);
-        throw new Error(`Failed to fetch categories. Status: ${categoriesResponse.status}`);
-      }
+      if (!productsResponse.ok) throw new Error('Failed to fetch products');
+      if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
 
       const productsData = await productsResponse.json();
       const categoriesData = await categoriesResponse.json();
 
-      const processedProducts = Array.isArray(productsData.products)
-        ? productsData.products.map((p: FetchedProduct) => ({
-            ...p,
-            _id: p._id.toString(),
-            colors: (p.colors || []).map(c => ({
-                _id: c._id?.toString(),
-                name: c.name,
-                hexCode: c.hexCode,
-                imageUrls: c.imageUrls || [],
-                stock: c.stock
-            })),
-            minOrderQuantity: p.minOrderQuantity || 1,
-          }))
-        : [];
-      setProducts(processedProducts);
+      setProducts(Array.isArray(productsData.products) ? productsData.products.map((p: FetchedProduct) => ({...p, minOrderQuantity: p.minOrderQuantity || 1})) : []);
       setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
 
     } catch (error: any) {
@@ -126,8 +127,7 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     fetchProductsAndCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm]);
+  }, [searchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpenDialog = (product?: FetchedProduct) => {
     if (product) {
@@ -147,17 +147,17 @@ export default function AdminProductsPage() {
         })),
         stock: product.stock,
         minOrderQuantity: product.minOrderQuantity || 1,
+        pendingThumbnailFile: null,
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
     } else {
-      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1 });
+      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, pendingThumbnailFile: null });
       setSelectedCategoryId('');
       setIsEditing(false);
     }
     setIsDialogOpen(true);
   };
-
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
@@ -165,181 +165,147 @@ export default function AdminProductsPage() {
       setCurrentProduct(emptyProduct);
       setSelectedCategoryId('');
       setIsEditing(false);
+      setIsUploadingThumbnail(false);
+      setUploadingColorImages({});
     }, 150);
   };
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     const numericFields = ['price', 'discount', 'stock', 'minOrderQuantity'];
-
     if (name === 'features') {
-         const featuresArray = value.split(',').map(f => f.trim()).filter(f => f !== '');
-         setCurrentProduct(prev => ({ ...prev as ProductFormData, features: featuresArray }));
-         return;
+         setCurrentProduct(prev => ({ ...prev as ProductFormData, features: value.split(',').map(f => f.trim()).filter(f => f) }));
+    } else {
+        setCurrentProduct(prev => ({
+            ...(prev as ProductFormData),
+            [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
+        }));
     }
-     if (name === 'thumbnailUrl') {
-         const firstUrl = value.split(' ')[0];
-         setCurrentProduct(prev => ({
-             ...(prev as ProductFormData),
-             thumbnailUrl: firstUrl,
-         }));
-         return;
-     }
-    setCurrentProduct(prev => ({
-        ...(prev as ProductFormData),
-        [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
-    }));
   };
+
+  const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        setIsUploadingThumbnail(true);
+        const uploadedUrl = await handleImageUpload(file);
+        if (uploadedUrl) {
+            setCurrentProduct(prev => ({ ...prev as ProductFormData, thumbnailUrl: uploadedUrl, pendingThumbnailFile: null }));
+        }
+        setIsUploadingThumbnail(false);
+    }
+  };
+
 
   const handleCategoryChange = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
-    setCurrentProduct(prev => ({
-        ...(prev as ProductFormData),
-        category: categoryId,
-        subcategory: '',
-    }));
+    setCurrentProduct(prev => ({ ...(prev as ProductFormData), category: categoryId, subcategory: '' }));
   };
 
   const handleSubcategoryChange = (subcategoryName: string) => {
-      setCurrentProduct(prev => ({
-           ...(prev as ProductFormData),
-          subcategory: subcategoryName,
-      }));
+      setCurrentProduct(prev => ({ ...(prev as ProductFormData), subcategory: subcategoryName }));
   };
 
   const handleAddColor = () => {
-      setCurrentProduct(prev => ({
-           ...(prev as ProductFormData),
-          colors: [...prev.colors, { name: '', imageUrls: [''], stock: 0 }]
-      }));
+      setCurrentProduct(prev => ({ ...(prev as ProductFormData), colors: [...prev.colors, { name: '', imageUrls: [], stock: 0, pendingImageFiles: [] }]} as any));
   };
 
   const handleRemoveColor = (index: number) => {
+      setCurrentProduct(prev => ({ ...(prev as ProductFormData), colors: prev.colors.filter((_, i) => i !== index) }));
+  };
+
+  const handleColorFieldChange = (index: number, field: keyof ProductColorFormData, value: string | number) => {
       setCurrentProduct(prev => ({
-           ...(prev as ProductFormData),
-          colors: prev.colors.filter((_, i) => i !== index)
+          ...(prev as ProductFormData),
+          colors: prev.colors.map((color, i) => i === index ? { ...color, [field]: value } : color)
       }));
   };
 
-  const handleColorFieldChange = (index: number, field: keyof ProductColorFormData, value: string | number | string[]) => {
-      setCurrentProduct(prev => ({
-           ...(prev as ProductFormData),
-          colors: prev.colors.map((color, i) =>
-              i === index ? { ...color, [field]: value } : color
-          )
-      }));
+  const handleAddNewFileToColor = async (colorIndex: number, file: File | null | undefined) => {
+    if (!file) return;
+    const uploadKey = `${colorIndex}-new`;
+    setUploadingColorImages(prev => ({ ...prev, [uploadKey]: true }));
+    const uploadedUrl = await handleImageUpload(file);
+    if (uploadedUrl) {
+        setCurrentProduct(prev => {
+            const productData = prev as ProductFormData;
+            const updatedColors = [...productData.colors];
+            if (updatedColors[colorIndex]) {
+                updatedColors[colorIndex] = {
+                    ...updatedColors[colorIndex],
+                    imageUrls: [...updatedColors[colorIndex].imageUrls, uploadedUrl]
+                };
+            }
+            return { ...productData, colors: updatedColors };
+        });
+    }
+    setUploadingColorImages(prev => ({ ...prev, [uploadKey]: false }));
   };
 
-    const handleAddImageToColor = (colorIndex: number) => {
-        setCurrentProduct(prev => {
-             const productData = prev as ProductFormData;
-            const updatedColors = [...productData.colors];
-            const colorToUpdate = { ...updatedColors[colorIndex] };
-
-            if (!colorToUpdate.imageUrls) {
-                colorToUpdate.imageUrls = [];
-            }
-
-            colorToUpdate.imageUrls.push('');
-            updatedColors[colorIndex] = colorToUpdate;
-            return { ...productData, colors: updatedColors };
-        });
-    };
-
-    const handleRemoveImageFromColor = (colorIndex: number, imageIndex: number) => {
-        setCurrentProduct(prev => {
-             const productData = prev as ProductFormData;
-            const updatedColors = [...productData.colors];
-            const colorToUpdate = { ...updatedColors[colorIndex] };
-            colorToUpdate.imageUrls = colorToUpdate.imageUrls.filter((_, i) => i !== imageIndex);
-            if (colorToUpdate.imageUrls.length === 0) {
-                colorToUpdate.imageUrls.push('');
-            }
-            updatedColors[colorIndex] = colorToUpdate;
-            return { ...productData, colors: updatedColors };
-        });
-    };
-
-    const handleImageUrlChange = (colorIndex: number, imageIndex: number, value: string) => {
-        setCurrentProduct(prev => {
-             const productData = prev as ProductFormData;
-            const updatedColors = [...productData.colors];
-            const colorToUpdate = { ...updatedColors[colorIndex] };
-             const newImageUrls = [...colorToUpdate.imageUrls];
-             const firstUrl = value.split(' ')[0];
-             newImageUrls[imageIndex] = firstUrl;
-
-            colorToUpdate.imageUrls = newImageUrls;
-            updatedColors[colorIndex] = colorToUpdate;
-            return { ...productData, colors: updatedColors };
-        });
-    };
-
+  const handleRemoveUploadedColorImage = (colorIndex: number, imageUrlToRemove: string) => {
+    setCurrentProduct(prev => {
+        const productData = prev as ProductFormData;
+        const updatedColors = [...productData.colors];
+        if (updatedColors[colorIndex]) {
+            updatedColors[colorIndex] = {
+                ...updatedColors[colorIndex],
+                imageUrls: updatedColors[colorIndex].imageUrls.filter(url => url !== imageUrlToRemove)
+            };
+        }
+        return { ...productData, colors: updatedColors };
+    });
+  };
 
   const handleSaveProduct = async () => {
     setIsDialogLoading(true);
-
     const productData = currentProduct as ProductFormData;
-    let finalStock = 0;
-    let finalColors: ProductColorFormData[] = [];
 
     if (!productData.title || !productData.category || !productData.description || productData.price == null || productData.price < 0) {
-        toast({ variant: "destructive", title: "Validation Error", description: "Please fill in Title, Category, Description, and Price (>=0)." });
+        toast({ variant: "destructive", title: "Validation Error", description: "Title, Category, Description, and Price (>=0) are required." });
         setIsDialogLoading(false); return;
     }
     if (!productData.thumbnailUrl || productData.thumbnailUrl.trim() === '') {
-        toast({ variant: "destructive", title: "Validation Error", description: "A primary Thumbnail URL is required." });
+        toast({ variant: "destructive", title: "Validation Error", description: "A primary Thumbnail is required. Please upload one." });
         setIsDialogLoading(false); return;
     }
     if (productData.discount != null && (productData.discount < 0 || productData.discount > 100)) {
-        toast({ variant: "destructive", title: "Validation Error", description: "Discount must be between 0 and 100, or leave blank." });
+        toast({ variant: "destructive", title: "Validation Error", description: "Discount must be 0-100 or blank." });
         setIsDialogLoading(false); return;
     }
      if (productData.minOrderQuantity == null || productData.minOrderQuantity < 1) {
-        toast({ variant: "destructive", title: "Validation Error", description: "Minimum Order Quantity must be at least 1." });
+        toast({ variant: "destructive", title: "Validation Error", description: "Min Order Qty must be at least 1." });
         setIsDialogLoading(false); return;
     }
-    const chosenCategoryObj = availableCategories.find(c => c._id === selectedCategoryId);
-    if (chosenCategoryObj && chosenCategoryObj.subcategories.length > 0 && !productData.subcategory) {
-       // Optional: Make subcategory mandatory if available
-    }
+
+    let finalStock = 0;
+    let finalColors: Omit<ProductColorFormData, 'pendingImageFiles'>[] = [];
 
     if (productData.colors && productData.colors.length > 0) {
-        for (let i = 0; i < productData.colors.length; i++) {
-            const colorForm = productData.colors[i];
+        for (const colorForm of productData.colors) {
             if (!colorForm.name || colorForm.name.trim() === '') {
-                toast({ variant: "destructive", title: "Color Validation Error", description: `Color name is required for color variant #${i + 1}.` });
+                toast({ variant: "destructive", title: "Color Validation", description: "Color name is required for all variants." });
                 setIsDialogLoading(false); return;
             }
-            if (!Array.isArray(colorForm.imageUrls) || colorForm.imageUrls.length === 0 || colorForm.imageUrls.every(url => !url || url.trim() === '')) {
-                 toast({ variant: "destructive", title: "Color Validation Error", description: `At least one Image URL is required for color "${colorForm.name}".` });
+            if (colorForm.imageUrls.length === 0) {
+                 toast({ variant: "destructive", title: "Color Validation", description: `At least one image is required for color "${colorForm.name}".` });
                  setIsDialogLoading(false); return;
-             }
-            if (colorForm.stock === undefined || colorForm.stock === null || isNaN(Number(colorForm.stock)) || Number(colorForm.stock) < 0) {
-                toast({ variant: "destructive", title: "Color Validation Error", description: `Stock for color "${colorForm.name}" is required and must be a non-negative number.` });
+            }
+            if (colorForm.stock === undefined || colorForm.stock === null || Number(colorForm.stock) < 0) {
+                toast({ variant: "destructive", title: "Color Validation", description: `Stock for color "${colorForm.name}" must be a non-negative number.` });
                 setIsDialogLoading(false); return;
             }
-
-             const validImageUrls = colorForm.imageUrls.map(url => typeof url === 'string' ? url.trim() : '').filter(url => url);
-             if (validImageUrls.length === 0) {
-                 toast({ variant: "destructive", title: "Color Validation Error", description: `At least one valid Image URL is required for color "${colorForm.name}".` });
-                 setIsDialogLoading(false); return;
-             }
-
             finalColors.push({
+                _id: colorForm._id,
                 name: colorForm.name.trim(),
                 hexCode: colorForm.hexCode?.trim() || undefined,
-                imageUrls: validImageUrls,
-                stock: Number(colorForm.stock),
-                _id: colorForm._id
+                imageUrls: colorForm.imageUrls,
+                stock: Number(colorForm.stock)
             });
+            finalStock += Number(colorForm.stock);
         }
-        finalStock = finalColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
     } else {
         if (productData.stock == null || productData.stock < 0) {
-            toast({ variant: "destructive", title: "Validation Error", description: "Overall Stock is required and must be non-negative when no color variants are added." });
-            setIsDialogLoading(false);
-            return;
+            toast({ variant: "destructive", title: "Validation Error", description: "Overall Stock required if no colors." });
+            setIsDialogLoading(false); return;
         }
         finalStock = productData.stock;
     }
@@ -348,38 +314,22 @@ export default function AdminProductsPage() {
         ...productData,
         colors: finalColors,
         category: selectedCategoryId,
-         thumbnailUrl: productData.thumbnailUrl.trim(),
-         stock: finalStock,
-         minOrderQuantity: productData.minOrderQuantity,
+        thumbnailUrl: productData.thumbnailUrl.trim(),
+        stock: finalStock, // This is now the sum of color stocks if colors exist, or overall stock
+        minOrderQuantity: productData.minOrderQuantity
     };
+    delete (productToSave as any).pendingThumbnailFile;
 
 
     try {
         let response;
-        let successMessage = '';
         const payload: any = { ...productToSave };
-        if (!isEditing || !payload._id) {
-            delete payload._id;
-        } else {
-             payload._id = productData._id;
-        }
-
+        if (!isEditing || !payload._id) delete payload._id;
 
         if (isEditing && payload._id) {
-            response = await fetch(`/api/products/${payload._id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            successMessage = `"${payload.title}" has been updated.`;
+            response = await fetch(`/api/products/${payload._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         } else {
-             delete payload._id;
-            response = await fetch('/api/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            successMessage = `"${payload.title}" has been added.`;
+            response = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         }
 
         if (!response.ok) {
@@ -387,11 +337,10 @@ export default function AdminProductsPage() {
             throw new Error(errorData.message || 'Failed to save product');
         }
         await fetchProductsAndCategories();
-        toast({ title: isEditing ? "Product Updated" : "Product Added", description: successMessage });
+        toast({ title: isEditing ? "Product Updated" : "Product Added" });
         handleCloseDialog();
     } catch (error: any) {
-        console.error("Error saving product:", error);
-        toast({ variant: "destructive", title: "Error", description: error.message || "Could not save product." });
+        toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
         setIsDialogLoading(false);
     }
@@ -401,38 +350,19 @@ export default function AdminProductsPage() {
     setIsDeleting(productId);
     try {
         const response = await fetch(`/api/products/${productId}`, { method: 'DELETE' });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to delete product');
-        }
+        if (!response.ok) throw new Error( (await response.json()).message || 'Failed to delete product');
         setProducts(prev => prev.filter(p => p._id !== productId));
-        toast({ title: "Product Deleted", description: `Product "${productTitle}" has been removed.` });
+        toast({ title: "Product Deleted", description: `"${productTitle}" removed.` });
     } catch (error: any) {
-        console.error("Error deleting product:", error);
-        toast({ variant: "destructive", title: "Error", description: error.message || "Could not delete product." });
+        toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
         setIsDeleting(null);
     }
   };
 
-   const featuresToString = (features: string[] | undefined | null): string => {
-        if (!Array.isArray(features)) return '';
-        return features.join(', ');
-   };
-
-   const currentSubcategories = useMemo(() => {
-        if (!selectedCategoryId) return [];
-        const cat = availableCategories.find(c => c._id === selectedCategoryId);
-        return cat ? cat.subcategories : [];
-   }, [selectedCategoryId, availableCategories]);
-
-  const calculateTotalStock = (product: FetchedProduct): number => {
-      if (product.colors && product.colors.length > 0) {
-          return product.colors.reduce((sum, color) => sum + (color.stock || 0), 0);
-      }
-      return product.stock || 0;
-  };
-
+   const featuresToString = (features: string[] | undefined | null): string => Array.isArray(features) ? features.join(', ') : '';
+   const currentSubcategories = useMemo(() => availableCategories.find(c => c._id === selectedCategoryId)?.subcategories || [], [selectedCategoryId, availableCategories]);
+   const calculateTotalStock = (product: FetchedProduct): number => product.colors?.length > 0 ? product.colors.reduce((sum, color) => sum + (color.stock || 0), 0) : (product.stock || 0);
 
   return (
     <div className="space-y-6">
@@ -441,152 +371,81 @@ export default function AdminProductsPage() {
         <div className="flex gap-2 w-full sm:w-auto">
             <div className="relative flex-grow md:flex-grow-0">
                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                 <Input
-                    placeholder="Search products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-full md:w-64 bg-background"
-                 />
+                 <Input placeholder="Search products..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full md:w-64 bg-background" />
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-                </Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><Button onClick={() => handleOpenDialog()}><PlusCircle className="mr-2 h-4 w-4" /> Add Product</Button></DialogTrigger>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                  <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
-                 <DialogDescription>
-                    {isEditing ? `Update details for "${(currentProduct as ProductFormData).title}".` : 'Fill in the details for the new product.'}
-                 </DialogDescription>
+                 <DialogDescription>{isEditing ? `Update "${(currentProduct as ProductFormData).title}".` : 'New product details.'}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                    {/* Thumbnail Upload */}
                     <div className="space-y-2">
-                        <Label htmlFor="title">Title</Label>
-                        <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" disabled={isDialogLoading} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="thumbnailUrl">Primary Thumbnail URL</Label>
-                        <Input id="thumbnailUrl" name="thumbnailUrl" value={currentProduct.thumbnailUrl} onChange={handleInputChange} className="w-full" placeholder="https://example.com/image.jpg" disabled={isDialogLoading} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
-                        <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Select a category" /></SelectTrigger>
-                            <SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent>
-                        </Select>
+                        <Label htmlFor="thumbnailFile">Primary Thumbnail Image <span className="text-destructive">*</span></Label>
+                        <div className="flex items-center gap-4">
+                            {currentProduct.thumbnailUrl && <Image src={currentProduct.thumbnailUrl} alt="Thumbnail Preview" width={64} height={64} className="rounded-md object-cover border" data-ai-hint="admin product thumbnail" />}
+                            <Input id="thumbnailFile" type="file" accept="image/*" onChange={handleThumbnailFileChange} className="w-full" disabled={isDialogLoading || isUploadingThumbnail} />
+                            {isUploadingThumbnail && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                        </div>
+                        {(!currentProduct.thumbnailUrl && !isUploadingThumbnail) && <p className="text-xs text-destructive">Thumbnail is required.</p>}
                     </div>
 
-                    {selectedCategoryId && currentSubcategories.length > 0 && (
+                    <div className="space-y-2"><Label htmlFor="title">Title <span className="text-destructive">*</span></Label><Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} disabled={isDialogLoading} /></div>
+                    <div className="space-y-2"><Label htmlFor="category">Category <span className="text-destructive">*</span></Label><Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
+                    {selectedCategoryId && currentSubcategories.length > 0 && (<div className="space-y-2"><Label htmlFor="subcategory">Subcategory</Label><Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}><SelectTrigger><SelectValue placeholder="Select subcategory" /></SelectTrigger><SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent></Select></div>)}
+                    <div className="space-y-2"><Label htmlFor="price">Price ($) <span className="text-destructive">*</span></Label><Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/></div>
+                    <div className="space-y-2"><Label htmlFor="discount">Discount (%)</Label><Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" disabled={isDialogLoading}/></div>
+                    <div className="space-y-2"><Label htmlFor="minOrderQuantity">Min Order Qty <span className="text-destructive">*</span></Label><Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/></div>
+                    
+                    {(!currentProduct.colors || currentProduct.colors.length === 0) && (
                         <div className="space-y-2">
-                            <Label htmlFor="subcategory">Subcategory</Label>
-                            <Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}>
-                                <SelectTrigger className="w-full"><SelectValue placeholder="Select a subcategory (optional)" /></SelectTrigger>
-                                <SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent>
-                            </Select>
+                            <Label htmlFor="stock">Overall Stock <span className="text-destructive">*</span></Label>
+                            <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
+                            <p className="text-xs text-muted-foreground">Required if no color variants are added.</p>
                         </div>
                     )}
-
-                    <div className="space-y-2">
-                        <Label htmlFor="price">Price ($)</Label>
-                        <Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="discount">Discount (%)</Label>
-                        <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10 or leave blank" disabled={isDialogLoading}/>
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="minOrderQuantity">Minimum Order Quantity</Label>
-                        <Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/>
-                    </div>
-
-                     {(!currentProduct.colors || currentProduct.colors.length === 0) && (
-                         <div className="space-y-2">
-                            <Label htmlFor="stock">Overall Stock</Label>
-                            <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
-                            <p className="text-xs text-muted-foreground">Required only if no color variants are added. Total stock will be sum of color stocks if variants exist.</p>
-                         </div>
-                     )}
-
-
-                    <div className="space-y-2">
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="w-full min-h-[100px]" disabled={isDialogLoading}/>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="features">Features (Comma-separated)</Label>
-                        <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="w-full min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/>
-                    </div>
+                    
+                    <div className="space-y-2"><Label htmlFor="description">Description <span className="text-destructive">*</span></Label><Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="min-h-[100px]" disabled={isDialogLoading}/></div>
+                    <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
 
                     <div className="space-y-4 border p-4 rounded-md">
                         <Label className="text-base font-semibold">Color Variants</Label>
-                        <p className="text-xs text-muted-foreground">Add color variants if applicable. If added, "Overall Stock" field will be ignored, and total stock will be the sum of stocks from each color.</p>
-                        {currentProduct.colors.map((color, index) => (
-                            <div key={index} className="space-y-3 border-b pb-3 last:border-b-0">
+                        <p className="text-xs text-muted-foreground">Add color variants. If added, "Overall Stock" is ignored. Each color variant needs at least one image and stock quantity.</p>
+                        {currentProduct.colors.map((color, colorIndex) => (
+                            <div key={color._id || colorIndex} className="space-y-3 border-b pb-4 mb-4 last:border-b-0 last:mb-0">
                                 <div className="flex justify-between items-center">
-                                     <Label htmlFor={`colorName-${index}`} className="text-sm font-medium">Color Variant #{index + 1}</Label>
-                                     <Button variant="ghost" size="icon" onClick={() => handleRemoveColor(index)} disabled={isDialogLoading} className="h-7 w-7 text-destructive hover:text-destructive">
-                                        <X className="h-4 w-4" />
-                                    </Button>
+                                     <Label className="text-sm font-medium">Color Variant #{colorIndex + 1}</Label>
+                                     <Button variant="ghost" size="icon" onClick={() => handleRemoveColor(colorIndex)} disabled={isDialogLoading} className="h-7 w-7 text-destructive hover:text-destructive"><X className="h-4 w-4" /></Button>
                                 </div>
-                                 <div className="space-y-2">
-                                    <Label htmlFor={`colorName-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
-                                    <Input id={`colorName-${index}`} value={color.name} onChange={(e) => handleColorFieldChange(index, 'name', e.target.value)} placeholder="e.g., Ocean Blue" required disabled={isDialogLoading}/>
-                                </div>
+                                <div className="space-y-2"><Label htmlFor={`colorName-${colorIndex}`} className="text-xs">Name <span className="text-destructive">*</span></Label><Input id={`colorName-${colorIndex}`} value={color.name} onChange={(e) => handleColorFieldChange(colorIndex, 'name', e.target.value)} placeholder="e.g., Ocean Blue" disabled={isDialogLoading}/></div>
+                                <div className="space-y-2"><Label htmlFor={`colorHex-${colorIndex}`} className="text-xs">Hex Code</Label><div className="flex items-center gap-2"><Input id={`colorHex-${colorIndex}`} type="text" value={color.hexCode || ''} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} placeholder="#1A2B3C" className="flex-grow" disabled={isDialogLoading}/><Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} className="p-0 h-8 w-8 rounded-md" disabled={isDialogLoading}/></div></div>
+                                
                                 <div className="space-y-2">
-                                    <Label htmlFor={`colorHex-${index}`} className="text-xs">Hex Code</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Input id={`colorHex-${index}`} type="text" value={color.hexCode || ''} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} placeholder="#1A2B3C (Optional)" className="flex-grow" disabled={isDialogLoading}/>
-                                        <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} className="p-0 h-8 w-8 border-none rounded-md" disabled={isDialogLoading}/>
+                                    <Label className="text-xs">Images for this Color <span className="text-destructive">*</span></Label>
+                                    <div className="grid grid-cols-3 gap-2 mb-2">
+                                        {color.imageUrls.map((url, imgIdx) => (
+                                            <div key={imgIdx} className="relative group aspect-square">
+                                                <Image src={url} alt={`Color ${color.name} image ${imgIdx + 1}`} fill className="rounded-md object-cover border" data-ai-hint="product color variant image" />
+                                                <Button type="button" variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleRemoveUploadedColorImage(colorIndex, url)} disabled={isDialogLoading}><Trash2 className="h-3 w-3"/></Button>
+                                            </div>
+                                        ))}
                                     </div>
+                                    <Input type="file" accept="image/*" onChange={(e) => handleAddNewFileToColor(colorIndex, e.target.files?.[0])} className="text-xs" disabled={isDialogLoading || uploadingColorImages[`${colorIndex}-new`]} />
+                                    {uploadingColorImages[`${colorIndex}-new`] && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs for this Color <span className="text-destructive">*</span></Label>
-                                    {color.imageUrls && color.imageUrls.map((url, i) => (
-                                        <div key={i} className="flex gap-2 items-center">
-                                            <Input
-                                                type="text"
-                                                value={url}
-                                                onChange={(e) => handleImageUrlChange(index, i, e.target.value)}
-                                                placeholder={`Image URL ${i + 1}`}
-                                                required={i === 0}
-                                                disabled={isDialogLoading}
-                                                className="flex-grow"
-                                             />
-                                            <Button
-                                                 type="button"
-                                                 variant="ghost"
-                                                 size="icon"
-                                                 onClick={() => handleRemoveImageFromColor(index, i)}
-                                                 disabled={isDialogLoading || color.imageUrls.length <= 1}
-                                                 className="h-7 w-7 text-destructive hover:text-destructive"
-                                             >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                    <Button type="button" variant="outline" size="sm" onClick={() => handleAddImageToColor(index)} disabled={isDialogLoading}>
-                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Image URL
-                                    </Button>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor={`colorStock-${index}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label>
-                                    <Input id={`colorStock-${index}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(index, 'stock', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Enter stock" required disabled={isDialogLoading}/>
-                                </div>
+                                
+                                <div className="space-y-2"><Label htmlFor={`colorStock-${colorIndex}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label><Input id={`colorStock-${colorIndex}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(colorIndex, 'stock', parseInt(e.target.value, 10))} placeholder="Enter stock" disabled={isDialogLoading}/></div>
                             </div>
                         ))}
-                        <Button type="button" variant="outline" size="sm" onClick={handleAddColor} disabled={isDialogLoading}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Color Variant
-                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={handleAddColor} disabled={isDialogLoading}><PlusCircle className="mr-2 h-4 w-4" /> Add Color Variant</Button>
                     </div>
                 </div>
                 <DialogFooter>
-                   <DialogClose asChild>
-                       <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isDialogLoading}>Cancel</Button>
-                   </DialogClose>
-                    <Button type="button" onClick={handleSaveProduct} disabled={isDialogLoading}>
-                        {isDialogLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                   <DialogClose asChild><Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isDialogLoading}>Cancel</Button></DialogClose>
+                    <Button type="button" onClick={handleSaveProduct} disabled={isDialogLoading || isUploadingThumbnail || Object.values(uploadingColorImages).some(s => s)}>
+                        {(isDialogLoading || isUploadingThumbnail || Object.values(uploadingColorImages).some(s => s)) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         {isEditing ? 'Save Changes' : 'Add Product'}
                     </Button>
                 </DialogFooter>
@@ -633,15 +492,7 @@ export default function AdminProductsPage() {
                     return (
                  <TableRow key={product._id.toString()}>
                       <TableCell>
-                           <Image
-                                src={product.thumbnailUrl || '/placeholder.svg'}
-                                alt={product.title}
-                                width={40}
-                                height={40}
-                                className="w-10 h-10 object-cover rounded border"
-                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
-                                data-ai-hint="product admin list image"
-                           />
+                           <Image src={product.thumbnailUrl || '/placeholder.svg'} alt={product.title} width={40} height={40} className="w-10 h-10 object-cover rounded border" onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} data-ai-hint="admin product list" />
                       </TableCell>
                     <TableCell className="font-medium">{product.title}</TableCell>
                     <TableCell>{categoryDisplay}</TableCell>
@@ -664,48 +515,21 @@ export default function AdminProductsPage() {
                     </TableCell>
                      <TableCell className="text-right">
                          {totalStock}
-                         {product.colors && product.colors.length > 0 && (
-                            <span className="text-xs text-muted-foreground block"> (from colors)</span>
-                         )}
-                         </TableCell>
+                         {product.colors && product.colors.length > 0 && (<span className="text-xs text-muted-foreground block"> (from colors)</span>)}
+                      </TableCell>
                       <TableCell>
-                          <Badge variant={isInStock ? 'default' : 'destructive'}
-                                 className={isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                          <Badge variant={isInStock ? 'default' : 'destructive'} className={isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                               {isInStock ? 'In Stock' : 'Out of Stock'}
                           </Badge>
                       </TableCell>
                     <TableCell className="text-center">
                     <div className="flex justify-center gap-1">
-                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(product)}>
-                            <Edit className="h-4 w-4" />
-                            <span className="sr-only">Edit</span>
-                         </Button>
+                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(product)}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isDeleting === product._id}>
-                                     {isDeleting === product._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                     <span className="sr-only">Delete</span>
-                                 </Button>
-                            </AlertDialogTrigger>
+                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isDeleting === product._id}>{isDeleting === product._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}<span className="sr-only">Delete</span></Button></AlertDialogTrigger>
                             <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the product
-                                    "{product.title}".
-                                </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeleting === product._id}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                     onClick={() => handleDeleteProduct(product._id.toString(), product.title)}
-                                     disabled={isDeleting === product._id}
-                                     className="bg-destructive hover:bg-destructive/90"
-                                >
-                                      {isDeleting === product._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                     Delete
-                                </AlertDialogAction>
-                                </AlertDialogFooter>
+                                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>Delete "{product.title}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter><AlertDialogCancel disabled={isDeleting === product._id}>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteProduct(product._id.toString(), product.title)} disabled={isDeleting === product._id} className="bg-destructive hover:bg-destructive/90">{isDeleting === product._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Delete</AlertDialogAction></AlertDialogFooter>
                             </AlertDialogContent>
                          </AlertDialog>
                     </div>
@@ -714,11 +538,7 @@ export default function AdminProductsPage() {
                     );
                 })
             ) : (
-                <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
-                        No products found{searchTerm ? ' matching your search' : ''}.
-                    </TableCell>
-                 </TableRow>
+                <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">No products found{searchTerm ? ' matching your search' : ''}.</TableCell></TableRow>
             )}
             </TableBody>
         </Table>
@@ -728,17 +548,12 @@ export default function AdminProductsPage() {
 }
 
 function getContrastColor(hexcolor: string | undefined): string {
-    if (!hexcolor) return '#000000'; // Default to black text for undefined/empty hex
+    if (!hexcolor) return '#000000';
     hexcolor = hexcolor.replace("#", "");
-    if (hexcolor.length === 3) { // Handle shorthand hex (e.g., #RGB)
-        hexcolor = hexcolor.split('').map(char => char + char).join('');
-    }
-    if (hexcolor.length !== 6) {
-        return '#000000'; // Invalid hex, default to black
-    }
+    if (hexcolor.length === 3) hexcolor = hexcolor.split('').map(char => char + char).join('');
+    if (hexcolor.length !== 6) return '#000000';
     const r = parseInt(hexcolor.substring(0, 2), 16);
     const g = parseInt(hexcolor.substring(2, 4), 16);
     const b = parseInt(hexcolor.substring(4, 6), 16);
-    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-    return (yiq >= 128) ? '#000000' : '#FFFFFF';
+    return ((r * 299) + (g * 587) + (b * 114)) / 1000 >= 128 ? '#000000' : '#FFFFFF';
 }

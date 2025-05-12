@@ -21,19 +21,23 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'encrypted-tbn0.gstatic.com', // Added this line
+        hostname: 'encrypted-tbn0.gstatic.com',
       },
-      // Allow any hostname for HTTPS as a broad fallback,
+      // Placeholder for your S3 bucket.
+      // Replace 'your-mock-bucket.s3.mock-region.amazonaws.com'
+      // with your actual bucket's hostname, e.g., 'my-eshop-bucket.s3.us-east-1.amazonaws.com'
+      // Or use a broader pattern if you have multiple buckets/regions, e.g., '*.s3.amazonaws.com'
+      // For the mock API, this needs to match the mocked URL structure.
+      {
+        protocol: 'https',
+        hostname: process.env.AWS_S3_BUCKET_NAME ? `${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_S3_REGION || 'mock-region'}.amazonaws.com` : 'your-mock-bucket.s3.mock-region.amazonaws.com',
+      },
+      // Allow any hostname for HTTPS as a broad fallback if absolutely necessary,
       // but it's better to specify known hostnames.
       {
         protocol: 'https',
         hostname: '**',
       },
-      // If you also need to support HTTP from all domains (less secure):
-      // {
-      //   protocol: 'http',
-      //   hostname: '**',
-      // }
     ],
   },
 };
