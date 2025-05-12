@@ -27,6 +27,7 @@ interface ClientProductPOSTData {
     thumbnailUrl: string;
     minOrderQuantity?: number;
     stock?: number; // Added to allow explicit stock setting if no colors
+    isTopBuy?: boolean; // Added for featured products
 }
 
 
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
     const maxPrice = searchParams.get('maxPrice');
     const discountedOnly = searchParams.get('discountedOnly');
     const populateCategory = searchParams.get('populate') === 'category';
+    const isTopBuyQuery = searchParams.get('isTopBuy');
 
     if (categoryIdQuery && mongoose.Types.ObjectId.isValid(categoryIdQuery)) {
         filters.category = new mongoose.Types.ObjectId(categoryIdQuery);
@@ -66,6 +68,12 @@ export async function GET(req: NextRequest) {
      if (discountedOnly === 'true') {
          filters.discount = { $ne: null, $gt: 0 };
      }
+     if (isTopBuyQuery === 'true') {
+        filters.isTopBuy = true;
+     } else if (isTopBuyQuery === 'false') {
+        filters.isTopBuy = false;
+     }
+
 
     const sortOptions: any = {};
     const sortBy = searchParams.get('sortBy') || 'createdAt';
@@ -143,7 +151,7 @@ export async function POST(req: NextRequest) {
 
         // Validate and parse colors, calculate total stock
         let finalStock = 0;
-        const parsedColorsForDB: ClientProductColorData[] = [];
+        const parsedColorsForDB: IProductColor[] = []; // Use IProductColor for stricter typing
         if (body.colors && Array.isArray(body.colors) && body.colors.length > 0) {
             // If colors array exists and is not empty, validate each color and sum their stock
             for (const clientColor of body.colors) {
@@ -165,7 +173,7 @@ export async function POST(req: NextRequest) {
                     hexCode: clientColor.hexCode?.trim() || undefined,
                     imageUrls: validImageUrls,
                     stock: Number(clientColor.stock),
-                });
+                } as IProductColor); // Cast to IProductColor to satisfy type, _id will be added by Mongoose
                 finalStock += Number(clientColor.stock); // Sum stock from colors
             }
         } else {
@@ -185,6 +193,7 @@ export async function POST(req: NextRequest) {
             category: new mongoose.Types.ObjectId(body.category),
             stock: finalStock, 
             minOrderQuantity: body.minOrderQuantity || 1,
+            isTopBuy: body.isTopBuy || false, // Handle isTopBuy
         };
 
         if (body.discount !== undefined && body.discount !== null) newProductDataForDB.discount = body.discount;

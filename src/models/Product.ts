@@ -44,6 +44,7 @@ export interface IProduct extends Document {
   colors: Types.DocumentArray<IProductColor>; // Use Mongoose DocumentArray for subdocuments
   thumbnailUrl: string; // The url for the product thumbnail - REQUIRED
   minOrderQuantity: number; // Minimum quantity per order
+  isTopBuy?: boolean; // Added for featured products
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +62,7 @@ const ProductSchema: Schema<IProduct> = new Schema({
   colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array
   thumbnailUrl: { type: String, required: [true, 'Primary Thumbnail URL is required.'] },
   minOrderQuantity: { type: Number, default: 1, min: 1 },
+  isTopBuy: { type: Boolean, default: false, index: true }, // Added for featured products
 }, { timestamps: true });
 
 
@@ -68,3 +70,4 @@ const ProductSchema: Schema<IProduct> = new Schema({
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 
 export default Product;
+

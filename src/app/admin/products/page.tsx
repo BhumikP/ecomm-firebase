@@ -9,16 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, Search, Loader2, Star, Palette, X, UploadCloud, Image as LucideImage } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { IProduct } from '@/models/Product';
-import type { IProductColor } from '@/models/Product';
+import type { IProduct, IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'; // Added Dropdown
+
 
 interface ProductColorFormData {
     _id?: string;
@@ -34,6 +36,7 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
     colors: ProductColorFormData[];
     thumbnailUrl: string;
     minOrderQuantity: number;
+    isTopBuy?: boolean; // Added for top buy
     createdAt?: Date;
     updatedAt?: Date;
 };
@@ -43,7 +46,8 @@ interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   category: ICategory;
   colors: IProductColor[]; 
   minOrderQuantity: number;
-  thumbnailUrl: string; 
+  thumbnailUrl: string;
+  isTopBuy?: boolean; // Added for top buy
 }
 
 const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' > = {
@@ -58,6 +62,7 @@ const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'r
     features: [],
     colors: [],
     minOrderQuantity: 1,
+    isTopBuy: false, // Default for new product
 };
 
 export default function AdminProductsPage() {
@@ -73,6 +78,8 @@ export default function AdminProductsPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); 
+  const [isUpdatingTopBuy, setIsUpdatingTopBuy] = useState<string | null>(null); // For top buy toggle
+
 
   const { toast } = useToast();
 
@@ -111,7 +118,7 @@ export default function AdminProductsPage() {
       const productsData = await productsResponse.json();
       const categoriesData = await categoriesResponse.json();
 
-      setProducts(Array.isArray(productsData.products) ? productsData.products.map((p: FetchedProduct) => ({...p, minOrderQuantity: p.minOrderQuantity || 1})) : []);
+      setProducts(Array.isArray(productsData.products) ? productsData.products.map((p: FetchedProduct) => ({...p, minOrderQuantity: p.minOrderQuantity || 1, isTopBuy: p.isTopBuy || false})) : []);
       setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
 
     } catch (error: any) {
@@ -144,11 +151,12 @@ export default function AdminProductsPage() {
         })),
         stock: product.stock,
         minOrderQuantity: product.minOrderQuantity || 1,
+        isTopBuy: product.isTopBuy || false, // Set isTopBuy
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
     } else {
-      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, thumbnailUrl: '' });
+      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, thumbnailUrl: '', isTopBuy: false });
       setSelectedCategoryId('');
       setIsEditing(false);
     }
@@ -167,15 +175,24 @@ export default function AdminProductsPage() {
   };
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    const numericFields = ['price', 'discount', 'stock', 'minOrderQuantity'];
-    if (name === 'features') {
-         setCurrentProduct(prev => ({ ...prev as ProductFormData, features: value.split(',').map(f => f.trim()).filter(f => f) }));
-    } else {
-        setCurrentProduct(prev => ({
+    const { name, value, type } = e.target;
+    
+    if (type === 'checkbox') {
+        const { checked } = e.target as HTMLInputElement;
+         setCurrentProduct(prev => ({
             ...(prev as ProductFormData),
-            [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
+            [name]: checked,
         }));
+    } else {
+        const numericFields = ['price', 'discount', 'stock', 'minOrderQuantity'];
+        if (name === 'features') {
+             setCurrentProduct(prev => ({ ...prev as ProductFormData, features: value.split(',').map(f => f.trim()).filter(f => f) }));
+        } else {
+            setCurrentProduct(prev => ({
+                ...(prev as ProductFormData),
+                [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
+            }));
+        }
     }
   };
 
@@ -323,7 +340,8 @@ export default function AdminProductsPage() {
         category: selectedCategoryId,
         thumbnailUrl: productData.thumbnailUrl.trim(),
         stock: finalStock,
-        minOrderQuantity: productData.minOrderQuantity
+        minOrderQuantity: productData.minOrderQuantity,
+        isTopBuy: productData.isTopBuy || false, // Include isTopBuy
     };
 
 
@@ -368,6 +386,28 @@ export default function AdminProductsPage() {
     }
   };
 
+   const handleToggleTopBuy = async (productId: string, currentIsTopBuy: boolean) => {
+        setIsUpdatingTopBuy(productId);
+        try {
+            const response = await fetch(`/api/products/${productId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isTopBuy: !currentIsTopBuy }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update Top Buy status');
+            }
+            await fetchProductsAndCategories(); // Re-fetch to update list
+            toast({ title: "Success", description: `Product ${!currentIsTopBuy ? 'marked as' : 'removed from'} Top Buy.` });
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Error", description: error.message });
+        } finally {
+            setIsUpdatingTopBuy(null);
+        }
+    };
+
+
    const featuresToString = (features: string[] | undefined | null): string => Array.isArray(features) ? features.join(', ') : '';
    const currentSubcategories = useMemo(() => availableCategories.find(c => c._id === selectedCategoryId)?.subcategories || [], [selectedCategoryId, availableCategories]);
    const calculateTotalStock = (product: FetchedProduct): number => product.colors?.length > 0 ? product.colors.reduce((sum, color) => sum + (color.stock || 0), 0) : (product.stock || 0);
@@ -389,6 +429,7 @@ export default function AdminProductsPage() {
                  <DialogDescription>{isEditing ? `Update "${(currentProduct as ProductFormData).title}".` : 'New product details.'}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                    {/* Thumbnail Upload */}
                     <div className="space-y-2">
                         <Label htmlFor="thumbnailFile">Primary Thumbnail Image <span className="text-destructive">*</span></Label>
                         <div className="flex items-center gap-4">
@@ -398,14 +439,19 @@ export default function AdminProductsPage() {
                         </div>
                         {(!currentProduct.thumbnailUrl && !isUploadingThumbnail) && <p className="text-xs text-destructive">Thumbnail is required.</p>}
                     </div>
-
+                    {/* Title */}
                     <div className="space-y-2"><Label htmlFor="title">Title <span className="text-destructive">*</span></Label><Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} disabled={isDialogLoading} /></div>
+                    {/* Category */}
                     <div className="space-y-2"><Label htmlFor="category">Category <span className="text-destructive">*</span></Label><Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={isDialogLoading}><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{availableCategories.map(cat => (<SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
+                    {/* Subcategory */}
                     {selectedCategoryId && currentSubcategories.length > 0 && (<div className="space-y-2"><Label htmlFor="subcategory">Subcategory</Label><Select value={currentProduct.subcategory || ''} onValueChange={handleSubcategoryChange} disabled={isDialogLoading || !selectedCategoryId}><SelectTrigger><SelectValue placeholder="Select subcategory" /></SelectTrigger><SelectContent>{currentSubcategories.map(subcat => (<SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>))}</SelectContent></Select></div>)}
+                    {/* Price */}
                     <div className="space-y-2"><Label htmlFor="price">Price (₹) <span className="text-destructive">*</span></Label><Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/></div>
+                    {/* Discount */}
                     <div className="space-y-2"><Label htmlFor="discount">Discount (%)</Label><Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" disabled={isDialogLoading}/></div>
+                    {/* Min Order Quantity */}
                     <div className="space-y-2"><Label htmlFor="minOrderQuantity">Min Order Qty <span className="text-destructive">*</span></Label><Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/></div>
-                    
+                    {/* Overall Stock (if no colors) */}
                     {(!currentProduct.colors || currentProduct.colors.length === 0) && (
                         <div className="space-y-2">
                             <Label htmlFor="stock">Overall Stock <span className="text-destructive">*</span></Label>
@@ -413,10 +459,28 @@ export default function AdminProductsPage() {
                             <p className="text-xs text-muted-foreground">Required if no color variants are added.</p>
                         </div>
                     )}
-                    
+                    {/* Description */}
                     <div className="space-y-2"><Label htmlFor="description">Description <span className="text-destructive">*</span></Label><Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="min-h-[100px]" disabled={isDialogLoading}/></div>
+                    {/* Features */}
                     <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
-
+                    {/* Is Top Buy Checkbox */}
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox
+                            id="isTopBuy"
+                            name="isTopBuy" // Important for handleInputChange
+                            checked={(currentProduct as ProductFormData).isTopBuy || false}
+                            onCheckedChange={(checked) => {
+                                // Create a synthetic event for handleInputChange
+                                const event = { target: { name: 'isTopBuy', value: '', type: 'checkbox', checked: !!checked } } as React.ChangeEvent<HTMLInputElement>;
+                                handleInputChange(event);
+                             }}
+                            disabled={isDialogLoading}
+                        />
+                        <Label htmlFor="isTopBuy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Mark as Top Buy
+                        </Label>
+                    </div>
+                    {/* Color Variants Section */}
                     <div className="space-y-4 border p-4 rounded-md">
                         <Label className="text-base font-semibold">Color Variants</Label>
                         <p className="text-xs text-muted-foreground">Add color variants. If added, "Overall Stock" is ignored. Each color variant needs at least one image and stock quantity.</p>
@@ -485,6 +549,7 @@ export default function AdminProductsPage() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Top Buy</TableHead> {/* New Column */}
                 <TableHead className="text-center">Actions</TableHead>
             </TableRow>
             </TableHeader>
@@ -500,6 +565,7 @@ export default function AdminProductsPage() {
                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto bg-muted" /></TableCell>
                         <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-16 bg-muted" /></TableCell> {/* Skeleton for Top Buy */}
                         <TableCell className="text-center"><Skeleton className="h-8 w-20 mx-auto bg-muted" /></TableCell>
                     </TableRow>
                  ))
@@ -541,23 +607,47 @@ export default function AdminProductsPage() {
                               {isInStock ? 'In Stock' : 'Out of Stock'}
                           </Badge>
                       </TableCell>
+                      <TableCell> {/* Top Buy Status Cell */}
+                            <Badge variant={product.isTopBuy ? "default" : "outline"} className={product.isTopBuy ? 'bg-sky-100 text-sky-800 border-sky-200' : ''}>
+                                {product.isTopBuy ? 'Yes' : 'No'}
+                            </Badge>
+                      </TableCell>
                     <TableCell className="text-center">
-                    <div className="flex justify-center gap-1">
-                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(product)}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isDeleting === product._id}>{isDeleting === product._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}<span className="sr-only">Delete</span></Button></AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>Delete "{product.title}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                                <AlertDialogFooter><AlertDialogCancel disabled={isDeleting === product._id}>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteProduct(product._id.toString(), product.title)} disabled={isDeleting === product._id} className="bg-destructive hover:bg-destructive/90">{isDeleting === product._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Delete</AlertDialogAction></AlertDialogFooter>
-                            </AlertDialogContent>
-                         </AlertDialog>
-                    </div>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isUpdatingTopBuy === product._id.toString() || isDeleting === product._id.toString()}>
+                                    {(isUpdatingTopBuy === product._id.toString() || isDeleting === product._id.toString()) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                                    <span className="sr-only">Actions</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenDialog(product)}>
+                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleToggleTopBuy(product._id.toString(), !!product.isTopBuy)}>
+                                    <Star className={`mr-2 h-4 w-4 ${product.isTopBuy ? 'fill-yellow-400 text-yellow-500' : 'text-muted-foreground'}`} />
+                                    {product.isTopBuy ? 'Remove from Top Buys' : 'Mark as Top Buy'}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={(e)=> e.preventDefault()}>
+                                             <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>Delete "{product.title}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteProduct(product._id.toString(), product.title)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </TableCell>
                  </TableRow>
                     );
                 })
             ) : (
-                <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">No products found{searchTerm ? ' matching your search' : ''}.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">No products found{searchTerm ? ' matching your search' : ''}.</TableCell></TableRow>
             )}
             </TableBody>
         </Table>

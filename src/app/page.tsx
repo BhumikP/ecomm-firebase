@@ -43,6 +43,7 @@ interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   colors: IProductColor[];
   thumbnailUrl: string;
   minOrderQuantity: number;
+  isTopBuy?: boolean; // Added
 }
 
 interface FilterState {
@@ -95,6 +96,11 @@ export default function Home() {
   const [productsByCat, setProductsByCat] = useState<Record<string, FetchedProduct[]>>({});
   const [homepageCategories, setHomepageCategories] = useState<ICategory[]>([]);
   const [isHomepageContentLoading, setIsHomepageContentLoading] = useState(true);
+  
+  // State for Top Buy products
+  const [topBuyProducts, setTopBuyProducts] = useState<FetchedProduct[]>([]);
+  const [isTopBuyLoading, setIsTopBuyLoading] = useState(true);
+
 
   // Common state
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
@@ -127,6 +133,7 @@ export default function Home() {
 
   const fetchHomepageData = async () => {
     setIsHomepageContentLoading(true);
+    setIsTopBuyLoading(true); // Start loading top buys as well
     try {
       const categoriesResponse = await fetch('/api/categories');
       if (!categoriesResponse.ok) {
@@ -164,6 +171,7 @@ export default function Home() {
               _id: p._id.toString(),
               colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
               minOrderQuantity: p.minOrderQuantity || 1,
+              isTopBuy: p.isTopBuy || false,
             }))
           }))
       );
@@ -183,6 +191,27 @@ export default function Home() {
       console.error("Error fetching homepage data:", err);
     } finally {
       setIsHomepageContentLoading(false);
+    }
+
+    // Fetch Top Buy products
+    try {
+        const topBuyResponse = await fetch(`/api/products?isTopBuy=true&limit=4&populate=category`);
+        if (!topBuyResponse.ok) {
+            throw new Error('Failed to fetch top buy products');
+        }
+        const topBuyData = await topBuyResponse.json();
+        setTopBuyProducts(Array.isArray(topBuyData.products) ? topBuyData.products.map((p: FetchedProduct) => ({
+            ...p,
+            _id: p._id.toString(),
+            colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
+            category: p.category || { _id: 'unknown', name: 'Unknown', subcategories: [] },
+            minOrderQuantity: p.minOrderQuantity || 1,
+            isTopBuy: p.isTopBuy || false,
+        })) : []);
+    } catch (err) {
+        console.error("Error fetching top buy products:", err);
+    } finally {
+        setIsTopBuyLoading(false);
     }
   };
 
@@ -229,6 +258,7 @@ export default function Home() {
             _id: p._id.toString(),
             colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
             minOrderQuantity: p.minOrderQuantity || 1,
+            isTopBuy: p.isTopBuy || false,
         }));
         setFilteredProducts(fetchedProductsList);
     } catch (err: any) {
@@ -477,6 +507,33 @@ export default function Home() {
                 <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/70 hover:bg-background text-foreground" />
             </Carousel>
          </section>
+
+        {/* Top Buys Section */}
+        <section aria-labelledby="top-buy-products" className="container mx-auto px-4 mb-12">
+            <div className="flex justify-between items-center mb-6">
+                <h2 id="top-buy-products" className="text-2xl md:text-3xl font-bold text-foreground">Top Buys</h2>
+                <Button variant="link" asChild>
+                    <Link href="/products?isTopBuy=true">View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
+                </Button>
+            </div>
+            {isTopBuyLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {[...Array(4)].map((_, i) => (
+                        <Card key={`skel-topbuy-${i}`} className="overflow-hidden shadow-md animate-pulse">
+                            <Skeleton className="w-full h-48 bg-muted" />
+                            <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
+                            <CardFooter className="p-4 pt-0 flex justify-between items-center"><Skeleton className="h-6 w-1/4 bg-muted rounded" /><Skeleton className="h-9 w-1/3 bg-muted rounded-md" /></CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            ) : topBuyProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {topBuyProducts.map(renderProductCard)}
+                </div>
+            ) : (
+                <p className="text-muted-foreground">No top buy products featured at the moment.</p>
+            )}
+        </section>
 
 
         <div className="container mx-auto px-4 py-8">
