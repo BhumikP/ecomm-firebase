@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
       },
+      // Add specific S3 hostname that was causing issues
+      {
+        protocol: 'https',
+        hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
+      },
       // AWS S3 Bucket hostname. This relies on AWS_S3_BUCKET_NAME and AWS_S3_REGION environment variables.
       // Example: if AWS_S3_BUCKET_NAME=my-eshop-bucket and AWS_S3_REGION=us-east-1,
       // this will allow images from my-eshop-bucket.s3.us-east-1.amazonaws.com
