@@ -21,8 +21,10 @@ const nextConfig: NextConfig = {
         hostname: 'picsum.photos',
         pathname: '/**', // Allow any path on picsum.photos
       },
-      // Removed the overly broad 'hostname: "**"' pattern.
       // If other specific hostnames are needed, they should be added explicitly.
+      // The previous entry for "encrypted-tbn0.gstatic.com" has been removed
+      // as the primary issue was with the S3 bucket. If gstatic is needed,
+      // it should be added as a separate specific pattern.
     ],
   },
 };
