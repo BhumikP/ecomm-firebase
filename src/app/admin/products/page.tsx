@@ -41,9 +41,9 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
 interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: ICategory;
-  colors: IProductColor[]; // This should use IProductColor as defined in model
+  colors: IProductColor[]; 
   minOrderQuantity: number;
-  thumbnailUrl: string; // Ensure this is part of FetchedProduct
+  thumbnailUrl: string; 
 }
 
 const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' > = {
@@ -72,7 +72,7 @@ export default function AdminProductsPage() {
   const [isDialogLoading, setIsDialogLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
-  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); // key: colorIndex-new-fileIndex
+  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); 
 
   const { toast } = useToast();
 
@@ -133,10 +133,10 @@ export default function AdminProductsPage() {
         ...product,
         _id: product._id.toString(),
         category: categoryId,
-        thumbnailUrl: product.thumbnailUrl, // Ensure thumbnail is passed
+        thumbnailUrl: product.thumbnailUrl, 
         features: product.features || [],
         colors: (product.colors || []).map(c => ({
-            _id: c._id?.toString(), // _id is optional as it's a subdocument
+            _id: c._id?.toString(), 
             name: c.name,
             hexCode: c.hexCode,
             imageUrls: c.imageUrls || [],
@@ -284,7 +284,7 @@ export default function AdminProductsPage() {
     }
 
     let finalStock = 0;
-    let finalColors: Omit<ProductColorFormData, 'pendingImageFiles'>[] = [];
+    let finalColors: ProductColorFormData[] = [];
 
     if (productData.colors && productData.colors.length > 0) {
         for (const colorForm of productData.colors) {
@@ -317,7 +317,7 @@ export default function AdminProductsPage() {
         finalStock = productData.stock;
     }
 
-    const productToSave: Omit<ProductFormData, 'rating'> & { stock: number, colors: Omit<ProductColorFormData, 'pendingImageFiles'>[]} = {
+    const productToSave: Omit<ProductFormData, 'rating'> & { stock: number, colors: ProductColorFormData[]} = {
         ...productData,
         colors: finalColors,
         category: selectedCategoryId,
@@ -576,5 +576,3 @@ function getContrastColor(hexcolor: string | undefined): string {
     const b = parseInt(hexcolor.substring(4, 6), 16);
     return ((r * 299) + (g * 587) + (b * 114)) / 1000 >= 128 ? '#000000' : '#FFFFFF';
 }
-
-```
