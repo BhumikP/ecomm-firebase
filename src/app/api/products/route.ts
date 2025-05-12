@@ -21,11 +21,12 @@ interface ClientProductPOSTData {
     category: string; // Category ID string
     subcategory?: string;
     rating?: number;
-    stock: number; // Can be overall stock or will be overridden by color stock sum
+    // stock: number; // Overall stock is now calculated from colors or explicitly set if no colors
     features?: string[];
     colors?: ClientProductColorData[];
     thumbnailUrl: string;
     minOrderQuantity?: number;
+    stock?: number; // Added to allow explicit stock setting if no colors
 }
 
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const filters: any = {};
-    const categoryIdQuery = searchParams.get('category');
+    const categoryIdQuery = searchParams.get('category'); // Expects category ID
     const subcategoryQuery = searchParams.get('subcategory');
     const searchQuery = searchParams.get('searchQuery');
     const maxPrice = searchParams.get('maxPrice');
@@ -43,10 +44,12 @@ export async function GET(req: NextRequest) {
     const populateCategory = searchParams.get('populate') === 'category';
 
     if (categoryIdQuery && mongoose.Types.ObjectId.isValid(categoryIdQuery)) {
-        filters.category = categoryIdQuery;
+        filters.category = new mongoose.Types.ObjectId(categoryIdQuery);
     }
     if (subcategoryQuery) {
-        filters.subcategory = { $regex: `^${subcategoryQuery}$`, $options: 'i' }; // Exact match for subcategory
+        // Ensure subcategory search is within the context of a category if categoryIdQuery is also present
+        // If only subcategory is provided, it might match across multiple parent categories if not handled carefully
+        filters.subcategory = { $regex: `^${subcategoryQuery}$`, $options: 'i' };
     }
     if (searchQuery) {
         filters.$or = [
@@ -167,7 +170,7 @@ export async function POST(req: NextRequest) {
             }
         } else {
             // If no colors or empty colors array, use the provided overall stock
-            if (body.stock == null || body.stock < 0) {
+            if (body.stock == null || body.stock < 0) { // Check body.stock if no colors
                  return NextResponse.json({ message: 'Overall Stock is required and must be non-negative when no color variants are added.' }, { status: 400 });
             }
             finalStock = body.stock;
@@ -180,7 +183,7 @@ export async function POST(req: NextRequest) {
             price: body.price,
             thumbnailUrl: body.thumbnailUrl.trim(),
             category: new mongoose.Types.ObjectId(body.category),
-            stock: finalStock, // Set the calculated or provided overall stock
+            stock: finalStock, 
             minOrderQuantity: body.minOrderQuantity || 1,
         };
 
@@ -194,7 +197,11 @@ export async function POST(req: NextRequest) {
         const newProduct = new Product(newProductDataForDB);
 
         const savedProduct = await newProduct.save();
-        const populatedProduct = await Product.findById(savedProduct._id).populate('category');
+        // Populate category after saving
+        const populatedProduct = await Product.findById(savedProduct._id)
+                                              .populate<{ category: ICategory }>('category', 'name subcategories _id')
+                                              .exec();
+
 
         return NextResponse.json(populatedProduct, { status: 201 });
 
@@ -207,3 +214,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
 }
+

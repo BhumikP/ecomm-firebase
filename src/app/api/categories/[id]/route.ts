@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     if (!category) {
       return NextResponse.json({ message: 'Category not found' }, { status: 404 });
     }
-    return NextResponse.json(category, { status: 200 });
+    return NextResponse.json({category}, { status: 200 }); // Wrap in {category: category}
   } catch (error) {
     console.error(`Error fetching category ${id}:`, error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // For simplicity, not handling cascading updates to products' subcategory field here.
     // That would require more complex logic if a subcategory is renamed/removed.
 
-    return NextResponse.json(updatedCategory, { status: 200 });
+    return NextResponse.json({category: updatedCategory}, { status: 200 }); // Wrap in {category: updatedCategory}
   } catch (error: any) {
     console.error(`Error updating category ${id}:`, error);
     if (error.code === 11000) { // Duplicate key error for name
@@ -118,3 +118,4 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
+
