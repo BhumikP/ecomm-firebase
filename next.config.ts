@@ -13,8 +13,16 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**', // Allows all hostnames for images served over HTTPS
+        hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
+        pathname: '/products/**', // Specific path for product images on S3
       },
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+        pathname: '/**', // Allow any path on picsum.photos
+      },
+      // Removed the overly broad 'hostname: "**"' pattern.
+      // If other specific hostnames are needed, they should be added explicitly.
     ],
   },
 };
