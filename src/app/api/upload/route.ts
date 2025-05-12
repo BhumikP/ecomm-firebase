@@ -1,30 +1,30 @@
 // src/app/api/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-// import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"; // Uncomment for real S3
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from 'uuid';
 
-// In a real scenario, S3 client would be configured here using environment variables
-// const s3Client = new S3Client({
-//   region: process.env.AWS_S3_REGION,
-//   credentials: {
-//     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-//     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-//   }
-// });
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
+const S3_REGION = process.env.AWS_S3_REGION;
+const AWS_ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
+const AWS_SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || 'your-mock-bucket';
-const S3_REGION = process.env.AWS_S3_REGION || 'mock-region';
+if (!BUCKET_NAME || !S3_REGION || !AWS_ACCESS_KEY || !AWS_SECRET_KEY) {
+  console.error("AWS S3 configuration is missing in environment variables.");
+  // For a production app, you might want to prevent startup or return an error immediately.
+}
+
+const s3Client = new S3Client({
+  region: S3_REGION,
+  credentials: {
+    accessKeyId: AWS_ACCESS_KEY!,
+    secretAccessKey: AWS_SECRET_KEY!,
+  }
+});
 
 export async function POST(req: NextRequest) {
-  // Basic check for production-like S3 config, can be more stringent
-  // if (!process.env.AWS_S3_BUCKET_NAME || !process.env.AWS_S3_REGION || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-  //   if (process.env.NODE_ENV === 'production') {
-  //      console.error("S3 configuration is missing in environment variables for production.");
-  //      return NextResponse.json({ success: false, message: "Server configuration error for S3 uploads." }, { status: 500 });
-  //   }
-  //   console.warn("S3 configuration is missing, proceeding with mock for development.");
-  // }
-
+  if (!BUCKET_NAME || !S3_REGION || !AWS_ACCESS_KEY || !AWS_SECRET_KEY) {
+     return NextResponse.json({ success: false, message: "Server S3 configuration error." }, { status: 500 });
+  }
 
   try {
     const formData = await req.formData();
@@ -36,28 +36,28 @@ export async function POST(req: NextRequest) {
 
     const fileExtension = file.name.split('.').pop();
     const uniqueFileName = `${uuidv4()}.${fileExtension}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
 
-    // const buffer = Buffer.from(await file.arrayBuffer()); // Needed for real S3 upload
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: `products/${uniqueFileName}`, // Store files in a 'products' folder within the bucket
+      Body: buffer,
+      ContentType: file.type,
+      // ACL: 'public-read', // Consider if images need to be publicly accessible via direct S3 URL.
+                           // If serving through Next.js Image component, this might not be needed.
+                           // And can have security implications if not desired.
+    };
 
-    // Real S3 Upload Logic (currently commented out for mocking)
-    // const params = {
-    //   Bucket: BUCKET_NAME,
-    //   Key: `products/${uniqueFileName}`,
-    //   Body: buffer,
-    //   ContentType: file.type,
-    //   // ACL: 'public-read', // If images need to be publicly accessible via S3 URL directly
-    // };
-    // await s3Client.send(new PutObjectCommand(params));
-    // const fileUrl = `https://${BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/${params.Key}`;
+    await s3Client.send(new PutObjectCommand(params));
+    
+    // Construct the URL. Ensure your bucket policy allows GetObject for these files if using direct S3 URLs.
+    // If using CloudFront or another CDN, this URL might be different.
+    const fileUrl = `https://${BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/${params.Key}`;
 
-    // Mocking S3 upload
-    await new Promise(resolve => setTimeout(resolve, 700)); // Simulate upload delay
-    const mockFileUrl = `https://${BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/products/${uniqueFileName}`;
-
-    return NextResponse.json({ success: true, url: mockFileUrl }, { status: 200 });
+    return NextResponse.json({ success: true, url: fileUrl }, { status: 200 });
 
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('Error uploading file to S3:', error);
     return NextResponse.json({ success: false, message: 'File upload failed.', error: (error as Error).message }, { status: 500 });
   }
 }

@@ -15,25 +15,16 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
       },
+      // AWS S3 Bucket hostname. This relies on AWS_S3_BUCKET_NAME and AWS_S3_REGION environment variables.
+      // Example: if AWS_S3_BUCKET_NAME=my-eshop-bucket and AWS_S3_REGION=us-east-1,
+      // this will allow images from my-eshop-bucket.s3.us-east-1.amazonaws.com
       {
         protocol: 'https',
-        hostname: 'images.samsung.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'encrypted-tbn0.gstatic.com',
-      },
-      // Placeholder for your S3 bucket.
-      // Replace 'your-mock-bucket.s3.mock-region.amazonaws.com'
-      // with your actual bucket's hostname, e.g., 'my-eshop-bucket.s3.us-east-1.amazonaws.com'
-      // Or use a broader pattern if you have multiple buckets/regions, e.g., '*.s3.amazonaws.com'
-      // For the mock API, this needs to match the mocked URL structure.
-      {
-        protocol: 'https',
-        hostname: process.env.AWS_S3_BUCKET_NAME ? `${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_S3_REGION || 'mock-region'}.amazonaws.com` : 'your-mock-bucket.s3.mock-region.amazonaws.com',
+        hostname: `${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_S3_REGION}.amazonaws.com`,
       },
       // Allow any hostname for HTTPS as a broad fallback if absolutely necessary,
-      // but it's better to specify known hostnames.
+      // but it's better to specify known hostnames. This was present before, retaining.
+      // Consider removing if all image sources are known and configured.
       {
         protocol: 'https',
         hostname: '**',
