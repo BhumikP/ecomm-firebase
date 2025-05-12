@@ -28,14 +28,14 @@ const ProductColorSchema: Schema<IProductColor> = new Schema({
     ]
   },
   stock: { type: Number, required: true, min: 0 },
-}, { _id: true }); // Enable _id for subdocuments. Mongoose adds _id by default.
+}, { _id: true });
 
 
 export interface IProduct extends Document {
   title: string;
   description: string;
   price: number;
-  discount: number | null; // Percentage d  iscount
+  discount: number | null; // Percentage discount
   category: Types.ObjectId | ICategory; // Reference to Category model
   subcategory?: string; // Name of the subcategory (string)
   rating: number; // Average rating
@@ -43,6 +43,7 @@ export interface IProduct extends Document {
   features: string[];
   colors: Types.DocumentArray<IProductColor>; // Use Mongoose DocumentArray for subdocuments
   thumbnailUrl: string; // The url for the product thumbnail - REQUIRED
+  minOrderQuantity: number; // Minimum quantity per order
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,11 +59,11 @@ const ProductSchema: Schema<IProduct> = new Schema({
   stock: { type: Number, required: true, min: 0, default: 0 }, // Total/base stock
   features: [{ type: String }],
   colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array
-  thumbnailUrl: { type: String, required: [true, 'Primary Thumbnail URL is required.'] }, // Make primary thumbnail required
+  thumbnailUrl: { type: String, required: [true, 'Primary Thumbnail URL is required.'] },
+  minOrderQuantity: { type: Number, default: 1, min: 1 },
 }, { timestamps: true });
 
 
-// Minor comment to try and force cache refresh if that's an issue.
 // Avoid recompiling the model if it already exists
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 

@@ -25,6 +25,7 @@ interface ClientProductPOSTData {
     features?: string[];
     colors?: ClientProductColorData[];
     thumbnailUrl: string;
+    minOrderQuantity?: number;
 }
 
 
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
          if (body.price < 0) {
             return NextResponse.json({ message: 'Price cannot be negative.' }, { status: 400 });
          }
+         if (body.minOrderQuantity !== undefined && (typeof body.minOrderQuantity !== 'number' || body.minOrderQuantity < 1)) {
+            return NextResponse.json({ message: 'Minimum Order Quantity must be a positive number.' }, { status: 400 });
+        }
 
 
         // Validate category
@@ -177,6 +181,7 @@ export async function POST(req: NextRequest) {
             thumbnailUrl: body.thumbnailUrl.trim(),
             category: new mongoose.Types.ObjectId(body.category),
             stock: finalStock, // Set the calculated or provided overall stock
+            minOrderQuantity: body.minOrderQuantity || 1,
         };
 
         if (body.discount !== undefined && body.discount !== null) newProductDataForDB.discount = body.discount;

@@ -18,7 +18,7 @@ import type { ICategory } from '@/models/Category';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Import Card
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Define ProductColor for frontend state (without thumbnailUrl)
 interface ProductColorFormData {
@@ -35,6 +35,7 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
     category: string; // Category ID
     colors: ProductColorFormData[]; // Use ProductColorFormData without thumbnail
     thumbnailUrl: string; // Main thumbnail is required
+    minOrderQuantity: number;
     createdAt?: Date;
     updatedAt?: Date;
 };
@@ -44,20 +45,22 @@ interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: ICategory; // Assumes category is populated
   colors: IProductColor[]; // Colors as defined in the backend model
+  minOrderQuantity: number;
 }
 
 
 const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating'> = {
-    thumbnailUrl: '', // Add thumbnailUrl here
+    thumbnailUrl: '',
     title: '',
     price: 0,
     discount: null,
     category: '',
     subcategory: '',
     description: '',
-    stock: 0, // Default overall stock
+    stock: 0,
     features: [],
-    colors: [], // Start with no colors
+    colors: [],
+    minOrderQuantity: 1,
 };
 
 
@@ -66,7 +69,6 @@ export default function AdminProductsPage() {
   const [availableCategories, setAvailableCategories] = useState<ICategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  // currentProduct state now uses ProductFormData for the dialog
   const [currentProduct, setCurrentProduct] = useState<ProductFormData | Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating'>>(emptyProduct);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
@@ -97,18 +99,18 @@ export default function AdminProductsPage() {
       const productsData = await productsResponse.json();
       const categoriesData = await categoriesResponse.json();
 
-      // Process fetched products (ensure _id is string and colors is array)
       const processedProducts = Array.isArray(productsData.products)
         ? productsData.products.map((p: FetchedProduct) => ({
             ...p,
             _id: p._id.toString(),
-            colors: (p.colors || []).map(c => ({ // Process colors to match frontend structure if needed
+            colors: (p.colors || []).map(c => ({
                 _id: c._id?.toString(),
                 name: c.name,
                 hexCode: c.hexCode,
                 imageUrls: c.imageUrls || [],
                 stock: c.stock
             })),
+            minOrderQuantity: p.minOrderQuantity || 1,
           }))
         : [];
       setProducts(processedProducts);
@@ -127,28 +129,29 @@ export default function AdminProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  const handleOpenDialog = (product?: FetchedProduct) => { // Takes FetchedProduct
+  const handleOpenDialog = (product?: FetchedProduct) => {
     if (product) {
       const categoryId = typeof product.category === 'string' ? product.category : (product.category as ICategory)._id;
-      setCurrentProduct({ // Convert FetchedProduct to ProductFormData
+      setCurrentProduct({
         ...product,
         _id: product._id.toString(),
         category: categoryId,
-        thumbnailUrl: product.thumbnailUrl, // Use the actual thumbnailUrl
+        thumbnailUrl: product.thumbnailUrl,
         features: product.features || [],
-        colors: (product.colors || []).map(c => ({ // Map colors, removing thumbnailUrl
+        colors: (product.colors || []).map(c => ({
             _id: c._id?.toString(),
             name: c.name,
             hexCode: c.hexCode,
             imageUrls: c.imageUrls || [],
             stock: c.stock,
         })),
-        stock: product.stock, // Include the overall stock from fetched data
+        stock: product.stock,
+        minOrderQuantity: product.minOrderQuantity || 1,
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
     } else {
-      setCurrentProduct({ ...emptyProduct, features: [], colors: [] });
+      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1 });
       setSelectedCategoryId('');
       setIsEditing(false);
     }
@@ -167,16 +170,15 @@ export default function AdminProductsPage() {
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    const numericFields = ['price', 'discount', 'stock'];
+    const numericFields = ['price', 'discount', 'stock', 'minOrderQuantity'];
 
     if (name === 'features') {
          const featuresArray = value.split(',').map(f => f.trim()).filter(f => f !== '');
          setCurrentProduct(prev => ({ ...prev as ProductFormData, features: featuresArray }));
          return;
     }
-     // Ensure thumbnailUrl only takes one URL
      if (name === 'thumbnailUrl') {
-         const firstUrl = value.split(' ')[0]; // Take only the first part if multiple URLs are pasted
+         const firstUrl = value.split(' ')[0];
          setCurrentProduct(prev => ({
              ...(prev as ProductFormData),
              thumbnailUrl: firstUrl,
@@ -185,7 +187,7 @@ export default function AdminProductsPage() {
      }
     setCurrentProduct(prev => ({
         ...(prev as ProductFormData),
-        [name]: numericFields.includes(name) ? (value === '' ? null : Number(value)) : value,
+        [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
     }));
   };
 
@@ -194,7 +196,7 @@ export default function AdminProductsPage() {
     setCurrentProduct(prev => ({
         ...(prev as ProductFormData),
         category: categoryId,
-        subcategory: '', // Reset subcategory when category changes
+        subcategory: '',
     }));
   };
 
@@ -205,11 +207,10 @@ export default function AdminProductsPage() {
       }));
   };
 
-  // Color management functions
   const handleAddColor = () => {
       setCurrentProduct(prev => ({
            ...(prev as ProductFormData),
-          colors: [...prev.colors, { name: '', imageUrls: [''], stock: 0 }] // Start with one empty URL and 0 stock
+          colors: [...prev.colors, { name: '', imageUrls: [''], stock: 0 }]
       }));
   };
 
@@ -239,7 +240,7 @@ export default function AdminProductsPage() {
                 colorToUpdate.imageUrls = [];
             }
 
-            colorToUpdate.imageUrls.push(''); // Add a new empty URL field
+            colorToUpdate.imageUrls.push('');
             updatedColors[colorIndex] = colorToUpdate;
             return { ...productData, colors: updatedColors };
         });
@@ -251,7 +252,6 @@ export default function AdminProductsPage() {
             const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
             colorToUpdate.imageUrls = colorToUpdate.imageUrls.filter((_, i) => i !== imageIndex);
-             // Ensure there's always at least one image URL field if removing the last one
             if (colorToUpdate.imageUrls.length === 0) {
                 colorToUpdate.imageUrls.push('');
             }
@@ -265,9 +265,8 @@ export default function AdminProductsPage() {
              const productData = prev as ProductFormData;
             const updatedColors = [...productData.colors];
             const colorToUpdate = { ...updatedColors[colorIndex] };
-             // Only update the specific image URL at the given index
              const newImageUrls = [...colorToUpdate.imageUrls];
-             const firstUrl = value.split(' ')[0]; // Take only first part if multiple URLs pasted
+             const firstUrl = value.split(' ')[0];
              newImageUrls[imageIndex] = firstUrl;
 
             colorToUpdate.imageUrls = newImageUrls;
@@ -282,9 +281,8 @@ export default function AdminProductsPage() {
 
     const productData = currentProduct as ProductFormData;
     let finalStock = 0;
-    let finalColors: ClientProductColorUpdateData[] = [];
+    let finalColors: ProductColorFormData[] = [];
 
-    // --- Validation and Data Preparation ---
     if (!productData.title || !productData.category || !productData.description || productData.price == null || productData.price < 0) {
         toast({ variant: "destructive", title: "Validation Error", description: "Please fill in Title, Category, Description, and Price (>=0)." });
         setIsDialogLoading(false); return;
@@ -297,16 +295,16 @@ export default function AdminProductsPage() {
         toast({ variant: "destructive", title: "Validation Error", description: "Discount must be between 0 and 100, or leave blank." });
         setIsDialogLoading(false); return;
     }
+     if (productData.minOrderQuantity == null || productData.minOrderQuantity < 1) {
+        toast({ variant: "destructive", title: "Validation Error", description: "Minimum Order Quantity must be at least 1." });
+        setIsDialogLoading(false); return;
+    }
     const chosenCategoryObj = availableCategories.find(c => c._id === selectedCategoryId);
     if (chosenCategoryObj && chosenCategoryObj.subcategories.length > 0 && !productData.subcategory) {
        // Optional: Make subcategory mandatory if available
-       // toast({ variant: "destructive", title: "Validation Error", description: "Please select a subcategory." });
-       // setIsDialogLoading(false); return;
     }
 
-    // Validate colors and stock based on whether colors are present
     if (productData.colors && productData.colors.length > 0) {
-        // Validate each color variant
         for (let i = 0; i < productData.colors.length; i++) {
             const colorForm = productData.colors[i];
             if (!colorForm.name || colorForm.name.trim() === '') {
@@ -322,7 +320,6 @@ export default function AdminProductsPage() {
                 setIsDialogLoading(false); return;
             }
 
-             // Ensure each image URL is valid and trimmed
              const validImageUrls = colorForm.imageUrls.map(url => typeof url === 'string' ? url.trim() : '').filter(url => url);
              if (validImageUrls.length === 0) {
                  toast({ variant: "destructive", title: "Color Validation Error", description: `At least one valid Image URL is required for color "${colorForm.name}".` });
@@ -334,13 +331,11 @@ export default function AdminProductsPage() {
                 hexCode: colorForm.hexCode?.trim() || undefined,
                 imageUrls: validImageUrls,
                 stock: Number(colorForm.stock),
-                _id: colorForm._id // Include _id if present for updates
+                _id: colorForm._id
             });
         }
-        // Calculate total stock from colors
         finalStock = finalColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
     } else {
-        // No colors, validate overall stock
         if (productData.stock == null || productData.stock < 0) {
             toast({ variant: "destructive", title: "Validation Error", description: "Overall Stock is required and must be non-negative when no color variants are added." });
             setIsDialogLoading(false);
@@ -348,14 +343,14 @@ export default function AdminProductsPage() {
         }
         finalStock = productData.stock;
     }
-    // --- End Validation ---
 
     const productToSave = {
         ...productData,
-        colors: finalColors, // Use the parsed and validated colors
+        colors: finalColors,
         category: selectedCategoryId,
-         thumbnailUrl: productData.thumbnailUrl.trim(), // Trim thumbnail URL
-         stock: finalStock, // Set the final calculated or provided stock
+         thumbnailUrl: productData.thumbnailUrl.trim(),
+         stock: finalStock,
+         minOrderQuantity: productData.minOrderQuantity,
     };
 
 
@@ -363,11 +358,9 @@ export default function AdminProductsPage() {
         let response;
         let successMessage = '';
         const payload: any = { ...productToSave };
-        // If it's a new product, don't send an _id field that might be empty from `emptyProduct`
         if (!isEditing || !payload._id) {
             delete payload._id;
         } else {
-             // Ensure _id is sent for updates if it exists
              payload._id = productData._id;
         }
 
@@ -380,7 +373,6 @@ export default function AdminProductsPage() {
             });
             successMessage = `"${payload.title}" has been updated.`;
         } else {
-             // Remove _id explicitly for POST request if it somehow slipped through
              delete payload._id;
             response = await fetch('/api/products', {
                 method: 'POST',
@@ -462,14 +454,14 @@ export default function AdminProductsPage() {
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Product
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"> {/* Adjusted width */}
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                  <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                  <DialogDescription>
                     {isEditing ? `Update details for "${(currentProduct as ProductFormData).title}".` : 'Fill in the details for the new product.'}
                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4"> {/* Use simple vertical stacking */}
+                <div className="space-y-4 py-4">
                     <div className="space-y-2">
                         <Label htmlFor="title">Title</Label>
                         <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} className="w-full" disabled={isDialogLoading} />
@@ -504,13 +496,16 @@ export default function AdminProductsPage() {
                         <Label htmlFor="discount">Discount (%)</Label>
                         <Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10 or leave blank" disabled={isDialogLoading}/>
                     </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="minOrderQuantity">Minimum Order Quantity</Label>
+                        <Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/>
+                    </div>
 
-                     {/* Conditionally render Overall Stock */}
                      {(!currentProduct.colors || currentProduct.colors.length === 0) && (
                          <div className="space-y-2">
                             <Label htmlFor="stock">Overall Stock</Label>
                             <Input id="stock" name="stock" type="number" min="0" step="1" value={currentProduct.stock ?? 0} onChange={handleInputChange} disabled={isDialogLoading}/>
-                            <p className="text-xs text-muted-foreground">Required only if no color variants are added.</p>
+                            <p className="text-xs text-muted-foreground">Required only if no color variants are added. Total stock will be sum of color stocks if variants exist.</p>
                          </div>
                      )}
 
@@ -524,10 +519,9 @@ export default function AdminProductsPage() {
                         <Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="w-full min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/>
                     </div>
 
-                    {/* Color Variants Section */}
                     <div className="space-y-4 border p-4 rounded-md">
                         <Label className="text-base font-semibold">Color Variants</Label>
-                        <p className="text-xs text-muted-foreground">Add color variants if applicable. Stock added here will override the "Overall Stock".</p>
+                        <p className="text-xs text-muted-foreground">Add color variants if applicable. If added, "Overall Stock" field will be ignored, and total stock will be the sum of stocks from each color.</p>
                         {currentProduct.colors.map((color, index) => (
                             <div key={index} className="space-y-3 border-b pb-3 last:border-b-0">
                                 <div className="flex justify-between items-center">
@@ -536,20 +530,18 @@ export default function AdminProductsPage() {
                                         <X className="h-4 w-4" />
                                     </Button>
                                 </div>
-                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <div className="space-y-1">
-                                        <Label htmlFor={`colorName-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
-                                        <Input id={`colorName-${index}`} value={color.name} onChange={(e) => handleColorFieldChange(index, 'name', e.target.value)} placeholder="e.g., Ocean Blue" required disabled={isDialogLoading}/>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor={`colorHex-${index}`} className="text-xs">Hex Code</Label>
-                                        <div className="flex items-center gap-2">
-                                            <Input id={`colorHex-${index}`} type="text" value={color.hexCode || ''} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} placeholder="#1A2B3C (Optional)" className="flex-grow" disabled={isDialogLoading}/>
-                                            <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} className="p-0 h-8 w-8 border-none rounded-md" disabled={isDialogLoading}/>
-                                        </div>
+                                 <div className="space-y-2">
+                                    <Label htmlFor={`colorName-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
+                                    <Input id={`colorName-${index}`} value={color.name} onChange={(e) => handleColorFieldChange(index, 'name', e.target.value)} placeholder="e.g., Ocean Blue" required disabled={isDialogLoading}/>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`colorHex-${index}`} className="text-xs">Hex Code</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input id={`colorHex-${index}`} type="text" value={color.hexCode || ''} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} placeholder="#1A2B3C (Optional)" className="flex-grow" disabled={isDialogLoading}/>
+                                        <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(index, 'hexCode', e.target.value)} className="p-0 h-8 w-8 border-none rounded-md" disabled={isDialogLoading}/>
                                     </div>
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                     <Label htmlFor={`colorImageUrls-${index}`} className="text-xs">Image URLs for this Color <span className="text-destructive">*</span></Label>
                                     {color.imageUrls && color.imageUrls.map((url, i) => (
                                         <div key={i} className="flex gap-2 items-center">
@@ -558,7 +550,7 @@ export default function AdminProductsPage() {
                                                 value={url}
                                                 onChange={(e) => handleImageUrlChange(index, i, e.target.value)}
                                                 placeholder={`Image URL ${i + 1}`}
-                                                required={i === 0} // Make first image URL required
+                                                required={i === 0}
                                                 disabled={isDialogLoading}
                                                 className="flex-grow"
                                              />
@@ -567,7 +559,7 @@ export default function AdminProductsPage() {
                                                  variant="ghost"
                                                  size="icon"
                                                  onClick={() => handleRemoveImageFromColor(index, i)}
-                                                 disabled={isDialogLoading || color.imageUrls.length <= 1} // Disable remove if only one field left
+                                                 disabled={isDialogLoading || color.imageUrls.length <= 1}
                                                  className="h-7 w-7 text-destructive hover:text-destructive"
                                              >
                                                 <X className="h-4 w-4" />
@@ -578,7 +570,7 @@ export default function AdminProductsPage() {
                                         <PlusCircle className="mr-2 h-4 w-4" /> Add Image URL
                                     </Button>
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                     <Label htmlFor={`colorStock-${index}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label>
                                     <Input id={`colorStock-${index}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(index, 'stock', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Enter stock" required disabled={isDialogLoading}/>
                                 </div>
@@ -642,7 +634,7 @@ export default function AdminProductsPage() {
                  <TableRow key={product._id.toString()}>
                       <TableCell>
                            <Image
-                                src={product.thumbnailUrl || '/placeholder.svg'} // Use main thumbnail
+                                src={product.thumbnailUrl || '/placeholder.svg'}
                                 alt={product.title}
                                 width={40}
                                 height={40}

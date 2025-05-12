@@ -30,6 +30,7 @@ interface ClientProductPUTData {
     features?: string[];
     colors?: ClientProductColorUpdateData[];
     thumbnailUrl?: string;
+    minOrderQuantity?: number;
 }
 
 
@@ -101,6 +102,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
     if (body.rating !== undefined) updateDataForDB.rating = body.rating;
     if (body.features !== undefined) updateDataForDB.features = body.features;
+    if (body.minOrderQuantity !== undefined) {
+        if (typeof body.minOrderQuantity !== 'number' || body.minOrderQuantity < 1) {
+            return NextResponse.json({ message: 'Minimum Order Quantity must be a positive number.' }, { status: 400 });
+        }
+        updateDataForDB.minOrderQuantity = body.minOrderQuantity;
+    }
 
 
     // Handle category and subcategory updates
@@ -155,30 +162,21 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (clientColor._id && mongoose.Types.ObjectId.isValid(clientColor._id.toString())) {
                 colorUpdateData._id = new mongoose.Types.ObjectId(clientColor._id.toString());
             } else {
-                // If no _id, generate a new one for Mongoose subdocument identification during update
                  colorUpdateData._id = new mongoose.Types.ObjectId();
             }
             parsedColorsForUpdate.push(colorUpdateData);
-             finalStock += Number(clientColor.stock); // Sum stock from colors
+             finalStock += Number(clientColor.stock);
         }
         updateDataForDB.colors = parsedColorsForUpdate;
-         updateDataForDB.stock = finalStock; // Update total stock based on colors
+         updateDataForDB.stock = finalStock;
 
     } else if (body.hasOwnProperty('colors') && body.colors === null) {
-        // Handle explicitly setting colors to empty array
         updateDataForDB.colors = [];
-        // Use overall stock if provided, otherwise default or keep existing
         if (body.stock !== undefined) {
              if (body.stock < 0) return NextResponse.json({ message: 'Overall Stock cannot be negative when no colors are provided' }, { status: 400 });
              updateDataForDB.stock = body.stock;
-        } else {
-            // If colors are removed and no new overall stock is provided,
-            // we might want to keep the old total stock or default to 0.
-            // Here, we'll keep the existing logic (stock might be updated separately or not at all if not in body).
-            // If overall stock MUST be provided when colors are removed, add validation here.
         }
     } else if (body.stock !== undefined) {
-         // Only update overall stock if 'colors' field is not in the request or is undefined
          if (body.stock < 0) return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
          updateDataForDB.stock = body.stock;
     }
@@ -190,7 +188,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
       { $set: updateDataForDB },
-      { new: true, runValidators: true, overwrite: false } // Use overwrite: false with $set
+      { new: true, runValidators: true, overwrite: false }
     ).populate<{ category: ICategory }>('category', 'name subcategories _id');
 
     if (!updatedProduct) {
