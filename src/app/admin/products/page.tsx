@@ -26,8 +26,6 @@ interface ProductColorFormData {
     hexCode?: string;
     imageUrls: string[];
     stock: number;
-    // For managing file uploads temporarily on the client
-    pendingImageFiles?: File[];
 }
 
 type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | 'colors' | '_id'> & {
@@ -38,18 +36,17 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
     minOrderQuantity: number;
     createdAt?: Date;
     updatedAt?: Date;
-    // For managing thumbnail file upload
-    pendingThumbnailFile?: File | null;
 };
 
 interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: ICategory;
-  colors: IProductColor[];
+  colors: IProductColor[]; // This should use IProductColor as defined in model
   minOrderQuantity: number;
+  thumbnailUrl: string; // Ensure this is part of FetchedProduct
 }
 
-const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' | 'pendingThumbnailFile'> = {
+const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' > = {
     thumbnailUrl: '',
     title: '',
     price: 0,
@@ -68,14 +65,14 @@ export default function AdminProductsPage() {
   const [availableCategories, setAvailableCategories] = useState<ICategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState<ProductFormData | Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' | 'pendingThumbnailFile'>>(emptyProduct);
+  const [currentProduct, setCurrentProduct] = useState<ProductFormData | Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating'>>(emptyProduct);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogLoading, setIsDialogLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
-  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); // key: colorIndex-imageIndex
+  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); // key: colorIndex-new-fileIndex
 
   const { toast } = useToast();
 
@@ -136,10 +133,10 @@ export default function AdminProductsPage() {
         ...product,
         _id: product._id.toString(),
         category: categoryId,
-        thumbnailUrl: product.thumbnailUrl,
+        thumbnailUrl: product.thumbnailUrl, // Ensure thumbnail is passed
         features: product.features || [],
         colors: (product.colors || []).map(c => ({
-            _id: c._id?.toString(),
+            _id: c._id?.toString(), // _id is optional as it's a subdocument
             name: c.name,
             hexCode: c.hexCode,
             imageUrls: c.imageUrls || [],
@@ -147,12 +144,11 @@ export default function AdminProductsPage() {
         })),
         stock: product.stock,
         minOrderQuantity: product.minOrderQuantity || 1,
-        pendingThumbnailFile: null,
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
     } else {
-      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, pendingThumbnailFile: null });
+      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, thumbnailUrl: '' });
       setSelectedCategoryId('');
       setIsEditing(false);
     }
@@ -189,7 +185,7 @@ export default function AdminProductsPage() {
         setIsUploadingThumbnail(true);
         const uploadedUrl = await handleImageUpload(file);
         if (uploadedUrl) {
-            setCurrentProduct(prev => ({ ...prev as ProductFormData, thumbnailUrl: uploadedUrl, pendingThumbnailFile: null }));
+            setCurrentProduct(prev => ({ ...prev as ProductFormData, thumbnailUrl: uploadedUrl }));
         }
         setIsUploadingThumbnail(false);
     }
@@ -206,7 +202,7 @@ export default function AdminProductsPage() {
   };
 
   const handleAddColor = () => {
-      setCurrentProduct(prev => ({ ...(prev as ProductFormData), colors: [...prev.colors, { name: '', imageUrls: [], stock: 0, pendingImageFiles: [] }]} as any));
+      setCurrentProduct(prev => ({ ...(prev as ProductFormData), colors: [...prev.colors, { name: '', imageUrls: [], stock: 0 }]} as any));
   };
 
   const handleRemoveColor = (index: number) => {
@@ -220,25 +216,36 @@ export default function AdminProductsPage() {
       }));
   };
 
-  const handleAddNewFileToColor = async (colorIndex: number, file: File | null | undefined) => {
-    if (!file) return;
-    const uploadKey = `${colorIndex}-new`;
-    setUploadingColorImages(prev => ({ ...prev, [uploadKey]: true }));
-    const uploadedUrl = await handleImageUpload(file);
-    if (uploadedUrl) {
+  const handleAddNewFilesToColor = async (colorIndex: number, files: FileList | null | undefined) => {
+    if (!files || files.length === 0) return;
+
+    const productData = currentProduct as ProductFormData;
+    const newImageUrls: string[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const uploadKey = `${colorIndex}-new-${productData.colors[colorIndex].imageUrls.length + i}`;
+        setUploadingColorImages(prev => ({ ...prev, [uploadKey]: true }));
+        const uploadedUrl = await handleImageUpload(file);
+        if (uploadedUrl) {
+            newImageUrls.push(uploadedUrl);
+        }
+        setUploadingColorImages(prev => ({ ...prev, [uploadKey]: false }));
+    }
+
+    if (newImageUrls.length > 0) {
         setCurrentProduct(prev => {
-            const productData = prev as ProductFormData;
-            const updatedColors = [...productData.colors];
+            const currentProductData = prev as ProductFormData;
+            const updatedColors = [...currentProductData.colors];
             if (updatedColors[colorIndex]) {
                 updatedColors[colorIndex] = {
                     ...updatedColors[colorIndex],
-                    imageUrls: [...updatedColors[colorIndex].imageUrls, uploadedUrl]
+                    imageUrls: [...updatedColors[colorIndex].imageUrls, ...newImageUrls]
                 };
             }
-            return { ...productData, colors: updatedColors };
+            return { ...currentProductData, colors: updatedColors };
         });
     }
-    setUploadingColorImages(prev => ({ ...prev, [uploadKey]: false }));
   };
 
   const handleRemoveUploadedColorImage = (colorIndex: number, imageUrlToRemove: string) => {
@@ -304,21 +311,20 @@ export default function AdminProductsPage() {
         }
     } else {
         if (productData.stock == null || productData.stock < 0) {
-            toast({ variant: "destructive", title: "Validation Error", description: "Overall Stock required if no colors." });
+            toast({ variant: "destructive", title: "Validation Error", description: "Overall Stock required if no colors are added." });
             setIsDialogLoading(false); return;
         }
         finalStock = productData.stock;
     }
 
-    const productToSave = {
+    const productToSave: Omit<ProductFormData, 'rating'> & { stock: number, colors: Omit<ProductColorFormData, 'pendingImageFiles'>[]} = {
         ...productData,
         colors: finalColors,
         category: selectedCategoryId,
         thumbnailUrl: productData.thumbnailUrl.trim(),
-        stock: finalStock, // This is now the sum of color stocks if colors exist, or overall stock
+        stock: finalStock,
         minOrderQuantity: productData.minOrderQuantity
     };
-    delete (productToSave as any).pendingThumbnailFile;
 
 
     try {
@@ -334,12 +340,14 @@ export default function AdminProductsPage() {
 
         if (!response.ok) {
             const errorData = await response.json();
+            console.error("Error saving product:", errorData);
             throw new Error(errorData.message || 'Failed to save product');
         }
         await fetchProductsAndCategories();
         toast({ title: isEditing ? "Product Updated" : "Product Added" });
         handleCloseDialog();
     } catch (error: any) {
+        console.error("Error in handleSaveProduct:", error);
         toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
         setIsDialogLoading(false);
@@ -381,7 +389,6 @@ export default function AdminProductsPage() {
                  <DialogDescription>{isEditing ? `Update "${(currentProduct as ProductFormData).title}".` : 'New product details.'}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                    {/* Thumbnail Upload */}
                     <div className="space-y-2">
                         <Label htmlFor="thumbnailFile">Primary Thumbnail Image <span className="text-destructive">*</span></Label>
                         <div className="flex items-center gap-4">
@@ -419,8 +426,17 @@ export default function AdminProductsPage() {
                                      <Label className="text-sm font-medium">Color Variant #{colorIndex + 1}</Label>
                                      <Button variant="ghost" size="icon" onClick={() => handleRemoveColor(colorIndex)} disabled={isDialogLoading} className="h-7 w-7 text-destructive hover:text-destructive"><X className="h-4 w-4" /></Button>
                                 </div>
-                                <div className="space-y-2"><Label htmlFor={`colorName-${colorIndex}`} className="text-xs">Name <span className="text-destructive">*</span></Label><Input id={`colorName-${colorIndex}`} value={color.name} onChange={(e) => handleColorFieldChange(colorIndex, 'name', e.target.value)} placeholder="e.g., Ocean Blue" disabled={isDialogLoading}/></div>
-                                <div className="space-y-2"><Label htmlFor={`colorHex-${colorIndex}`} className="text-xs">Hex Code</Label><div className="flex items-center gap-2"><Input id={`colorHex-${colorIndex}`} type="text" value={color.hexCode || ''} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} placeholder="#1A2B3C" className="flex-grow" disabled={isDialogLoading}/><Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} className="p-0 h-8 w-8 rounded-md" disabled={isDialogLoading}/></div></div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`colorName-${colorIndex}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
+                                    <Input id={`colorName-${colorIndex}`} value={color.name} onChange={(e) => handleColorFieldChange(colorIndex, 'name', e.target.value)} placeholder="e.g., Ocean Blue" disabled={isDialogLoading}/>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`colorHex-${colorIndex}`} className="text-xs">Hex Code</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input id={`colorHex-${colorIndex}`} type="text" value={color.hexCode || ''} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} placeholder="#1A2B3C" className="flex-grow" disabled={isDialogLoading}/>
+                                        <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} className="p-0 h-8 w-8 rounded-md" disabled={isDialogLoading}/>
+                                    </div>
+                                </div>
                                 
                                 <div className="space-y-2">
                                     <Label className="text-xs">Images for this Color <span className="text-destructive">*</span></Label>
@@ -432,11 +448,14 @@ export default function AdminProductsPage() {
                                             </div>
                                         ))}
                                     </div>
-                                    <Input type="file" accept="image/*" onChange={(e) => handleAddNewFileToColor(colorIndex, e.target.files?.[0])} className="text-xs" disabled={isDialogLoading || uploadingColorImages[`${colorIndex}-new`]} />
-                                    {uploadingColorImages[`${colorIndex}-new`] && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                                    <Input type="file" multiple accept="image/*" onChange={(e) => handleAddNewFilesToColor(colorIndex, e.target.files)} className="text-xs" disabled={isDialogLoading || !!uploadingColorImages[`${colorIndex}-new`]} />
+                                    {Object.keys(uploadingColorImages).some(key => key.startsWith(`${colorIndex}-new`) && uploadingColorImages[key]) && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                                 </div>
                                 
-                                <div className="space-y-2"><Label htmlFor={`colorStock-${colorIndex}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label><Input id={`colorStock-${colorIndex}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(colorIndex, 'stock', parseInt(e.target.value, 10))} placeholder="Enter stock" disabled={isDialogLoading}/></div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`colorStock-${colorIndex}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label>
+                                    <Input id={`colorStock-${colorIndex}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(colorIndex, 'stock', parseInt(e.target.value, 10))} placeholder="Enter stock" disabled={isDialogLoading}/>
+                                </div>
                             </div>
                         ))}
                         <Button type="button" variant="outline" size="sm" onClick={handleAddColor} disabled={isDialogLoading}><PlusCircle className="mr-2 h-4 w-4" /> Add Color Variant</Button>
@@ -557,3 +576,5 @@ function getContrastColor(hexcolor: string | undefined): string {
     const b = parseInt(hexcolor.substring(4, 6), 16);
     return ((r * 299) + (g * 587) + (b * 114)) / 1000 >= 128 ? '#000000' : '#FFFFFF';
 }
+
+```
