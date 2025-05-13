@@ -63,7 +63,8 @@ export function Header() {
       if (response.ok) {
         const data = await response.json();
         if (data.cart && data.cart.items) {
-          const count = data.cart.items.reduce((sum: number, item: ICartItem) => sum + item.quantity, 0);
+          // Show number of distinct items/lines in cart, not sum of quantities
+          const count = data.cart.items.length; 
           setCartItemCount(count);
         } else {
           setCartItemCount(0); // No cart or no items
@@ -276,3 +277,5 @@ export function Header() {
     </header>
   );
 }
+
+    

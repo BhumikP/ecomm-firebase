@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Percent, Truck, AlertTriangle } from 'lucide-react'; // Added icons
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 interface StoreSettings {
   storeName: string;
@@ -18,43 +20,51 @@ interface StoreSettings {
   shippingCharge: number;
 }
 
-export default function AdminSettingsPage() {
-  const { toast } = useToast();
-  const [settings, setSettings] = useState<StoreSettings>({
+const defaultSettingsState: StoreSettings = {
     storeName: 'eShop Simplified',
     supportEmail: 'support@eshop.com',
     maintenanceMode: false,
-    taxPercentage: 0, // Default tax percentage
-    shippingCharge: 0, // Default shipping charge
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+    taxPercentage: 0,
+    shippingCharge: 0,
+};
+
+export default function AdminSettingsPage() {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState<StoreSettings>(defaultSettingsState);
+  const [isLoading, setIsLoading] = useState(false); // For save button
+  const [isPageLoading, setIsPageLoading] = useState(true); // For initial page load
+
 
   useEffect(() => {
-    setIsClient(true);
-    // In a real app, load initial settings from API
-    const loadedSettings = localStorage.getItem('storeSettings');
-    if (loadedSettings) {
-      try {
-        const parsedSettings = JSON.parse(loadedSettings) as StoreSettings;
-        // Validate parsed settings structure if necessary
-        if (parsedSettings && typeof parsedSettings.storeName === 'string') {
-             setSettings(prev => ({
-                ...prev, // keep defaults for any missing fields
-                ...parsedSettings,
-                taxPercentage: parsedSettings.taxPercentage ?? 0, // Ensure defaults for new fields
-                shippingCharge: parsedSettings.shippingCharge ?? 0,
-             }));
-        } else {
-            console.warn("Invalid settings found in localStorage, using defaults.");
+    const fetchSettings = async () => {
+        setIsPageLoading(true);
+        try {
+            const response = await fetch('/api/admin/settings');
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.message || "Failed to load settings");
+            }
+            const data = await response.json();
+            if (data.settings) {
+                // Ensure all fields are present, falling back to defaults if API might return partials
+                setSettings({
+                    storeName: data.settings.storeName ?? defaultSettingsState.storeName,
+                    supportEmail: data.settings.supportEmail ?? defaultSettingsState.supportEmail,
+                    maintenanceMode: data.settings.maintenanceMode ?? defaultSettingsState.maintenanceMode,
+                    taxPercentage: data.settings.taxPercentage ?? defaultSettingsState.taxPercentage,
+                    shippingCharge: data.settings.shippingCharge ?? defaultSettingsState.shippingCharge,
+                });
+            }
+        } catch (error: any) {
+            console.error("Failed to fetch settings:", error);
+            toast({ variant: "destructive", title: "Load Error", description: error.message || "Could not load store settings."});
+            // Keep default settings on error
+        } finally {
+            setIsPageLoading(false);
         }
-
-      } catch (e) {
-        console.error("Failed to parse settings from localStorage", e);
-        // Stick to default settings if parsing fails
-      }
-    }
-  }, []);
+    };
+    fetchSettings();
+  }, [toast]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,39 +84,59 @@ export default function AdminSettingsPage() {
 
   const handleSaveChanges = async () => {
     setIsLoading(true);
-    console.log('Saving settings:', settings);
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     try {
-      // In a real app, save to API: await fetch('/api/admin/settings', { method: 'POST', body: JSON.stringify(settings) });
-      localStorage.setItem('storeSettings', JSON.stringify(settings)); // Mock save to localStorage
+      const response = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+       const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to save settings.");
+      }
       toast({
         title: "Settings Saved",
         description: "Your store settings have been updated successfully.",
       });
-    } catch (error) {
+      if (result.settings) { // Update state with potentially validated/formatted data from backend
+         setSettings(result.settings);
+      }
+    } catch (error: any) {
       console.error("Error saving settings:", error);
       toast({
         variant: "destructive",
         title: "Save Failed",
-        description: "Could not update settings. Please try again.",
+        description: error.message || "Could not update settings. Please try again.",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isClient) {
+  if (isPageLoading) {
     return (
-        <div className="space-y-6 animate-pulse">
-            <div className="h-8 w-1/2 bg-muted rounded"></div>
-            <Card><CardHeader><div className="h-6 w-1/4 bg-muted rounded"></div></CardHeader><CardContent className="space-y-4"><div className="h-10 bg-muted rounded w-full"></div><div className="h-10 bg-muted rounded w-full"></div></CardContent></Card>
-            <div className="flex justify-end"><div className="h-10 w-24 bg-muted rounded"></div></div>
+        <div className="space-y-8">
+            <Skeleton className="h-9 w-1/3 rounded" /> {/* Title Skeleton */}
+            {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                    <CardHeader>
+                        <Skeleton className="h-7 w-1/4 rounded" />
+                        <Skeleton className="h-4 w-1/2 rounded mt-1" />
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2"><Skeleton className="h-5 w-1/5 rounded" /><Skeleton className="h-10 w-full rounded-md" /></div>
+                        <div className="space-y-2"><Skeleton className="h-5 w-1/5 rounded" /><Skeleton className="h-10 w-full rounded-md" /></div>
+                         {i === 2 && <div className="flex items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><Skeleton className="h-6 w-1/3 rounded" /><Skeleton className="h-4 w-3/4 rounded mt-1" /></div><Skeleton className="h-6 w-11 rounded-full" /></div> }
+                    </CardContent>
+                </Card>
+            ))}
+            <div className="flex justify-end mt-8">
+                <Skeleton className="h-12 w-40 rounded-md" /> {/* Button Skeleton */}
+            </div>
         </div>
     );
   }
+
 
   return (
     <div className="space-y-8">
@@ -221,7 +251,7 @@ export default function AdminSettingsPage() {
       </Card>
 
       <div className="flex justify-end mt-8">
-        <Button onClick={handleSaveChanges} disabled={isLoading} size="lg">
+        <Button onClick={handleSaveChanges} disabled={isLoading || isPageLoading} size="lg">
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Save All Settings
         </Button>
@@ -229,3 +259,5 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
+
+    
