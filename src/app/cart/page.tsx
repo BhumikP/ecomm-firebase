@@ -1,3 +1,4 @@
+
 // src/app/cart/page.tsx
 'use client';
 
@@ -60,6 +61,7 @@ export default function CartPage() {
       }
       const data = await response.json();
       setCart(data.cart as PopulatedCart);
+      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
     } catch (error: any) {
       console.error("Error fetching cart:", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -95,6 +97,7 @@ export default function CartPage() {
         throw new Error(data.message || 'Failed to update quantity');
       }
       setCart(data.cart as PopulatedCart);
+      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
       // toast({ description: `Quantity updated.` });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Update Failed", description: error.message });
@@ -115,6 +118,7 @@ export default function CartPage() {
         throw new Error(data.message || 'Failed to remove item');
       }
       setCart(data.cart as PopulatedCart);
+      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
       toast({
         title: "Item Removed",
         description: `${itemTitle} has been removed from your cart.`,
@@ -308,7 +312,7 @@ export default function CartPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button className="w-full" onClick={handleCheckout} disabled={isLoading || isUpdating !== null || cart.items.length === 0}>
+                    <Button className="w-full" onClick={handleCheckout} disabled={isLoading || isUpdating !== null || (cart?.items.length ?? 0) === 0}>
                         Proceed to Checkout
                     </Button>
                 </CardFooter>

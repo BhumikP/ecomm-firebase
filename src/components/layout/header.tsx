@@ -1,51 +1,122 @@
+
 'use client'; // Add 'use client'
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react'; // Import useEffect and useState
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, User, Search, Menu, LogIn, LogOut, UserPlus, Settings } from 'lucide-react'; // Import LogIn, LogOut, UserPlus
+import { ShoppingCart, User, Search, Menu, LogIn, LogOut, UserPlus, Settings, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge'; // Import Badge
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
-  SheetClose, // Import SheetClose
+  SheetClose,
 } from "@/components/ui/sheet";
+import type { ICartItem } from '@/models/Cart'; // For cart item type if needed for count calculation
 
 export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isClient, setIsClient] = useState(false); // Track if component has mounted
+  const [userId, setUserId] = useState<string | null>(null);
+  const [cartItemCount, setCartItemCount] = useState(0);
+  const [isCartLoading, setIsCartLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    setIsClient(true); // Component has mounted
-    // Check login status from localStorage only on the client side
+    setIsClient(true);
     const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
     const role = localStorage.getItem('userRole');
+    const userDataString = localStorage.getItem('userData');
+    
     setIsLoggedIn(loggedInStatus);
     setUserRole(role);
-  }, []); // Empty dependency array ensures this runs only once on mount
+
+    if (loggedInStatus && userDataString) {
+      try {
+        const userData = JSON.parse(userDataString);
+        setUserId(userData._id);
+      } catch (error) {
+        console.error("Error parsing user data from localStorage:", error);
+        // Handle error, e.g., clear corrupt data
+        localStorage.removeItem('userData');
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('userRole');
+        setIsLoggedIn(false);
+        setUserRole(null);
+      }
+    } else {
+      setUserId(null); // Ensure userId is null if not logged in
+    }
+  }, []);
+
+  const fetchCartCount = useCallback(async () => {
+    if (!userId || !isLoggedIn) {
+      setCartItemCount(0); // Reset count if no user or not logged in
+      return;
+    }
+    setIsCartLoading(true);
+    try {
+      const response = await fetch(`/api/cart?userId=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.cart && data.cart.items) {
+          const count = data.cart.items.reduce((sum: number, item: ICartItem) => sum + item.quantity, 0);
+          setCartItemCount(count);
+        } else {
+          setCartItemCount(0); // No cart or no items
+        }
+      } else {
+        // Handle non-OK responses, e.g., 404 if cart doesn't exist for user yet
+        console.warn(`Failed to fetch cart count, status: ${response.status}`);
+        setCartItemCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching cart count:", error);
+      setCartItemCount(0); // Reset on error
+    } finally {
+      setIsCartLoading(false);
+    }
+  }, [userId, isLoggedIn]);
+
+  useEffect(() => {
+    if (isClient && userId) { // Only fetch if client and userId is available
+      fetchCartCount();
+    } else if (isClient && !userId) { // If client but no userId (logged out)
+      setCartItemCount(0);
+    }
+  }, [isClient, userId, fetchCartCount]);
+
+  useEffect(() => {
+    const handleCartUpdate = () => {
+      console.log('Cart updated event received, refetching count...');
+      fetchCartCount();
+    };
+
+    window.addEventListener('cartUpdated', handleCartUpdate);
+    return () => {
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+    };
+  }, [fetchCartCount]);
 
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('userEmail');
     setIsLoggedIn(false);
     setUserRole(null);
-    // Optionally redirect to home or login page after logout
+    setUserId(null); // Clear userId on logout
+    setCartItemCount(0); // Reset cart count on logout
     router.push('/');
-    // Optionally show a toast message
-    // toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
-  // Avoid rendering different content on server vs client initially
   if (!isClient) {
-     // Render a placeholder or null during server render/initial client render before hydration
      return (
         <header className="bg-secondary shadow-sm sticky top-0 z-50 h-16 animate-pulse">
-             {/* Simple skeleton header */}
             <div className="container mx-auto px-4 py-3 flex justify-between items-center h-full">
                 <div className="h-6 w-20 bg-muted rounded"></div>
                 <div className="flex items-center gap-4">
@@ -65,14 +136,12 @@ export function Header() {
           <Link href="/" className="text-2xl font-bold text-primary">
             eShop
           </Link>
-          {/* Desktop Search */}
           <div className="relative hidden md:block">
              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
              <Input placeholder="Search for products..." className="pl-10 w-64 lg:w-96" />
           </div>
         </div>
 
-        {/* Mobile Menu & Search Trigger */}
          <div className="md:hidden flex items-center gap-1">
              <Sheet>
                <SheetTrigger asChild>
@@ -86,11 +155,9 @@ export function Header() {
                         <Search className="absolute left-7 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input placeholder="Search for products..." className="pl-10 w-full" />
                     </div>
-                    {/* Optionally add a search button here */}
                 </SheetContent>
              </Sheet>
 
-             {/* Mobile Navigation Menu */}
              <Sheet>
                 <SheetTrigger asChild>
                     <Button variant="ghost" size="icon">
@@ -101,9 +168,14 @@ export function Header() {
                 <SheetContent side="right">
                     <div className="flex flex-col space-y-2 pt-8">
                         <SheetClose asChild>
-                             <Button variant="ghost" asChild className="justify-start">
+                             <Button variant="ghost" asChild className="justify-start relative">
                                 <Link href="/cart">
                                     <ShoppingCart className="mr-2 h-4 w-4" /> Cart
+                                    {isLoggedIn && cartItemCount > 0 && (
+                                      <Badge variant="destructive" className="absolute top-1 right-1 text-xs px-1.5 py-0.5 h-4 min-w-[1rem] flex items-center justify-center">
+                                        {cartItemCount}
+                                      </Badge>
+                                    )}
                                 </Link>
                             </Button>
                         </SheetClose>
@@ -150,19 +222,21 @@ export function Header() {
                                </SheetClose>
                             </>
                         )}
-                         {/* Add other mobile nav links here */}
                     </div>
                 </SheetContent>
             </Sheet>
         </div>
 
-
-        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-2">
-           <Button variant="ghost" asChild size="sm">
+           <Button variant="ghost" asChild size="sm" className="relative">
              <Link href="/cart" aria-label="View Shopping Cart">
                <ShoppingCart className="mr-1 h-5 w-5" />
                Cart
+                {isLoggedIn && cartItemCount > 0 && (
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 text-xs px-1 py-0 h-4 min-w-[1rem] flex items-center justify-center">
+                    {isCartLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : cartItemCount}
+                  </Badge>
+                )}
              </Link>
            </Button>
 
@@ -197,7 +271,6 @@ export function Header() {
                </Button>
              </>
            )}
-
         </div>
       </nav>
     </header>

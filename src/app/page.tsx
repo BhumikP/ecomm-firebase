@@ -1,3 +1,4 @@
+
 // src/app/page.tsx
 'use client';
 
@@ -334,7 +335,7 @@ export default function Home() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
-
+        window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
         toast({
             title: "Added to Cart",
             description: `${itemToAdd} (Qty: ${quantity}) has been added.`,
@@ -777,5 +778,6 @@ export default function Home() {
     </div>
   );
 }
+
 
 

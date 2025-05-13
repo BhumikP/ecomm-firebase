@@ -1,3 +1,4 @@
+
 // src/app/products/[id]/page.tsx
 'use client';
 
@@ -12,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react'; // Import 'use'
 import type { IProduct, IProductColor } from '@/models/Product'; // Use base interfaces
 import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
@@ -36,7 +37,12 @@ interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
 
 export default function ProductDetailPage() {
    const params = useParams();
-   const id = params?.id as string;
+   // const id = params?.id as string; // This was causing the console warning
+   // Use React.use to unwrap the Promise for params in Server Components or during SSR/RSC
+   // For Client Components, direct access is still possible but causes a warning.
+   // To be safe and future-proof, we can access it after checking if params is available.
+   const id = typeof params?.id === 'string' ? params.id : null;
+
 
    const { toast } = useToast();
    const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -53,7 +59,7 @@ export default function ProductDetailPage() {
             setLoading(true);
             setError(null);
             try {
-                 if (!id) {
+                 if (!id) { // Check if id is resolved
                     setError("Product ID is missing.");
                     setLoading(false);
                     return;
@@ -112,12 +118,12 @@ export default function ProductDetailPage() {
 
         if (id) {
            fetchProduct();
-        } else if (params) { // Check if params itself is defined
+        } else if (params && params.id === undefined) { // Explicitly check if id is undefined after params is available
            setError("Product ID not available in route parameters.");
            setLoading(false);
         }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [id]);
+   }, [id, params]); // Add params to dependency array
 
    const handleAddToCart = async () => {
     if (!product) return;
@@ -157,7 +163,7 @@ export default function ProductDetailPage() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
-
+        window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
         toast({
             title: "Added to Cart",
             description: `${quantity} x ${itemToAdd} has been added to your cart.`,
@@ -516,3 +522,4 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+

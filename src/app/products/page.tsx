@@ -1,3 +1,4 @@
+
 // src/app/products/page.tsx
 'use client';
 
@@ -344,6 +345,7 @@ function ProductsPageContent() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
+        window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
         toast({ title: "Added to Cart", description: `${itemToAdd} (Qty: ${quantity}) has been added.` });
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message || "Could not add item to cart." });
