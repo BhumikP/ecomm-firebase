@@ -1,94 +1,166 @@
+// src/app/cart/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart } from 'lucide-react'; // Import ShoppingCart
+import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import type { ICart, ICartItem } from '@/models/Cart'; // Import backend types
+import type { IProduct } from '@/models/Product'; // For populated product type
 
-
-// Define Cart Item Type
-interface CartItem {
-  id: string; // Use product ID as the unique key in the cart
-  image: string;
-  title: string;
-  price: number; // Price *per unit* at the time of adding (or current price)
-  quantity: number;
-  discount?: number | null; // Optional: store discount for display
+// Frontend representation of a cart item after population
+interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
+  _id: string; // cart item's own _id
+  product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl' | 'stock' | 'colors' | 'minOrderQuantity' | 'price' | 'discount'>; // Populated product details
 }
 
-// Mock Cart Data (replace with actual state/context management)
-const initialCartItems: CartItem[] = [
-  { id: '1', image: 'https://picsum.photos/100/100?random=1', title: 'Stylish T-Shirt', price: 25.99, quantity: 1, discount: 10 },
-  { id: '2', image: 'https://picsum.photos/100/100?random=2', title: 'Wireless Headphones', price: 79.99, quantity: 1 },
-  { id: '4', image: 'https://picsum.photos/100/100?random=4', title: 'Running Shoes', price: 102.00, quantity: 1, discount: 15 }, // Price after discount
-];
+interface PopulatedCart extends Omit<ICart, 'items' | 'userId'> {
+  _id: string;
+  userId: string; // Assuming userId is a string on frontend
+  items: PopulatedCartItem[];
+}
+
 
 export default function CartPage() {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<PopulatedCart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null); // Store cartItemId of item being updated
   const { toast } = useToast();
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate fetching cart items (e.g., from localStorage or API)
-    setIsLoading(true);
-    const fetchCart = async () => {
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
-      // In real app, load from state management or API
-      setCartItems(initialCartItems);
+    const userDataString = localStorage.getItem('userData');
+    if (userDataString) {
+      const userData = JSON.parse(userDataString);
+      setUserId(userData._id);
+    } else {
+      // Handle user not logged in - redirect or show message
+      toast({ variant: "destructive", title: "Not Logged In", description: "Please log in to view your cart."});
       setIsLoading(false);
-    };
-    fetchCart();
-  }, []);
+      // Consider redirecting: router.push('/auth/login');
+    }
+  }, [toast]);
 
-  const handleQuantityChange = (itemId: string, change: number) => {
-    setCartItems(prevItems =>
-      prevItems.map(item => {
-        if (item.id === itemId) {
-          const newQuantity = Math.max(1, item.quantity + change); // Ensure quantity is at least 1
-           if (newQuantity !== item.quantity) {
-                // Optionally show toast for quantity update
-                // toast({ description: `Quantity for ${item.title} updated.`});
-           }
-          return { ...item, quantity: newQuantity };
-        }
-        return item;
-      }).filter(item => item.quantity > 0) // Remove item if quantity becomes 0 (though button prevents this now)
-    );
+  const fetchCart = useCallback(async () => {
+    if (!userId) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/cart?userId=${userId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch cart');
+      }
+      const data = await response.json();
+      setCart(data.cart as PopulatedCart);
+    } catch (error: any) {
+      console.error("Error fetching cart:", error);
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, toast]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchCart();
+    }
+  }, [userId, fetchCart]);
+
+  const handleQuantityChange = async (cartItemId: string, currentQuantity: number, change: number, minOrderQty: number, stock: number) => {
+    const newQuantity = Math.max(minOrderQty, currentQuantity + change);
+    if (newQuantity === currentQuantity) return;
+    if (newQuantity > stock) {
+      toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${stock} items available.` });
+      return;
+    }
+
+
+    setIsUpdating(cartItemId);
+    try {
+      const response = await fetch(`/api/cart/${cartItemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, newQuantity }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update quantity');
+      }
+      setCart(data.cart as PopulatedCart);
+      // toast({ description: `Quantity updated.` });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: error.message });
+    } finally {
+      setIsUpdating(null);
+    }
   };
 
-  const handleRemoveItem = (itemId: string, itemTitle: string) => {
-    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
-    toast({
-      title: "Item Removed",
-      description: `${itemTitle} has been removed from your cart.`,
-      variant: "destructive", // Optional: use destructive variant
-    });
+  const handleRemoveItem = async (cartItemId: string, itemTitle: string) => {
+    if (!userId) return;
+    setIsUpdating(cartItemId); // Use isUpdating to show loader on the item being removed
+    try {
+      const response = await fetch(`/api/cart/${cartItemId}?userId=${userId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to remove item');
+      }
+      setCart(data.cart as PopulatedCart);
+      toast({
+        title: "Item Removed",
+        description: `${itemTitle} has been removed from your cart.`,
+      });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Removal Failed", description: error.message });
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+  
+  const calculateItemDisplayPrice = (item: PopulatedCartItem) => {
+    // priceSnapshot already has the discounted price per unit
+    return item.priceSnapshot;
   };
 
   const calculateSubtotal = () => {
-    return cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    if (!cart) return 0;
+    return cart.items.reduce((acc, item) => acc + calculateItemDisplayPrice(item) * item.quantity, 0);
   };
 
   const subtotal = calculateSubtotal();
-  // Add calculations for shipping, taxes, discounts later
-  const total = subtotal; // Placeholder total
+  const total = subtotal; // Placeholder for now
 
   const handleCheckout = () => {
-      // TODO: Implement checkout logic (navigate to checkout page, call API, etc.)
-      console.log("Proceeding to checkout with items:", cartItems);
-      toast({ title: "Redirecting to Checkout", description: "Please wait..." });
-      // Example redirect (implement checkout page later)
-      // router.push('/checkout');
-  }
+    console.log("Proceeding to checkout with cart:", cart);
+    toast({ title: "Redirecting to Checkout", description: "Please wait..." });
+    // router.push('/checkout');
+  };
 
+  if (!userId && !isLoading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center justify-center text-center">
+          <ShoppingCart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+          <p className="text-xl font-semibold mb-2">Your Cart Awaits</p>
+          <p className="text-muted-foreground mb-6">Log in to see your items and continue shopping.</p>
+          <Button asChild>
+            <Link href="/auth/login">Login</Link>
+          </Button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
      <div className="flex flex-col min-h-screen">
@@ -103,15 +175,16 @@ export default function CartPage() {
 
             <h1 className="text-3xl font-bold mb-6">Your Shopping Cart</h1>
 
-            {isLoading ? (
+            {isLoading && !cart ? (
                  <div className="grid md:grid-cols-3 gap-8">
                     <div className="md:col-span-2 space-y-4">
                          {[...Array(2)].map((_, i) => (
-                            <Card key={i} className="p-4 flex gap-4 items-center">
+                            <Card key={i} className="p-4 flex gap-4 items-center animate-pulse">
                                  <Skeleton className="h-24 w-24 rounded-md bg-muted" />
                                  <div className="flex-grow space-y-2">
                                     <Skeleton className="h-5 w-3/4 bg-muted" />
                                     <Skeleton className="h-4 w-1/4 bg-muted" />
+                                    <Skeleton className="h-4 w-1/2 bg-muted" />
                                  </div>
                                  <div className="flex items-center gap-2">
                                      <Skeleton className="h-8 w-8 bg-muted rounded" />
@@ -122,7 +195,7 @@ export default function CartPage() {
                             </Card>
                          ))}
                     </div>
-                    <Card className="md:col-span-1 h-fit">
+                    <Card className="md:col-span-1 h-fit animate-pulse">
                         <CardHeader><Skeleton className="h-6 w-3/4 bg-muted" /></CardHeader>
                         <CardContent className="space-y-4">
                             <Skeleton className="h-5 w-full bg-muted" />
@@ -131,102 +204,113 @@ export default function CartPage() {
                         </CardContent>
                     </Card>
                  </div>
-            ) : cartItems.length > 0 ? (
+            ) : cart && cart.items.length > 0 ? (
             <div className="grid md:grid-cols-3 gap-8 items-start">
-            {/* Cart Items List */}
             <div className="md:col-span-2 space-y-4">
-                {cartItems.map(item => (
-                <Card key={item.id} className="p-4 flex flex-col sm:flex-row gap-4 items-center">
-                    <Image
-                        src={item.image}
-                        alt={item.title}
-                        width={100}
-                        height={100}
-                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-md border"
-                        data-ai-hint="cart product thumbnail"
-                    />
-                    <div className="flex-grow text-center sm:text-left">
-                    <Link href={`/products/${item.id}`} className="font-medium hover:text-primary">{item.title}</Link>
-                    <p className="text-sm text-muted-foreground">
-                        ₹{item.price.toFixed(2)} each
-                        {item.discount && <span className="ml-2 text-xs text-destructive">({item.discount}% off applied)</span>}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleQuantityChange(item.id, -1)}
-                        disabled={item.quantity <= 1}
-                    >
-                        <Minus className="h-4 w-4" />
-                        <span className="sr-only">Decrease quantity</span>
-                    </Button>
-                    <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => {
-                            const newQuantity = parseInt(e.target.value, 10);
-                            if (!isNaN(newQuantity) && newQuantity >= 1) {
-                                // Calculate diff and call handleQuantityChange
-                                handleQuantityChange(item.id, newQuantity - item.quantity);
-                            }
-                         }}
-                        className="w-14 h-8 text-center px-1" // Adjust size and padding
-                         />
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleQuantityChange(item.id, 1)}
-                    >
-                        <Plus className="h-4 w-4" />
-                         <span className="sr-only">Increase quantity</span>
-                    </Button>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => handleRemoveItem(item.id, item.title)}
-                    >
-                    <Trash2 className="h-4 w-4" />
-                     <span className="sr-only">Remove item</span>
-                    </Button>
-                </Card>
-                ))}
+                {cart.items.map(item => {
+                    const itemDisplayPrice = calculateItemDisplayPrice(item);
+                    const productStock = item.selectedColorSnapshot && item.product.colors 
+                                        ? item.product.colors.find(c => c.name === item.selectedColorSnapshot?.name)?.stock ?? 0
+                                        : item.product.stock;
+                    const minOrderQty = item.product.minOrderQuantity || 1;
+
+                    return (
+                        <Card key={item._id} className="p-4 flex flex-col sm:flex-row gap-4 items-center">
+                            <Image
+                                src={item.imageSnapshot || 'https://picsum.photos/100/100?random=placeholder'}
+                                alt={item.nameSnapshot}
+                                width={100}
+                                height={100}
+                                className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-md border"
+                                data-ai-hint="cart product thumbnail"
+                            />
+                            <div className="flex-grow text-center sm:text-left">
+                                <Link href={`/products/${item.product._id}`} className="font-medium hover:text-primary">{item.nameSnapshot}</Link>
+                                {item.selectedColorSnapshot && (
+                                    <p className="text-sm text-muted-foreground">Color: {item.selectedColorSnapshot.name}</p>
+                                )}
+                                <p className="text-sm text-muted-foreground">
+                                    ₹{itemDisplayPrice.toFixed(2)} each
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleQuantityChange(item._id, item.quantity, -1, minOrderQty, productStock)}
+                                disabled={isUpdating === item._id || item.quantity <= minOrderQty}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  if (!isNaN(val) && val >= minOrderQty && val <= productStock) {
+                                    handleQuantityChange(item._id, item.quantity, val - item.quantity, minOrderQty, productStock);
+                                  } else if (!isNaN(val) && val < minOrderQty) {
+                                    handleQuantityChange(item._id, item.quantity, minOrderQty - item.quantity, minOrderQty, productStock);
+                                  } else if (!isNaN(val) && val > productStock) {
+                                    handleQuantityChange(item._id, item.quantity, productStock - item.quantity, minOrderQty, productStock);
+                                    toast({variant: "destructive", title: "Stock limit reached", description: `Only ${productStock} available`})
+                                  }
+                                }}
+                                className="w-14 h-8 text-center px-1"
+                                disabled={isUpdating === item._id}
+                                min={minOrderQty}
+                                max={productStock}
+                                />
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleQuantityChange(item._id, item.quantity, 1, minOrderQty, productStock)}
+                                disabled={isUpdating === item._id || item.quantity >= productStock}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleRemoveItem(item._id, item.nameSnapshot)}
+                                disabled={isUpdating === item._id}
+                            >
+                                {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                            </Button>
+                        </Card>
+                    );
+                })}
             </div>
 
-            {/* Order Summary */}
-            <Card className="md:col-span-1 sticky top-20"> {/* Make summary sticky */}
-                <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
-                </CardHeader>
+            <Card className="md:col-span-1 sticky top-20">
+                <CardHeader> <CardTitle>Order Summary</CardTitle> </CardHeader>
                 <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>₹{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                    <span>Shipping</span>
-                    <span>Calculated at checkout</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                    <span>Taxes</span>
-                    <span>Calculated at checkout</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between font-semibold text-lg">
-                    <span>Estimated Total</span>
-                    <span>₹{total.toFixed(2)}</span>
-                </div>
+                    <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>₹{subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                        <span>Shipping</span>
+                        <span>Calculated at checkout</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                        <span>Taxes</span>
+                        <span>Calculated at checkout</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between font-semibold text-lg">
+                        <span>Estimated Total</span>
+                        <span>₹{total.toFixed(2)}</span>
+                    </div>
                 </CardContent>
                 <CardFooter>
-                <Button className="w-full" onClick={handleCheckout}>
-                    Proceed to Checkout
-                </Button>
+                    <Button className="w-full" onClick={handleCheckout} disabled={isLoading || isUpdating !== null || cart.items.length === 0}>
+                        Proceed to Checkout
+                    </Button>
                 </CardFooter>
             </Card>
             </div>
@@ -245,3 +329,4 @@ export default function CartPage() {
     </div>
   );
 }
+
