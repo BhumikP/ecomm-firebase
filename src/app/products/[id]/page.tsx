@@ -13,22 +13,20 @@ import { Separator } from "@/components/ui/separator";
 import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState, use } from 'react'; // Import 'use'
-import type { IProduct, IProductColor } from '@/models/Product'; // Use base interfaces
+import { useEffect, useState, use, useCallback } from 'react'; 
+import type { IProduct, IProductColor } from '@/models/Product'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 
-// Define Product Type matching the backend model, ensuring category is populated
 interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: { _id: string; name: string; subcategories: string[] };
-  colors: PopulatedProductColor[]; // Use PopulatedProductColor
+  colors: PopulatedProductColor[]; 
   thumbnailUrl: string;
   minOrderQuantity: number;
 }
 
-// Type for color data used in frontend
 interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
     _id?: string;
     imageUrls: string[];
@@ -37,12 +35,7 @@ interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
 
 export default function ProductDetailPage() {
    const params = useParams();
-   // const id = params?.id as string; // This was causing the console warning
-   // Use React.use to unwrap the Promise for params in Server Components or during SSR/RSC
-   // For Client Components, direct access is still possible but causes a warning.
-   // To be safe and future-proof, we can access it after checking if params is available.
    const id = typeof params?.id === 'string' ? params.id : null;
-
 
    const { toast } = useToast();
    const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -50,7 +43,10 @@ export default function ProductDetailPage() {
    const [error, setError] = useState<string | null>(null);
    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
    const [selectedColor, setSelectedColor] = useState<PopulatedProductColor | undefined>(undefined);
-   const [quantity, setQuantity] = useState(1);
+   
+   const [quantity, setQuantity] = useState(1); 
+   const [quantityInput, setQuantityInput] = useState("1"); // For direct input
+   
    const [isAddingToCart, setIsAddingToCart] = useState(false);
 
 
@@ -59,7 +55,7 @@ export default function ProductDetailPage() {
             setLoading(true);
             setError(null);
             try {
-                 if (!id) { // Check if id is resolved
+                 if (!id) { 
                     setError("Product ID is missing.");
                     setLoading(false);
                     return;
@@ -85,23 +81,25 @@ export default function ProductDetailPage() {
                     minOrderQuantity: productData.minOrderQuantity || 1,
                 };
                 setProduct(processedProductData);
-                setQuantity(processedProductData.minOrderQuantity || 1); // Initialize quantity with minOrderQuantity
+                
+                const initialMinQty = processedProductData.minOrderQuantity || 1;
+                setQuantity(initialMinQty); 
+                setQuantityInput(String(initialMinQty));
 
 
                 if (processedProductData) {
                      document.title = `${processedProductData.title} | eShop Simplified`;
-                     const firstAvailableColor = processedProductData.colors?.find(c => c.stock > 0 && c.stock >= (processedProductData.minOrderQuantity || 1));
+                     const firstAvailableColor = processedProductData.colors?.find(c => c.stock >= initialMinQty);
                      if (firstAvailableColor) {
                          setSelectedColor(firstAvailableColor);
                          setSelectedImageIndex(0);
                      } else if (processedProductData.colors && processedProductData.colors.length > 0) {
-                         setSelectedColor(processedProductData.colors[0]); // Select first color even if out of stock for display
+                         setSelectedColor(processedProductData.colors[0]); 
                          setSelectedImageIndex(0);
                      } else {
                         setSelectedColor(undefined);
                         setSelectedImageIndex(0);
                      }
-
                 } else {
                       document.title = `Product Not Found | eShop Simplified`;
                 }
@@ -118,12 +116,56 @@ export default function ProductDetailPage() {
 
         if (id) {
            fetchProduct();
-        } else if (params && params.id === undefined) { // Explicitly check if id is undefined after params is available
+        } else if (params && params.id === undefined) { 
            setError("Product ID not available in route parameters.");
            setLoading(false);
         }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [id, params]); // Add params to dependency array
+   }, [id, params]); 
+
+   useEffect(() => { // Initialize quantityInput when product loads or minOrderQuantity changes
+      if (product) {
+        const initialMinQty = product.minOrderQuantity || 1;
+        setQuantity(initialMinQty);
+        setQuantityInput(String(initialMinQty));
+      }
+    }, [product]);
+
+
+   // Debounce effect for quantityInput
+    useEffect(() => {
+        if (!product) return;
+
+        const handler = setTimeout(() => {
+            let numValue = parseInt(quantityInput, 10);
+            const currentMinOrderQty = product.minOrderQuantity || 1;
+            const currentEffectiveStock = selectedColor?.stock ?? product.stock ?? 0;
+
+            if (isNaN(numValue) || numValue < currentMinOrderQty ) {
+                numValue = currentMinOrderQty;
+            }
+            if (numValue > currentEffectiveStock) {
+                numValue = currentEffectiveStock;
+            }
+            
+            // Ensure stock is not 0 if minOrderQty is 1
+            if (currentEffectiveStock === 0 && currentMinOrderQty === 1) {
+                numValue = currentMinOrderQty; // Or handle as out of stock
+            }
+
+
+            setQuantity(numValue);
+            if (String(numValue) !== quantityInput) {
+               setQuantityInput(String(numValue));
+            }
+
+        }, 500); // 500ms debounce
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [quantityInput, product, selectedColor, setQuantity]);
+
 
    const handleAddToCart = async () => {
     if (!product) return;
@@ -153,7 +195,7 @@ export default function ProductDetailPage() {
             body: JSON.stringify({
                 userId,
                 productId: product._id,
-                quantity,
+                quantity, // Use the validated and debounced quantity state
                 selectedColorName: selectedColor?.name,
             }),
         });
@@ -163,7 +205,7 @@ export default function ProductDetailPage() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
-        window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
+        window.dispatchEvent(new CustomEvent('cartUpdated')); 
         toast({
             title: "Added to Cart",
             description: `${quantity} x ${itemToAdd} has been added to your cart.`,
@@ -181,33 +223,35 @@ export default function ProductDetailPage() {
 
     const handleColorSelect = (color: PopulatedProductColor) => {
         setSelectedColor(color);
-         setSelectedImageIndex(0);
-         // Reset quantity to minOrderQuantity for the new color if its stock allows, otherwise to minOrderQty or 1
-         const newMinQty = product?.minOrderQuantity || 1;
-         setQuantity(color.stock >= newMinQty ? newMinQty : (color.stock > 0 ? color.stock : newMinQty) );
+        setSelectedImageIndex(0);
+        const newMinQty = product?.minOrderQuantity || 1;
+        const colorStock = color.stock;
+        let newQuantity = newMinQty;
+        if (colorStock < newMinQty) {
+           newQuantity = Math.max(1, colorStock); // If stock is less than min, set to stock (or 1 if stock is 0)
+        }
+        setQuantity(newQuantity);
+        setQuantityInput(String(newQuantity));
     };
 
     const currentStock = selectedColor?.stock ?? product?.stock ?? 0;
     const minOrderQty = product?.minOrderQuantity || 1;
 
-    const handleQuantityChange = (change: number) => {
-        setQuantity(prevQuantity => {
-            let newQuantity = prevQuantity + change;
-            if (newQuantity < minOrderQty) newQuantity = minOrderQty;
-            if (newQuantity > currentStock) newQuantity = currentStock;
-            return newQuantity;
+    const changeQuantityButtons = (amount: number) => {
+        if (!product) return;
+        const currentEffectiveStock = selectedColor?.stock ?? product.stock ?? 0;
+        
+        setQuantity(prevQty => {
+            let newQuantityValue = prevQty + amount;
+            if (newQuantityValue < minOrderQty) newQuantityValue = minOrderQty;
+            if (newQuantityValue > currentEffectiveStock) newQuantityValue = currentEffectiveStock;
+            setQuantityInput(String(newQuantityValue)); 
+            return newQuantityValue;
         });
     };
 
-    const handleManualQuantityInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        let newQuantity = parseInt(e.target.value, 10);
-        if (isNaN(newQuantity)) {
-            setQuantity(minOrderQty);
-            return;
-        }
-        if (newQuantity < minOrderQty) newQuantity = minOrderQty;
-        if (newQuantity > currentStock) newQuantity = currentStock;
-        setQuantity(newQuantity);
+    const handleManualQuantityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setQuantityInput(e.target.value); // Allow typing anything, debouncer will validate
     };
 
 
@@ -226,7 +270,7 @@ export default function ProductDetailPage() {
          "@context": "https://schema.org/",
          "@type": "Product",
          "name": productData.title,
-         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg', // Replace with actual domain
+         "image":  productData.thumbnailUrl || 'https://YOUR_DOMAIN.com/default-product-image.jpg', 
          "description": productData.description,
          "sku": productData._id,
          "aggregateRating": productData.rating && productData.rating > 0 ? {
@@ -236,7 +280,7 @@ export default function ProductDetailPage() {
          } : undefined,
          "offers": {
            "@type": "Offer",
-           "url": `https://YOUR_DOMAIN.com/products/${productData._id}`, // Replace with actual domain
+           "url": `https://YOUR_DOMAIN.com/products/${productData._id}`, 
            "priceCurrency": "INR",
            "price": discountedPriceValue,
            "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
@@ -322,7 +366,7 @@ export default function ProductDetailPage() {
     ? (product.price * (1 - product.discount / 100)).toFixed(2)
     : product.price.toFixed(2);
 
-   const isOutOfStock = currentStock <= 0 || quantity > currentStock || currentStock < minOrderQty;
+   const isOutOfStock = currentStock <= 0 || quantity > currentStock || currentStock < minOrderQty || (currentStock === 0 && minOrderQty > 0);
 
 
   return (
@@ -423,13 +467,13 @@ export default function ProductDetailPage() {
                                 onClick={() => handleColorSelect(color)}
                                 className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
                                     ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary' : 'border-muted-foreground/30 hover:border-primary'}
-                                    ${color.stock < minOrderQty ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    ${color.stock < (product.minOrderQuantity || 1) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 style={{ backgroundColor: color.hexCode || '#ccc' }}
-                                title={`${color.name} ${color.stock < minOrderQty ? '(Not enough stock)' : ''}`}
-                                aria-label={`Select color ${color.name} ${color.stock < minOrderQty ? '(Not enough stock)' : ''}`}
-                                disabled={color.stock < minOrderQty || isAddingToCart}
+                                title={`${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : `(Stock: ${color.stock})`}`}
+                                aria-label={`Select color ${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : ''}`}
+                                disabled={color.stock < (product.minOrderQuantity || 1) || isAddingToCart}
                             >
-                               {color.stock < minOrderQty && (
+                               {color.stock < (product.minOrderQuantity || 1) && (
                                      <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
                                 )}
                             </button>
@@ -448,7 +492,6 @@ export default function ProductDetailPage() {
                  )}
              </div>
 
-             {/* Quantity Selector */}
             <div className="pt-4 space-y-2">
                 <label htmlFor="quantity" className="text-md font-semibold text-foreground">Quantity:</label>
                 <div className="flex items-center gap-2 max-w-[150px]">
@@ -456,7 +499,7 @@ export default function ProductDetailPage() {
                         variant="outline"
                         size="icon"
                         className="h-9 w-9"
-                        onClick={() => handleQuantityChange(-1)}
+                        onClick={() => changeQuantityButtons(-1)}
                         disabled={quantity <= minOrderQty || isOutOfStock || isAddingToCart}
                         aria-label="Decrease quantity"
                     >
@@ -464,11 +507,11 @@ export default function ProductDetailPage() {
                     </Button>
                     <Input
                         id="quantity"
-                        type="number"
-                        value={quantity}
-                        onChange={handleManualQuantityInput}
-                        min={minOrderQty}
-                        max={currentStock}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={quantityInput}
+                        onChange={handleManualQuantityInputChange}
                         className="w-16 h-9 text-center"
                         disabled={isOutOfStock || isAddingToCart}
                         aria-label="Product quantity"
@@ -477,7 +520,7 @@ export default function ProductDetailPage() {
                         variant="outline"
                         size="icon"
                         className="h-9 w-9"
-                        onClick={() => handleQuantityChange(1)}
+                        onClick={() => changeQuantityButtons(1)}
                         disabled={quantity >= currentStock || isOutOfStock || isAddingToCart}
                         aria-label="Increase quantity"
                     >
@@ -522,4 +565,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-

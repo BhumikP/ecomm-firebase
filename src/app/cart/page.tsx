@@ -15,18 +15,17 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import type { ICart, ICartItem } from '@/models/Cart'; // Import backend types
-import type { IProduct } from '@/models/Product'; // For populated product type
+import type { ICart, ICartItem } from '@/models/Cart'; 
+import type { IProduct } from '@/models/Product'; 
 
-// Frontend representation of a cart item after population
 interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
-  _id: string; // cart item's own _id
-  product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl' | 'stock' | 'colors' | 'minOrderQuantity' | 'price' | 'discount'>; // Populated product details
+  _id: string; 
+  product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl' | 'stock' | 'colors' | 'minOrderQuantity' | 'price' | 'discount'>; 
 }
 
 interface PopulatedCart extends Omit<ICart, 'items' | 'userId'> {
   _id: string;
-  userId: string; // Assuming userId is a string on frontend
+  userId: string; 
   items: PopulatedCartItem[];
 }
 
@@ -39,11 +38,12 @@ interface StoreSettings {
 export default function CartPage() {
   const [cart, setCart] = useState<PopulatedCart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState<string | null>(null); // Store cartItemId of item being updated
+  const [isUpdating, setIsUpdating] = useState<string | null>(null); 
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [itemInputValues, setItemInputValues] = useState<Record<string, string>>({});
 
 
   useEffect(() => {
@@ -52,11 +52,9 @@ export default function CartPage() {
       const userData = JSON.parse(userDataString);
       setUserId(userData._id);
     } else {
-      // Handle user not logged in - redirect or show message
       toast({ variant: "destructive", title: "Not Logged In", description: "Please log in to view your cart."});
       setIsLoading(false);
       setIsSettingsLoading(false);
-      // Consider redirecting: router.push('/auth/login');
     }
   }, [toast]);
 
@@ -70,8 +68,18 @@ export default function CartPage() {
         throw new Error(errorData.message || 'Failed to fetch cart');
       }
       const data = await response.json();
-      setCart(data.cart as PopulatedCart);
-      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
+      const fetchedCart = data.cart as PopulatedCart;
+      setCart(fetchedCart);
+      
+      // Initialize itemInputValues from fetched cart
+      if (fetchedCart?.items) {
+        const initialInputs: Record<string, string> = {};
+        fetchedCart.items.forEach(item => {
+            initialInputs[item._id] = String(item.quantity);
+        });
+        setItemInputValues(initialInputs);
+      }
+      window.dispatchEvent(new CustomEvent('cartUpdated')); 
     } catch (error: any) {
       console.error("Error fetching cart:", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -95,12 +103,12 @@ export default function CartPage() {
           shippingCharge: data.settings.shippingCharge || 0,
         });
       } else {
-        setStoreSettings({ taxPercentage: 0, shippingCharge: 0 }); // Default if not found
+        setStoreSettings({ taxPercentage: 0, shippingCharge: 0 }); 
       }
     } catch (error: any) {
       console.error("Error fetching store settings:", error);
       toast({ variant: "destructive", title: "Settings Error", description: "Could not load store settings for cart." });
-      setStoreSettings({ taxPercentage: 0, shippingCharge: 0 }); // Default on error
+      setStoreSettings({ taxPercentage: 0, shippingCharge: 0 }); 
     } finally {
       setIsSettingsLoading(false);
     }
@@ -114,39 +122,129 @@ export default function CartPage() {
     }
   }, [userId, fetchCart, fetchStoreSettings]);
 
-  const handleQuantityChange = async (cartItemId: string, currentQuantity: number, change: number, minOrderQty: number, stock: number) => {
-    const newQuantity = Math.max(minOrderQty, currentQuantity + change);
-    if (newQuantity === currentQuantity) return;
-    if (newQuantity > stock) {
-      toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${stock} items available.` });
-      return;
-    }
 
-
-    setIsUpdating(cartItemId);
-    try {
-      const response = await fetch(`/api/cart/${cartItemId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, newQuantity }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update quantity');
-      }
-      setCart(data.cart as PopulatedCart);
-      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
-      // toast({ description: `Quantity updated.` });
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: error.message });
-    } finally {
-      setIsUpdating(null);
-    }
+  const handleItemInputChange = (itemId: string, rawValue: string) => {
+    setItemInputValues(prev => ({ ...prev, [itemId]: rawValue }));
   };
+
+  // Debounced effect to validate and update API for text inputs
+  useEffect(() => {
+      if (!cart?.items || Object.keys(itemInputValues).length === 0 || !userId) return;
+
+      const itemIdsToProcess = Object.keys(itemInputValues).filter(itemId => {
+          const cartItem = cart.items.find(ci => ci._id === itemId);
+          return cartItem && String(cartItem.quantity) !== itemInputValues[itemId];
+      });
+
+      if (itemIdsToProcess.length === 0) return;
+
+      const processItem = async (itemId: string) => {
+          const rawValue = itemInputValues[itemId];
+          const cartItem = cart.items.find(ci => ci._id === itemId);
+
+          if (!cartItem) return;
+
+          const minOrderQty = cartItem.product.minOrderQuantity || 1;
+          const productStock = cartItem.selectedColorSnapshot && cartItem.product.colors
+              ? cartItem.product.colors.find(c => c.name === cartItem.selectedColorSnapshot?.name)?.stock ?? 0
+              : cartItem.product.stock;
+          
+          let numValue = parseInt(rawValue, 10);
+
+          if (isNaN(numValue)) {
+              setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) }));
+              return;
+          }
+
+          let validatedQty = numValue;
+          if (validatedQty < minOrderQty) validatedQty = minOrderQty;
+          if (validatedQty > productStock) validatedQty = productStock;
+
+          if (validatedQty !== cartItem.quantity) {
+              setIsUpdating(itemId);
+              try {
+                  const response = await fetch(`/api/cart/${itemId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId, newQuantity: validatedQty }),
+                  });
+                  const data = await response.json();
+                  if (!response.ok) throw new Error(data.message || 'Failed to update quantity');
+                  
+                  setCart(prevCart => {
+                      if (!prevCart) return null;
+                      const updatedItems = prevCart.items.map(i => i._id === itemId ? {...i, quantity: validatedQty} : i);
+                      return {...prevCart, items: updatedItems};
+                  });
+                  setItemInputValues(prev => ({ ...prev, [itemId]: String(validatedQty) })); // Sync input after API
+                  window.dispatchEvent(new CustomEvent('cartUpdated'));
+              } catch (error: any) {
+                  toast({ variant: "destructive", title: "Update Failed", description: error.message });
+                  setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) }));
+              } finally {
+                  setIsUpdating(null);
+              }
+          } else if (rawValue !== String(validatedQty)) {
+              // Normalize input display if valid number but different string (e.g. "07" -> "7")
+              setItemInputValues(prev => ({ ...prev, [itemId]: String(validatedQty) }));
+          }
+      };
+      
+      const timer = setTimeout(() => {
+          itemIdsToProcess.forEach(processItem);
+      }, 750); // Debounce time
+
+      return () => clearTimeout(timer);
+
+  }, [itemInputValues, cart, userId, toast, setCart]);
+
+
+  const handleQuantityButtonClick = async (itemId: string, item: PopulatedCartItem, change: number) => {
+    if (!userId) return;
+
+    const minOrderQty = item.product.minOrderQuantity || 1;
+    const productStock = item.selectedColorSnapshot && item.product.colors
+        ? item.product.colors.find(c => c.name === item.selectedColorSnapshot?.name)?.stock ?? 0
+        : item.product.stock;
+
+    let newQuantity = item.quantity + change;
+
+    if (newQuantity < minOrderQty) newQuantity = minOrderQty;
+    if (newQuantity > productStock) newQuantity = productStock;
+
+    if (newQuantity === item.quantity) { // If quantity doesn't change after validation, just sync input
+        setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) }));
+        return;
+    }
+    
+    setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) })); // Optimistically update input
+
+    setIsUpdating(itemId);
+    try {
+        const response = await fetch(`/api/cart/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, newQuantity }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to update quantity');
+        }
+        setCart(data.cart as PopulatedCart); 
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Update Failed", description: error.message });
+        // Revert input to actual cart quantity on error
+        setItemInputValues(prev => ({ ...prev, [itemId]: String(item.quantity) }));
+    } finally {
+        setIsUpdating(null);
+    }
+};
+
 
   const handleRemoveItem = async (cartItemId: string, itemTitle: string) => {
     if (!userId) return;
-    setIsUpdating(cartItemId); // Use isUpdating to show loader on the item being removed
+    setIsUpdating(cartItemId); 
     try {
       const response = await fetch(`/api/cart/${cartItemId}?userId=${userId}`, {
         method: 'DELETE',
@@ -156,7 +254,13 @@ export default function CartPage() {
         throw new Error(data.message || 'Failed to remove item');
       }
       setCart(data.cart as PopulatedCart);
-      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
+      // Remove from local input values state as well
+      setItemInputValues(prev => {
+          const newInputs = {...prev};
+          delete newInputs[cartItemId];
+          return newInputs;
+      });
+      window.dispatchEvent(new CustomEvent('cartUpdated')); 
       toast({
         title: "Item Removed",
         description: `${itemTitle} has been removed from your cart.`,
@@ -169,7 +273,6 @@ export default function CartPage() {
   };
   
   const calculateItemDisplayPrice = (item: PopulatedCartItem) => {
-    // priceSnapshot already has the discounted price per unit
     return item.priceSnapshot;
   };
 
@@ -186,7 +289,6 @@ export default function CartPage() {
   const handleCheckout = () => {
     console.log("Proceeding to checkout with cart:", cart, "Subtotal:", subtotal, "Tax:", taxAmount, "Shipping:", shippingCost, "Total:", total);
     toast({ title: "Redirecting to Checkout", description: "This feature is coming soon!" });
-    // router.push('/checkout');
   };
 
   if (!userId && !isLoading && !isSettingsLoading) {
@@ -284,35 +386,26 @@ export default function CartPage() {
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleQuantityChange(item._id, item.quantity, -1, minOrderQty, productStock)}
+                                onClick={() => handleQuantityButtonClick(item._id, item, -1)}
                                 disabled={isUpdating === item._id || item.quantity <= minOrderQty}
                             >
                                 <Minus className="h-4 w-4" />
                             </Button>
                             <Input
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  if (!isNaN(val) && val >= minOrderQty && val <= productStock) {
-                                    handleQuantityChange(item._id, item.quantity, val - item.quantity, minOrderQty, productStock);
-                                  } else if (!isNaN(val) && val < minOrderQty) {
-                                    handleQuantityChange(item._id, item.quantity, minOrderQty - item.quantity, minOrderQty, productStock);
-                                  } else if (!isNaN(val) && val > productStock) {
-                                    handleQuantityChange(item._id, item.quantity, productStock - item.quantity, minOrderQty, productStock);
-                                    toast({variant: "destructive", title: "Stock limit reached", description: `Only ${productStock} available`})
-                                  }
-                                }}
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={itemInputValues[item._id] ?? ''}
+                                onChange={(e) => handleItemInputChange(item._id, e.target.value)}
                                 className="w-14 h-8 text-center px-1"
                                 disabled={isUpdating === item._id}
-                                min={minOrderQty}
-                                max={productStock}
+                                aria-label={`Quantity for ${item.nameSnapshot}`}
                                 />
                             <Button
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleQuantityChange(item._id, item.quantity, 1, minOrderQty, productStock)}
+                                onClick={() => handleQuantityButtonClick(item._id, item, 1)}
                                 disabled={isUpdating === item._id || item.quantity >= productStock}
                             >
                                 <Plus className="h-4 w-4" />
@@ -393,4 +486,3 @@ export default function CartPage() {
     </div>
   );
 }
-
