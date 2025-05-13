@@ -6,7 +6,7 @@ export interface ISetting extends Document {
   configKey: string; // Unique key, e.g., "global_settings"
   storeName: string;
   supportEmail: string;
-  maintenanceMode: boolean;
+  // maintenanceMode: boolean; // Removed
   taxPercentage: number;
   shippingCharge: number;
   createdAt: Date;
@@ -31,11 +31,11 @@ const SettingSchema: Schema<ISetting> = new Schema({
     required: true,
     default: 'support@eshop.com',
   },
-  maintenanceMode: {
-    type: Boolean,
-    required: true,
-    default: false,
-  },
+  // maintenanceMode: { // Removed
+  //   type: Boolean,
+  //   required: true,
+  //   default: false,
+  // },
   taxPercentage: {
     type: Number,
     required: true,
@@ -54,5 +54,3 @@ const SettingSchema: Schema<ISetting> = new Schema({
 const Setting: Model<ISetting> = mongoose.models.Setting || mongoose.model<ISetting>('Setting', SettingSchema);
 
 export default Setting;
-
-    

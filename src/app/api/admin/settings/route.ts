@@ -8,7 +8,7 @@ import Setting, { ISetting } from '@/models/Setting';
 const DEFAULT_SETTINGS: Omit<ISetting, '_id' | 'configKey' | 'createdAt' | 'updatedAt'> = {
   storeName: 'eShop Simplified',
   supportEmail: 'support@eshop.com',
-  maintenanceMode: false,
+  // maintenanceMode: false, // Removed
   taxPercentage: 0,
   shippingCharge: 0,
 };
@@ -23,11 +23,18 @@ export async function GET(req: NextRequest) {
   try {
     let settings = await Setting.findOne({ configKey: 'global_settings' });
     if (!settings) {
-      // If no settings doc, create one with defaults or return defaults
-      // settings = await Setting.create({ configKey: 'global_settings', ...DEFAULT_SETTINGS });
+      // If no settings doc, return defaults directly (no need to create one here for GET)
       return NextResponse.json({ settings: DEFAULT_SETTINGS }, { status: 200 });
     }
-    return NextResponse.json({ settings }, { status: 200 });
+    // Ensure only defined fields in the model are returned, or use a projection
+    const responseSettings = {
+        storeName: settings.storeName,
+        supportEmail: settings.supportEmail,
+        taxPercentage: settings.taxPercentage,
+        shippingCharge: settings.shippingCharge,
+        // maintenanceMode is no longer part of the model or response
+    };
+    return NextResponse.json({ settings: responseSettings }, { status: 200 });
   } catch (error) {
     console.error('Error fetching settings:', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
@@ -45,30 +52,47 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as Partial<Omit<ISetting, '_id' | 'configKey' | 'createdAt' | 'updatedAt'>>;
 
     // Validate incoming data (basic example)
-    if (typeof body.storeName !== 'string' || body.storeName.trim() === '') {
+    if (body.storeName !== undefined && (typeof body.storeName !== 'string' || body.storeName.trim() === '')) {
         return NextResponse.json({ message: 'Store name cannot be empty' }, { status: 400 });
     }
-    if (typeof body.supportEmail !== 'string' || !body.supportEmail.includes('@')) {
+    if (body.supportEmail !== undefined && (typeof body.supportEmail !== 'string' || !body.supportEmail.includes('@'))) {
         return NextResponse.json({ message: 'Invalid support email' }, { status: 400 });
     }
-    if (typeof body.maintenanceMode !== 'boolean') {
-        return NextResponse.json({ message: 'Invalid maintenance mode value' }, { status: 400 });
-    }
-    if (typeof body.taxPercentage !== 'number' || body.taxPercentage < 0 || body.taxPercentage > 100) {
+    // Maintenance mode validation removed
+    // if (typeof body.maintenanceMode !== 'boolean') {
+    //     return NextResponse.json({ message: 'Invalid maintenance mode value' }, { status: 400 });
+    // }
+    if (body.taxPercentage !== undefined && (typeof body.taxPercentage !== 'number' || body.taxPercentage < 0 || body.taxPercentage > 100)) {
         return NextResponse.json({ message: 'Tax percentage must be between 0 and 100' }, { status: 400 });
     }
-     if (typeof body.shippingCharge !== 'number' || body.shippingCharge < 0) {
+     if (body.shippingCharge !== undefined && (typeof body.shippingCharge !== 'number' || body.shippingCharge < 0)) {
         return NextResponse.json({ message: 'Shipping charge must be non-negative' }, { status: 400 });
     }
+    
+    const updatePayload: Partial<ISetting> = {};
+    if(body.storeName !== undefined) updatePayload.storeName = body.storeName;
+    if(body.supportEmail !== undefined) updatePayload.supportEmail = body.supportEmail;
+    if(body.taxPercentage !== undefined) updatePayload.taxPercentage = body.taxPercentage;
+    if(body.shippingCharge !== undefined) updatePayload.shippingCharge = body.shippingCharge;
+    // maintenanceMode is no longer part of the update payload
 
 
-    const updatedSettings = await Setting.findOneAndUpdate(
+    const updatedSettingsDoc = await Setting.findOneAndUpdate(
       { configKey: 'global_settings' },
-      { $set: body },
-      { new: true, upsert: true, runValidators: true } // Create if doesn't exist
+      { $set: updatePayload },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true } // Create if doesn't exist
     );
 
-    return NextResponse.json({ settings: updatedSettings, message: 'Settings updated successfully' }, { status: 200 });
+    // Construct response settings to exclude fields not in the model anymore
+    const responseSettings = {
+        storeName: updatedSettingsDoc.storeName,
+        supportEmail: updatedSettingsDoc.supportEmail,
+        taxPercentage: updatedSettingsDoc.taxPercentage,
+        shippingCharge: updatedSettingsDoc.shippingCharge,
+    };
+
+
+    return NextResponse.json({ settings: responseSettings, message: 'Settings updated successfully' }, { status: 200 });
   } catch (error: any) {
     console.error('Error updating settings:', error);
     if (error.name === 'ValidationError') {
@@ -77,5 +101,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
-
-    

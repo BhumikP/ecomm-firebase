@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+// import { Switch } from "@/components/ui/switch"; // Maintenance mode switch removed
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Percent, Truck, AlertTriangle } from 'lucide-react'; // Added icons
+import { Loader2, Percent, Truck } from 'lucide-react'; // AlertTriangle removed
 import { Skeleton } from '@/components/ui/skeleton';
 
 
 interface StoreSettings {
   storeName: string;
   supportEmail: string;
-  maintenanceMode: boolean;
+  // maintenanceMode: boolean; // Removed
   taxPercentage: number;
   shippingCharge: number;
 }
@@ -23,7 +23,7 @@ interface StoreSettings {
 const defaultSettingsState: StoreSettings = {
     storeName: 'eShop Simplified',
     supportEmail: 'support@eshop.com',
-    maintenanceMode: false,
+    // maintenanceMode: false, // Removed
     taxPercentage: 0,
     shippingCharge: 0,
 };
@@ -50,7 +50,7 @@ export default function AdminSettingsPage() {
                 setSettings({
                     storeName: data.settings.storeName ?? defaultSettingsState.storeName,
                     supportEmail: data.settings.supportEmail ?? defaultSettingsState.supportEmail,
-                    maintenanceMode: data.settings.maintenanceMode ?? defaultSettingsState.maintenanceMode,
+                    // maintenanceMode: data.settings.maintenanceMode ?? defaultSettingsState.maintenanceMode, // Removed
                     taxPercentage: data.settings.taxPercentage ?? defaultSettingsState.taxPercentage,
                     shippingCharge: data.settings.shippingCharge ?? defaultSettingsState.shippingCharge,
                 });
@@ -75,12 +75,7 @@ export default function AdminSettingsPage() {
     }));
   };
 
-  const handleSwitchChange = (checked: boolean, name: keyof StoreSettings) => {
-    setSettings(prev => ({
-      ...prev,
-      [name]: checked,
-    }));
-  };
+  // handleSwitchChange removed as maintenance mode is removed
 
   const handleSaveChanges = async () => {
     setIsLoading(true);
@@ -117,7 +112,7 @@ export default function AdminSettingsPage() {
     return (
         <div className="space-y-8">
             <Skeleton className="h-9 w-1/3 rounded" /> {/* Title Skeleton */}
-            {[...Array(3)].map((_, i) => (
+            {[...Array(2)].map((_, i) => ( // Reduced to 2 cards as maintenance card is removed
                 <Card key={i}>
                     <CardHeader>
                         <Skeleton className="h-7 w-1/4 rounded" />
@@ -126,7 +121,6 @@ export default function AdminSettingsPage() {
                     <CardContent className="space-y-6">
                         <div className="space-y-2"><Skeleton className="h-5 w-1/5 rounded" /><Skeleton className="h-10 w-full rounded-md" /></div>
                         <div className="space-y-2"><Skeleton className="h-5 w-1/5 rounded" /><Skeleton className="h-10 w-full rounded-md" /></div>
-                         {i === 2 && <div className="flex items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><Skeleton className="h-6 w-1/3 rounded" /><Skeleton className="h-4 w-3/4 rounded mt-1" /></div><Skeleton className="h-6 w-11 rounded-full" /></div> }
                     </CardContent>
                 </Card>
             ))}
@@ -145,7 +139,7 @@ export default function AdminSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>General Settings</CardTitle>
-          <CardDescription>Manage basic store information and operational status.</CardDescription>
+          <CardDescription>Manage basic store information.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
@@ -214,28 +208,13 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      {/* Maintenance Mode Card Removed */}
+      
+       <Card>
         <CardHeader>
           <CardTitle>Operational Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between rounded-lg border p-4">
-             <div className="space-y-0.5">
-                 <Label htmlFor="maintenanceMode" className="text-base flex items-center">
-                   <AlertTriangle className="mr-2 h-5 w-5 text-orange-500"/>Maintenance Mode
-                 </Label>
-                 <p className="text-sm text-muted-foreground">
-                    Temporarily disable storefront access for updates. Admins may still access the site.
-                 </p>
-             </div>
-            <Switch
-              id="maintenanceMode"
-              checked={settings.maintenanceMode}
-              onCheckedChange={(checked) => handleSwitchChange(checked, 'maintenanceMode')}
-              disabled={isLoading}
-              aria-label="Toggle maintenance mode"
-            />
-          </div>
            {/* Example of future setting placeholder */}
            <Card className="mt-6">
              <CardHeader>
@@ -250,6 +229,7 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
+
       <div className="flex justify-end mt-8">
         <Button onClick={handleSaveChanges} disabled={isLoading || isPageLoading} size="lg">
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -259,5 +239,3 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
-
-    
