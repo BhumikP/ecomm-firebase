@@ -2,7 +2,8 @@
 // src/app/cart/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback }
+from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,11 @@ interface PopulatedCart extends Omit<ICart, 'items' | 'userId'> {
   items: PopulatedCartItem[];
 }
 
+interface StoreSettings {
+  taxPercentage: number;
+  shippingCharge: number;
+}
+
 
 export default function CartPage() {
   const [cart, setCart] = useState<PopulatedCart | null>(null);
@@ -36,6 +42,9 @@ export default function CartPage() {
   const [isUpdating, setIsUpdating] = useState<string | null>(null); // Store cartItemId of item being updated
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+
 
   useEffect(() => {
     const userDataString = localStorage.getItem('userData');
@@ -46,6 +55,7 @@ export default function CartPage() {
       // Handle user not logged in - redirect or show message
       toast({ variant: "destructive", title: "Not Logged In", description: "Please log in to view your cart."});
       setIsLoading(false);
+      setIsSettingsLoading(false);
       // Consider redirecting: router.push('/auth/login');
     }
   }, [toast]);
@@ -70,11 +80,39 @@ export default function CartPage() {
     }
   }, [userId, toast]);
 
+   const fetchStoreSettings = useCallback(async () => {
+    setIsSettingsLoading(true);
+    try {
+      const response = await fetch('/api/admin/settings');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch store settings');
+      }
+      const data = await response.json();
+      if (data.settings) {
+        setStoreSettings({
+          taxPercentage: data.settings.taxPercentage || 0,
+          shippingCharge: data.settings.shippingCharge || 0,
+        });
+      } else {
+        setStoreSettings({ taxPercentage: 0, shippingCharge: 0 }); // Default if not found
+      }
+    } catch (error: any) {
+      console.error("Error fetching store settings:", error);
+      toast({ variant: "destructive", title: "Settings Error", description: "Could not load store settings for cart." });
+      setStoreSettings({ taxPercentage: 0, shippingCharge: 0 }); // Default on error
+    } finally {
+      setIsSettingsLoading(false);
+    }
+  }, [toast]);
+
+
   useEffect(() => {
     if (userId) {
       fetchCart();
+      fetchStoreSettings();
     }
-  }, [userId, fetchCart]);
+  }, [userId, fetchCart, fetchStoreSettings]);
 
   const handleQuantityChange = async (cartItemId: string, currentQuantity: number, change: number, minOrderQty: number, stock: number) => {
     const newQuantity = Math.max(minOrderQty, currentQuantity + change);
@@ -141,15 +179,17 @@ export default function CartPage() {
   };
 
   const subtotal = calculateSubtotal();
-  const total = subtotal; // Placeholder for now
+  const taxAmount = storeSettings ? subtotal * (storeSettings.taxPercentage / 100) : 0;
+  const shippingCost = storeSettings ? storeSettings.shippingCharge : 0;
+  const total = subtotal + taxAmount + shippingCost;
 
   const handleCheckout = () => {
-    console.log("Proceeding to checkout with cart:", cart);
-    toast({ title: "Redirecting to Checkout", description: "Please wait..." });
+    console.log("Proceeding to checkout with cart:", cart, "Subtotal:", subtotal, "Tax:", taxAmount, "Shipping:", shippingCost, "Total:", total);
+    toast({ title: "Redirecting to Checkout", description: "This feature is coming soon!" });
     // router.push('/checkout');
   };
 
-  if (!userId && !isLoading) {
+  if (!userId && !isLoading && !isSettingsLoading) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
@@ -179,7 +219,7 @@ export default function CartPage() {
 
             <h1 className="text-3xl font-bold mb-6">Your Shopping Cart</h1>
 
-            {isLoading && !cart ? (
+            {(isLoading || isSettingsLoading) && !cart ? (
                  <div className="grid md:grid-cols-3 gap-8">
                     <div className="md:col-span-2 space-y-4">
                          {[...Array(2)].map((_, i) => (
@@ -203,6 +243,8 @@ export default function CartPage() {
                         <CardHeader><Skeleton className="h-6 w-3/4 bg-muted" /></CardHeader>
                         <CardContent className="space-y-4">
                             <Skeleton className="h-5 w-full bg-muted" />
+                            <Skeleton className="h-5 w-full bg-muted" />
+                             <Skeleton className="h-5 w-full bg-muted" />
                             <Skeleton className="h-5 w-full bg-muted" />
                             <Skeleton className="h-10 w-full bg-muted rounded-md" />
                         </CardContent>
@@ -297,22 +339,40 @@ export default function CartPage() {
                         <span>Subtotal</span>
                         <span>₹{subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                        <span>Shipping</span>
-                        <span>Calculated at checkout</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                        <span>Taxes</span>
-                        <span>Calculated at checkout</span>
-                    </div>
+                    {isSettingsLoading ? (
+                         <>
+                           <Skeleton className="h-5 w-full bg-muted" />
+                           <Skeleton className="h-5 w-full bg-muted" />
+                         </>
+                    ) : storeSettings ? (
+                         <>
+                             <div className="flex justify-between text-muted-foreground">
+                                 <span>Shipping</span>
+                                 <span>₹{shippingCost.toFixed(2)}</span>
+                             </div>
+                             <div className="flex justify-between text-muted-foreground">
+                                <span>Tax ({storeSettings.taxPercentage}%)</span>
+                                <span>₹{taxAmount.toFixed(2)}</span>
+                            </div>
+                         </>
+                    ) : (
+                        <>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Shipping</span><span>Loading...</span>
+                          </div>
+                           <div className="flex justify-between text-muted-foreground">
+                            <span>Tax</span><span>Loading...</span>
+                          </div>
+                        </>
+                    )}
                     <Separator />
                     <div className="flex justify-between font-semibold text-lg">
                         <span>Estimated Total</span>
-                        <span>₹{total.toFixed(2)}</span>
+                        <span>{isSettingsLoading ? <Skeleton className="h-6 w-20 inline-block" /> : `₹${total.toFixed(2)}`}</span>
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button className="w-full" onClick={handleCheckout} disabled={isLoading || isUpdating !== null || (cart?.items.length ?? 0) === 0}>
+                    <Button className="w-full" onClick={handleCheckout} disabled={isLoading || isSettingsLoading || isUpdating !== null || (cart?.items.length ?? 0) === 0}>
                         Proceed to Checkout
                     </Button>
                 </CardFooter>
