@@ -45,6 +45,8 @@ export default function ProductDetailPage() {
    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
    const [selectedColor, setSelectedColor] = useState<PopulatedProductColor | undefined>(undefined);
    const [quantity, setQuantity] = useState(1);
+   const [isAddingToCart, setIsAddingToCart] = useState(false);
+
 
    useEffect(() => {
         const fetchProduct = async () => {
@@ -117,14 +119,57 @@ export default function ProductDetailPage() {
    // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [id]);
 
-   const handleAddToCart = () => {
-    if (product) {
-        const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
-        console.log(`Adding ${itemToAdd} (Quantity: ${quantity}) to cart`);
-        toast({
-          title: "Added to Cart",
-          description: `${quantity} x ${itemToAdd} has been added to your cart.`,
+   const handleAddToCart = async () => {
+    if (!product) return;
+    setIsAddingToCart(true);
+
+    const userDataString = localStorage.getItem('userData');
+    if (!userDataString) {
+        toast({ variant: "destructive", title: "Please Log In", description: "You need to be logged in to add items to your cart." });
+        setIsAddingToCart(false);
+        return;
+    }
+    const userData = JSON.parse(userDataString);
+    const userId = userData._id;
+
+    if (!userId) {
+        toast({ variant: "destructive", title: "Error", description: "User ID not found. Please log in again." });
+        setIsAddingToCart(false);
+        return;
+    }
+
+    const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
+
+    try {
+        const response = await fetch('/api/cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId,
+                productId: product._id,
+                quantity,
+                selectedColorName: selectedColor?.name,
+            }),
         });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Failed to add item to cart');
+        }
+
+        toast({
+            title: "Added to Cart",
+            description: `${quantity} x ${itemToAdd} has been added to your cart.`,
+        });
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Error Adding to Cart",
+            description: error.message || "Could not add item to cart.",
+        });
+    } finally {
+        setIsAddingToCart(false);
     }
    };
 
@@ -376,7 +421,7 @@ export default function ProductDetailPage() {
                                 style={{ backgroundColor: color.hexCode || '#ccc' }}
                                 title={`${color.name} ${color.stock < minOrderQty ? '(Not enough stock)' : ''}`}
                                 aria-label={`Select color ${color.name} ${color.stock < minOrderQty ? '(Not enough stock)' : ''}`}
-                                disabled={color.stock < minOrderQty}
+                                disabled={color.stock < minOrderQty || isAddingToCart}
                             >
                                {color.stock < minOrderQty && (
                                      <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
@@ -406,7 +451,7 @@ export default function ProductDetailPage() {
                         size="icon"
                         className="h-9 w-9"
                         onClick={() => handleQuantityChange(-1)}
-                        disabled={quantity <= minOrderQty || isOutOfStock}
+                        disabled={quantity <= minOrderQty || isOutOfStock || isAddingToCart}
                         aria-label="Decrease quantity"
                     >
                         <Minus className="h-4 w-4" />
@@ -419,7 +464,7 @@ export default function ProductDetailPage() {
                         min={minOrderQty}
                         max={currentStock}
                         className="w-16 h-9 text-center"
-                        disabled={isOutOfStock}
+                        disabled={isOutOfStock || isAddingToCart}
                         aria-label="Product quantity"
                     />
                     <Button
@@ -427,7 +472,7 @@ export default function ProductDetailPage() {
                         size="icon"
                         className="h-9 w-9"
                         onClick={() => handleQuantityChange(1)}
-                        disabled={quantity >= currentStock || isOutOfStock}
+                        disabled={quantity >= currentStock || isOutOfStock || isAddingToCart}
                         aria-label="Increase quantity"
                     >
                         <Plus className="h-4 w-4" />
@@ -458,10 +503,10 @@ export default function ProductDetailPage() {
                 size="lg"
                 className="w-full md:w-auto bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
                 onClick={handleAddToCart}
-                disabled={isOutOfStock || loading}
+                disabled={isOutOfStock || loading || isAddingToCart}
                >
-                 <ShoppingCart className="h-5 w-5"/>
-                 {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                 {isAddingToCart ? <Loader2 className="h-5 w-5 animate-spin"/> : <ShoppingCart className="h-5 w-5"/>}
+                 {isAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
               </Button>
             </div>
           </div>

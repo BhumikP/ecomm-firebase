@@ -101,6 +101,9 @@ export default function Home() {
   const [topBuyProducts, setTopBuyProducts] = useState<FetchedProduct[]>([]);
   const [isTopBuyLoading, setIsTopBuyLoading] = useState(true);
 
+  // State for add to cart loading
+  const [isAddingToCart, setIsAddingToCart] = useState<Record<string, boolean>>({});
+
 
   // Common state
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
@@ -292,13 +295,59 @@ export default function Home() {
   }, [filters]);
 
 
-  const handleAddToCart = (product: FetchedProduct, selectedColor?: IProductColor) => {
+  const handleAddToCart = async (product: FetchedProduct, selectedColor?: IProductColor) => {
+    const productId = product._id.toString();
+    setIsAddingToCart(prev => ({ ...prev, [productId]: true }));
+
+    const userDataString = localStorage.getItem('userData');
+    if (!userDataString) {
+        toast({ variant: "destructive", title: "Please Log In", description: "You need to be logged in to add items to your cart." });
+        setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
+        return;
+    }
+    const userData = JSON.parse(userDataString);
+    const userId = userData._id;
+
+    if (!userId) {
+        toast({ variant: "destructive", title: "Error", description: "User ID not found. Please log in again." });
+        setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
+        return;
+    }
+
+    const quantity = product.minOrderQuantity || 1; // For homepage/listing, add min quantity
     const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
-    console.log(`Adding ${itemToAdd} to cart`);
-    toast({
-      title: "Added to Cart",
-      description: `${itemToAdd} has been added to your cart.`,
-    });
+
+    try {
+        const response = await fetch('/api/cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId,
+                productId: product._id,
+                quantity,
+                selectedColorName: selectedColor?.name,
+            }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Failed to add item to cart');
+        }
+
+        toast({
+            title: "Added to Cart",
+            description: `${itemToAdd} (Qty: ${quantity}) has been added.`,
+        });
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message || "Could not add item to cart.",
+        });
+    } finally {
+        setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
+    }
   };
   
   const handleApplyFilters = () => {
@@ -359,17 +408,19 @@ export default function Home() {
   };
 
   const renderProductCard = (product: FetchedProduct) => {
-    const selectedColor = selectedColorPerProduct[product._id];
+    const productIdStr = product._id.toString();
+    const selectedColor = selectedColorPerProduct[productIdStr];
     const displayImage = selectedColor?.imageUrls?.[0] ?? product.thumbnailUrl ?? 'https://picsum.photos/300/200?random=placeholder';
     const minOrderQty = product.minOrderQuantity || 1;
     const currentStock = selectedColor?.stock ?? product.stock ?? 0;
     const isOutOfStock = currentStock < minOrderQty;
+    const productIsAddingToCart = isAddingToCart[productIdStr] || false;
 
 
     return (
-        <Card key={product._id.toString()} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
+        <Card key={productIdStr} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-background group">
         <CardHeader className="p-0 relative">
-            <Link href={`/products/${product._id.toString()}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
+            <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
                 <Image
                 src={displayImage}
                 alt={product.title}
@@ -387,7 +438,7 @@ export default function Home() {
             )}
         </CardHeader>
         <CardContent className="p-4 flex-grow">
-            <Link href={`/products/${product._id.toString()}`}>
+            <Link href={`/products/${productIdStr}`}>
                 <CardTitle className="text-base md:text-lg font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2">{product.title}</CardTitle>
             </Link>
              {product.category && <p className="text-xs text-muted-foreground mb-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
@@ -406,13 +457,13 @@ export default function Home() {
                             key={color._id?.toString() || `${color.name}-${index}`}
                             title={color.name}
                             aria-label={`Select color ${color.name}`}
-                            onClick={() => handleColorSelection(product._id.toString(), color)}
+                            onClick={() => handleColorSelection(productIdStr, color)}
                             className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary transition-all
                                 ${selectedColor === color ? 'ring-2 ring-primary ring-offset-1 border-primary' : 'border-muted-foreground/30'}
                                 ${color.stock < minOrderQty ? 'opacity-50 cursor-not-allowed relative' : ''} 
                                 `}
                             style={{ backgroundColor: color.hexCode || 'transparent' }}
-                            disabled={color.stock < minOrderQty}
+                            disabled={color.stock < minOrderQty || productIsAddingToCart}
                         >
                            {!color.hexCode && <span className="sr-only">{color.name}</span>}
                             {color.stock < minOrderQty && <X className="h-3 w-3 text-destructive-foreground absolute inset-0 m-auto opacity-70" />}
@@ -447,10 +498,11 @@ export default function Home() {
                 className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
                 onClick={() => handleAddToCart(product, selectedColor)}
                 aria-label={`Add ${product.title} to cart`}
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || productIsAddingToCart}
             >
-                {!isOutOfStock ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
-                {isOutOfStock ? 'Out of Stock' : 'Add'}
+                {productIsAddingToCart ? <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin"/> : 
+                 !isOutOfStock ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
+                {productIsAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add'}
             </Button>
         </CardFooter>
         </Card>
@@ -725,4 +777,5 @@ export default function Home() {
     </div>
   );
 }
+
 
