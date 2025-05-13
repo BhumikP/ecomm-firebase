@@ -2,7 +2,7 @@
 // src/app/cart/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback }
+import { useState, useEffect, useCallback, useRef } // Added useRef
 from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -44,6 +44,7 @@ export default function CartPage() {
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [itemInputValues, setItemInputValues] = useState<Record<string, string>>({});
+  const debounceButtonTimers = useRef<Record<string, NodeJS.Timeout | undefined>>({});
 
 
   useEffect(() => {
@@ -122,6 +123,15 @@ export default function CartPage() {
     }
   }, [userId, fetchCart, fetchStoreSettings]);
 
+  // Cleanup debounce timers on component unmount
+  useEffect(() => {
+    return () => {
+        Object.values(debounceButtonTimers.current).forEach(timerId => {
+            if (timerId) clearTimeout(timerId);
+        });
+    };
+  }, []);
+
 
   const handleItemInputChange = (itemId: string, rawValue: string) => {
     setItemInputValues(prev => ({ ...prev, [itemId]: rawValue }));
@@ -152,8 +162,9 @@ export default function CartPage() {
           let numValue = parseInt(rawValue, 10);
 
           if (isNaN(numValue)) {
+              // If input is not a number, revert to current cart quantity visually
               setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) }));
-              return;
+              return; // Don't proceed with API call for NaN
           }
 
           let validatedQty = numValue;
@@ -171,35 +182,31 @@ export default function CartPage() {
                   const data = await response.json();
                   if (!response.ok) throw new Error(data.message || 'Failed to update quantity');
                   
-                  setCart(prevCart => {
-                      if (!prevCart) return null;
-                      const updatedItems = prevCart.items.map(i => i._id === itemId ? {...i, quantity: validatedQty} : i);
-                      return {...prevCart, items: updatedItems};
-                  });
-                  setItemInputValues(prev => ({ ...prev, [itemId]: String(validatedQty) })); // Sync input after API
+                  setCart(data.cart as PopulatedCart); // Update cart state from response
+                  setItemInputValues(prev => ({ ...prev, [itemId]: String(data.cart.items.find((i: PopulatedCartItem) => i._id === itemId)?.quantity || validatedQty) })); // Sync input after API
                   window.dispatchEvent(new CustomEvent('cartUpdated'));
               } catch (error: any) {
                   toast({ variant: "destructive", title: "Update Failed", description: error.message });
-                  setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) }));
+                  setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) })); // Revert to actual cart quantity on error
               } finally {
                   setIsUpdating(null);
               }
           } else if (rawValue !== String(validatedQty)) {
-              // Normalize input display if valid number but different string (e.g. "07" -> "7")
+              // Normalize input display if valid number but different string representation (e.g. "07" -> "7", or after clamping)
               setItemInputValues(prev => ({ ...prev, [itemId]: String(validatedQty) }));
           }
       };
       
       const timer = setTimeout(() => {
           itemIdsToProcess.forEach(processItem);
-      }, 750); // Debounce time
+      }, 750); // Debounce time for text input
 
       return () => clearTimeout(timer);
 
   }, [itemInputValues, cart, userId, toast, setCart]);
 
 
-  const handleQuantityButtonClick = async (itemId: string, item: PopulatedCartItem, change: number) => {
+  const handleQuantityButtonClick = (itemId: string, item: PopulatedCartItem, change: number) => {
     if (!userId) return;
 
     const minOrderQty = item.product.minOrderQuantity || 1;
@@ -207,38 +214,66 @@ export default function CartPage() {
         ? item.product.colors.find(c => c.name === item.selectedColorSnapshot?.name)?.stock ?? 0
         : item.product.stock;
 
-    let newQuantity = item.quantity + change;
+    let currentDisplayQuantity = parseInt(itemInputValues[itemId], 10);
+    if (isNaN(currentDisplayQuantity)) {
+        currentDisplayQuantity = item.quantity; // Fallback to cart quantity if input is NaN
+    }
+
+    let newQuantity = currentDisplayQuantity + change;
 
     if (newQuantity < minOrderQty) newQuantity = minOrderQty;
     if (newQuantity > productStock) newQuantity = productStock;
 
-    if (newQuantity === item.quantity) { // If quantity doesn't change after validation, just sync input
-        setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) }));
-        return;
-    }
-    
-    setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) })); // Optimistically update input
+    // Optimistically update the input field's display
+    setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) }));
+    setIsUpdating(itemId); // Show loading state on button press
 
-    setIsUpdating(itemId);
-    try {
-        const response = await fetch(`/api/cart/${itemId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, newQuantity }),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to update quantity');
-        }
-        setCart(data.cart as PopulatedCart); 
-        window.dispatchEvent(new CustomEvent('cartUpdated'));
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Update Failed", description: error.message });
-        // Revert input to actual cart quantity on error
-        setItemInputValues(prev => ({ ...prev, [itemId]: String(item.quantity) }));
-    } finally {
-        setIsUpdating(null);
+    // Clear any existing debounce timer for this item
+    if (debounceButtonTimers.current[itemId]) {
+        clearTimeout(debounceButtonTimers.current[itemId]);
     }
+
+    // Set a new debounce timer
+    debounceButtonTimers.current[itemId] = setTimeout(async () => {
+        // Check if the debounced newQuantity is actually different from the cart's current state
+        // This avoids an API call if another process (like text input debounce) already synced this quantity.
+        const upToDateCartItem = cart?.items.find(ci => ci._id === itemId);
+        if (upToDateCartItem && upToDateCartItem.quantity === newQuantity) {
+            setIsUpdating(null); // Already synced, remove loading
+            // Ensure input field reflects this state if it somehow desynced (e.g. rapid interactions)
+             if (itemInputValues[itemId] !== String(newQuantity)) {
+                setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) }));
+            }
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/cart/${itemId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, newQuantity }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to update quantity');
+            }
+            setCart(data.cart as PopulatedCart);
+            window.dispatchEvent(new CustomEvent('cartUpdated'));
+            // Ensure input value reflects the final quantity from the server
+            const updatedItemFromServer = data.cart.items.find((i: PopulatedCartItem) => i._id === itemId);
+            setItemInputValues(prev => ({ ...prev, [itemId]: String(updatedItemFromServer?.quantity || newQuantity) }));
+
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Update Failed", description: error.message });
+            // Revert input to actual cart quantity on error
+            const currentCartItem = cart?.items.find(i => i._id === itemId);
+            if (currentCartItem) {
+                setItemInputValues(prev => ({ ...prev, [itemId]: String(currentCartItem.quantity) }));
+            }
+        } finally {
+            setIsUpdating(null);
+        }
+    }, 750); // 750ms debounce time for button clicks
 };
 
 
@@ -387,9 +422,9 @@ export default function CartPage() {
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => handleQuantityButtonClick(item._id, item, -1)}
-                                disabled={isUpdating === item._id || item.quantity <= minOrderQty}
+                                disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) <= minOrderQty)}
                             >
-                                <Minus className="h-4 w-4" />
+                                {isUpdating === item._id && (itemInputValues[item._id] === String(parseInt(itemInputValues[item._id] || "0") -1) )? <Loader2 className="h-4 w-4 animate-spin"/> : <Minus className="h-4 w-4" />}
                             </Button>
                             <Input
                                 type="text"
@@ -406,9 +441,9 @@ export default function CartPage() {
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => handleQuantityButtonClick(item._id, item, 1)}
-                                disabled={isUpdating === item._id || item.quantity >= productStock}
+                                disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) >= productStock)}
                             >
-                                <Plus className="h-4 w-4" />
+                                {isUpdating === item._id && (itemInputValues[item._id] === String(parseInt(itemInputValues[item._id] || "0") + 1) )? <Loader2 className="h-4 w-4 animate-spin"/> : <Plus className="h-4 w-4" />}
                             </Button>
                             </div>
                             <Button
@@ -418,7 +453,7 @@ export default function CartPage() {
                                 onClick={() => handleRemoveItem(item._id, item.nameSnapshot)}
                                 disabled={isUpdating === item._id}
                             >
-                                {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                                {isUpdating === item._id && !debounceButtonTimers.current[item._id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
                             </Button>
                         </Card>
                     );
@@ -486,3 +521,4 @@ export default function CartPage() {
     </div>
   );
 }
+
