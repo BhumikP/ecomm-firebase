@@ -35,6 +35,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co', // Added placehold.co
+        port: '',
+        pathname: '/**',
+      },
       // Add any other domains you might use for images
     ],
     // domains property is deprecated in favor of remotePatterns if both are used.
@@ -43,4 +49,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
