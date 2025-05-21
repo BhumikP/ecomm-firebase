@@ -1,13 +1,15 @@
+
 'use client';
 
-import type { Metadata } from 'next'; // Can still use Metadata type for reference
-import { useState } from 'react';
+// import type { Metadata } from 'next'; // Not used directly in client components for export
+import { useState, useEffect } from 'react'; // Added useEffect
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+// Label from form is preferred over direct ui/label
+// import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -16,21 +18,30 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Mail, Phone, MapPin } from 'lucide-react';
 
-// Client-side metadata setting (workaround)
-if (typeof window !== 'undefined') {
+
+// Client-side metadata setting (useEffect for dynamic title based on component state or props)
+// For static titles in client components, it's often simpler to manage via a layout or specific hook if many pages need it.
+// Next.js 13+ App Router generally prefers `generateMetadata` for server components.
+// This is a client component due to react-hook-form and useState.
+useEffect(() => {
     document.title = 'Contact Us | eShop Simplified';
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-        metaDescription.setAttribute('content', 'Get in touch with eShop Simplified. Send us a message or find our contact details.');
+    let metaDescription = document.querySelector('meta[name="description"]');
+    if (!metaDescription) {
+        metaDescription = document.createElement('meta');
+        metaDescription.setAttribute('name', 'description');
+        document.head.appendChild(metaDescription);
     }
-}
+    metaDescription.setAttribute('content', 'Get in touch with eShop Simplified. Send us a message or find our contact details. We are here to help with your queries.');
+     // It's good practice to also set OpenGraph and Twitter titles/descriptions if possible client-side,
+     // but these are more effectively handled by server-side metadata for crawlers.
+}, []);
 
 
 const contactFormSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(100, { message: "Name cannot exceed 100 characters."}),
   email: z.string().email({ message: "Please enter a valid email address." }),
-  subject: z.string().min(5, { message: "Subject must be at least 5 characters." }),
-  message: z.string().min(10, { message: "Message must be at least 10 characters." }).max(500, { message: "Message cannot exceed 500 characters." }),
+  subject: z.string().min(5, { message: "Subject must be at least 5 characters." }).max(150, { message: "Subject cannot exceed 150 characters."}),
+  message: z.string().min(10, { message: "Message must be at least 10 characters." }).max(1000, { message: "Message cannot exceed 1000 characters." }),
 });
 
 type ContactFormValues = z.infer<typeof contactFormSchema>;
@@ -41,6 +52,7 @@ export default function ContactUsPage() {
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
+    mode: "onTouched", // Validate on blur/change after first touch
     defaultValues: {
       name: "",
       email: "",
@@ -65,9 +77,11 @@ export default function ContactUsPage() {
           title: "Message Sent!",
           description: "Thank you for contacting us. We'll get back to you soon.",
         });
-        form.reset(); // Reset form fields on success
+        form.reset();
       } else {
-         throw new Error(result.message || "Failed to send message.");
+         // Enhance error message display
+         const apiErrors = result.errors ? Object.values(result.errors).flat().join(', ') : '';
+         throw new Error(result.message || "Failed to send message." + (apiErrors ? ` Details: ${apiErrors}` : ''));
       }
     } catch (error: any) {
        console.error("Contact form submission error:", error);
@@ -93,12 +107,11 @@ export default function ContactUsPage() {
              </p>
            </section>
 
-          <div className="grid md:grid-cols-2 gap-12 items-start">
-             {/* Contact Form Section */}
+          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
              <Card className="shadow-lg">
                <CardHeader>
                  <CardTitle>Send Us a Message</CardTitle>
-                 <CardDescription>Fill out the form below and we'll get back to you.</CardDescription>
+                 <CardDescription>Fill out the form below and we'll get back to you as soon as possible.</CardDescription>
                </CardHeader>
                <CardContent>
                  <Form {...form}>
@@ -108,9 +121,9 @@ export default function ContactUsPage() {
                        name="name"
                        render={({ field }) => (
                          <FormItem>
-                           <FormLabel>Name</FormLabel>
+                           <FormLabel>Full Name</FormLabel>
                            <FormControl>
-                             <Input placeholder="Your Name" {...field} disabled={isLoading} />
+                             <Input placeholder="e.g., Jane Doe" {...field} disabled={isLoading} aria-required="true" />
                            </FormControl>
                            <FormMessage />
                          </FormItem>
@@ -121,9 +134,9 @@ export default function ContactUsPage() {
                        name="email"
                        render={({ field }) => (
                          <FormItem>
-                           <FormLabel>Email</FormLabel>
+                           <FormLabel>Email Address</FormLabel>
                            <FormControl>
-                             <Input type="email" placeholder="your.email@example.com" {...field} disabled={isLoading} />
+                             <Input type="email" placeholder="e.g., you@example.com" {...field} disabled={isLoading} aria-required="true" />
                            </FormControl>
                            <FormMessage />
                          </FormItem>
@@ -136,7 +149,7 @@ export default function ContactUsPage() {
                          <FormItem>
                            <FormLabel>Subject</FormLabel>
                            <FormControl>
-                             <Input placeholder="Regarding..." {...field} disabled={isLoading} />
+                             <Input placeholder="e.g., Question about an order" {...field} disabled={isLoading} aria-required="true" />
                            </FormControl>
                            <FormMessage />
                          </FormItem>
@@ -149,7 +162,7 @@ export default function ContactUsPage() {
                          <FormItem>
                            <FormLabel>Message</FormLabel>
                            <FormControl>
-                             <Textarea placeholder="Your message here..." className="min-h-[120px]" {...field} disabled={isLoading} />
+                             <Textarea placeholder="Please type your message here..." className="min-h-[120px] resize-y" {...field} disabled={isLoading} aria-required="true" />
                            </FormControl>
                             <FormMessage />
                          </FormItem>
@@ -169,59 +182,53 @@ export default function ContactUsPage() {
                </CardContent>
              </Card>
 
-              {/* Contact Information Section */}
               <div className="space-y-8">
                 <Card className="shadow-lg">
                   <CardHeader>
                     <CardTitle>Contact Information</CardTitle>
                     <CardDescription>Other ways to reach us.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-6">
                      <div className="flex items-start gap-4">
-                         <div className="bg-primary/10 rounded-full p-2 mt-1">
+                         <div className="bg-primary/10 rounded-full p-3 mt-1 flex-shrink-0">
                             <Mail className="h-5 w-5 text-primary" />
                          </div>
                         <div>
-                            <h3 className="font-semibold">Email</h3>
-                            <a href="mailto:support@eshopsimplified.com" className="text-primary hover:underline">
+                            <h3 className="font-semibold text-lg">Email</h3>
+                            <a href="mailto:support@eshopsimplified.com" className="text-primary hover:underline break-all">
                                 support@eshopsimplified.com
                             </a>
                             <p className="text-sm text-muted-foreground">For general inquiries and support</p>
                         </div>
                     </div>
                      <div className="flex items-start gap-4">
-                        <div className="bg-primary/10 rounded-full p-2 mt-1">
+                        <div className="bg-primary/10 rounded-full p-3 mt-1 flex-shrink-0">
                             <Phone className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold">Phone</h3>
-                            <a href="tel:+1234567890" className="text-primary hover:underline">
-                                +1 (234) 567-890
+                            <h3 className="font-semibold text-lg">Phone</h3>
+                            <a href="tel:+911234567890" className="text-primary hover:underline">
+                                +91-123-456-7890
                             </a>
-                            <p className="text-sm text-muted-foreground">Mon-Fri, 9am - 5pm EST</p>
+                            <p className="text-sm text-muted-foreground">Mon-Fri, 9am - 6pm IST</p>
                         </div>
                     </div>
                      <div className="flex items-start gap-4">
-                         <div className="bg-primary/10 rounded-full p-2 mt-1">
+                         <div className="bg-primary/10 rounded-full p-3 mt-1 flex-shrink-0">
                              <MapPin className="h-5 w-5 text-primary" />
                          </div>
                         <div>
-                            <h3 className="font-semibold">Address</h3>
-                            <p>123 E-commerce St,<br/> Shopping City, SC 98765,<br/> USA</p>
+                            <h3 className="font-semibold text-lg">Our Office</h3>
+                            <address className="not-italic">
+                                123 E-commerce Avenue,<br/>
+                                Tech Park, Bangalore 560001,<br/>
+                                India
+                            </address>
                              <p className="text-sm text-muted-foreground">(Office visits by appointment only)</p>
                         </div>
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Optional: Map Embed */}
-                {/* <Card>
-                  <CardContent className="p-0">
-                    <div className="aspect-video bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-                       [Map Placeholder - e.g., Google Maps Embed]
-                    </div>
-                  </CardContent>
-                </Card> */}
               </div>
           </div>
         </div>

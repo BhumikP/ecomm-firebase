@@ -2,18 +2,14 @@
 // src/app/products/page.tsx
 'use client';
 
-import React, { Suspense } from 'react'; // Import Suspense
-import Image from 'next/image';
-import Link from 'next/link';
+import React, { Suspense } from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingCart, ChevronLeft, ChevronRight, Star, Palette, X, Info } from 'lucide-react';
+import { Filter, Search, Loader2, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -28,24 +24,16 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProduct, IProductColor } from '@/models/Product';
+import type { IProductColor } from '@/models/Product'; // IProduct removed as FetchedProduct includes it
 import type { ICategory } from '@/models/Category';
-
-// Define FetchedProduct specifically for this page, ensuring category is an object
-interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
-  _id: string;
-  category: ICategory; // Expect category to be populated
-  colors: IProductColor[];
-  thumbnailUrl: string;
-  minOrderQuantity: number;
-}
+import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card'; // Import ProductCard
 
 interface FilterState {
-  categories: { [key: string]: boolean }; // Key: categoryId or categoryId_SUB_subcategoryName
+  categories: { [key: string]: boolean }; 
   priceRange: [number];
   discountedOnly: boolean;
   searchQuery: string;
-  subcategoryName?: string; // Added for direct subcategory filtering
+  subcategoryName?: string;
 }
 
 interface PaginationState {
@@ -70,20 +58,16 @@ function ProductsPageContent() {
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
   const [pagination, setPagination] = useState<PaginationState | null>(null);
   const [pageTitle, setPageTitle] = useState('All Products');
-   // State for add to cart loading
   const [isAddingToCart, setIsAddingToCart] = useState<Record<string, boolean>>({});
 
-
-  // Filter state local to this page
   const [filters, setFilters] = useState<FilterState>({
     categories: {},
     priceRange: [DEFAULT_MAX_PRICE],
     discountedOnly: false,
     searchQuery: '',
   });
-  const [priceValue, setPriceValue] = useState([DEFAULT_MAX_PRICE]); // For slider UI
+  const [priceValue, setPriceValue] = useState([DEFAULT_MAX_PRICE]);
 
-  // Fetch available categories for filter UI
   useEffect(() => {
     const fetchCats = async () => {
       try {
@@ -99,10 +83,21 @@ function ProductsPageContent() {
     fetchCats();
   }, [toast]);
 
-  // Initialize filters from URL searchParams
   useEffect(() => {
-    if (availableCategories.length === 0 && searchParams.has('categoryName')) {
-        // Wait for categories to load if categoryName is in query
+    if (typeof window !== 'undefined') {
+      document.title = `${pageTitle} | eShop Simplified`;
+      let metaDescription = document.querySelector('meta[name="description"]');
+      if (!metaDescription) {
+          metaDescription = document.createElement('meta');
+          metaDescription.setAttribute('name', 'description');
+          document.head.appendChild(metaDescription);
+      }
+      metaDescription.setAttribute('content', `Browse and shop for ${pageTitle.toLowerCase()} on eShop Simplified. Find great deals and a wide selection.`);
+    }
+  }, [pageTitle]);
+
+  useEffect(() => {
+    if (availableCategories.length === 0 && (searchParams.has('categoryName') || searchParams.has('category'))) {
         return;
     }
 
@@ -119,30 +114,42 @@ function ProductsPageContent() {
         setPagination(prev => ({...(prev || {totalPages:0, totalProducts:0, limit:PRODUCTS_PER_PAGE}), currentPage: initialPage}));
     }
 
-
+    const categoryIdParam = searchParams.get('category');
     const categoryNameParam = searchParams.get('categoryName');
-    let foundCategory: ICategory | undefined;
+    let titleCandidate = 'All Products';
 
-    if (categoryNameParam && availableCategories.length > 0) {
-        foundCategory = availableCategories.find(c => c.name.toLowerCase() === categoryNameParam.toLowerCase());
+    if (categoryIdParam && availableCategories.length > 0) {
+        const foundCategory = availableCategories.find(c => c._id.toString() === categoryIdParam);
         if (foundCategory) {
-            setPageTitle(foundCategory.name); // Set page title to category name
-             // If subcategoryName is also present, use that specific filter key
+            titleCandidate = foundCategory.name;
             if (newFilters.subcategoryName && foundCategory.subcategories.includes(newFilters.subcategoryName)) {
                 newFilters.categories[`${foundCategory._id.toString()}_SUB_${newFilters.subcategoryName}`] = true;
-                setPageTitle(`${foundCategory.name} > ${newFilters.subcategoryName}`);
+                titleCandidate = `${foundCategory.name} > ${newFilters.subcategoryName}`;
             } else {
                 newFilters.categories[foundCategory._id.toString()] = true;
             }
-        } else {
-            setPageTitle(`Category: ${categoryNameParam} (Not Found)`);
         }
-    } else if (searchParams.get('isTopBuy') === 'true') {
-        setPageTitle('Top Buys');
+    } else if (categoryNameParam && availableCategories.length > 0) {
+        const foundCategory = availableCategories.find(c => c.name.toLowerCase() === categoryNameParam.toLowerCase());
+        if (foundCategory) {
+            titleCandidate = foundCategory.name;
+            if (newFilters.subcategoryName && foundCategory.subcategories.includes(newFilters.subcategoryName)) {
+                newFilters.categories[`${foundCategory._id.toString()}_SUB_${newFilters.subcategoryName}`] = true;
+                titleCandidate = `${foundCategory.name} > ${newFilters.subcategoryName}`;
+            } else {
+                 // If only categoryName is provided, set the main category filter
+                newFilters.categories[foundCategory._id.toString()] = true;
+            }
+        } else {
+            titleCandidate = `Category: ${categoryNameParam} (Not Found)`;
+        }
     }
-     else {
-        setPageTitle('All Products');
-    }
+    
+    if (searchParams.get('isTopBuy') === 'true') titleCandidate = 'Top Buys';
+    if (searchParams.get('isNewlyLaunched') === 'true') titleCandidate = 'Newly Launched';
+    if (filters.searchQuery) titleCandidate = `Search: "${filters.searchQuery}"`;
+
+    setPageTitle(titleCandidate);
     
     const maxPriceParam = searchParams.get('maxPrice');
     if (maxPriceParam) {
@@ -157,9 +164,8 @@ function ProductsPageContent() {
     
     setFilters(newFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, availableCategories]); // Rerun when searchParams or availableCategories change
+  }, [searchParams, availableCategories]);
 
-  // Fetch products when filters or page change
   useEffect(() => {
     const fetchProductsData = async () => {
       setIsLoading(true);
@@ -170,11 +176,12 @@ function ProductsPageContent() {
       if (filters.discountedOnly) params.append('discountedOnly', 'true');
       if (filters.priceRange[0] < DEFAULT_MAX_PRICE) params.append('maxPrice', filters.priceRange[0].toString());
       
-      // Check if isTopBuy is a filter criterion from URL
-      if (searchParams.get('isTopBuy') === 'true' && !Object.values(filters.categories).some(v => v)) {
+      if (searchParams.get('isTopBuy') === 'true' && !Object.values(filters.categories).some(v => v) && !filters.searchQuery) {
         params.append('isTopBuy', 'true');
       }
-
+      if (searchParams.get('isNewlyLaunched') === 'true' && !Object.values(filters.categories).some(v => v) && !filters.searchQuery) {
+        params.append('isNewlyLaunched', 'true');
+      }
 
       let specificCategoryTargeted = false;
       Object.entries(filters.categories)
@@ -182,31 +189,29 @@ function ProductsPageContent() {
         .forEach(([filterKey]) => {
           specificCategoryTargeted = true;
           const parts = filterKey.split('_SUB_');
-          if (parts.length === 2) {
-            params.append('category', parts[0]); // categoryId
-            params.append('subcategory', parts[1]); // subcategoryName
-          } else {
-            params.append('category', parts[0]); // categoryId
-          }
+          params.append('category', parts[0]); 
+          if (parts.length === 2) params.append('subcategory', parts[1]);
         });
         
-      // If categoryName was in URL but not directly translated to a filter key yet (e.g. during init)
-      const categoryNameParam = searchParams.get('categoryName');
-      if (categoryNameParam && !specificCategoryTargeted && availableCategories.length > 0) {
-          const foundCat = availableCategories.find(c => c.name.toLowerCase() === categoryNameParam.toLowerCase());
+      const categoryIdFromUrl = searchParams.get('category');
+      const categoryNameFromUrl = searchParams.get('categoryName');
+
+      if (!specificCategoryTargeted && categoryIdFromUrl && mongoose.Types.ObjectId.isValid(categoryIdFromUrl)) {
+          params.append('category', categoryIdFromUrl);
+          if (filters.subcategoryName) params.append('subcategory', filters.subcategoryName);
+      } else if (!specificCategoryTargeted && categoryNameFromUrl && availableCategories.length > 0) {
+          const foundCat = availableCategories.find(c => c.name.toLowerCase() === categoryNameFromUrl.toLowerCase());
           if (foundCat) {
               params.append('category', foundCat._id.toString());
-              const subcategoryNameParam = searchParams.get('subcategoryName');
-              if (subcategoryNameParam && foundCat.subcategories.includes(subcategoryNameParam)) {
-                  params.append('subcategory', subcategoryNameParam);
+              if (filters.subcategoryName && foundCat.subcategories.includes(filters.subcategoryName)) {
+                  params.append('subcategory', filters.subcategoryName);
               }
           }
       }
 
-
       params.append('page', (pagination?.currentPage || 1).toString());
       params.append('limit', String(PRODUCTS_PER_PAGE));
-      params.append('populate', 'category'); // Ensure category is populated
+      params.append('populate', 'category');
 
       try {
         const res = await fetch(`/api/products?${params.toString()}`);
@@ -215,7 +220,10 @@ function ProductsPageContent() {
           throw new Error(errorData.message || 'Failed to fetch products');
         }
         const data = await res.json();
-        setProducts(Array.isArray(data.products) ? data.products : []);
+        setProducts((Array.isArray(data.products) ? data.products : []).map((p: any) => ({
+            ...p,
+            category: p.category || { _id: 'unknown', name: 'Uncategorized', subcategories: [] } // Ensure category is object
+        })));
         setPagination(data.pagination);
       } catch (e: any) {
         console.error("Error fetching products:", e);
@@ -227,9 +235,9 @@ function ProductsPageContent() {
       }
     };
 
-    // Only fetch if categories are loaded (needed for name-to-ID mapping if categoryName is used)
-    // or if no categoryName filter is active from URL
-    if ((searchParams.has('categoryName') && availableCategories.length > 0) || !searchParams.has('categoryName') || searchParams.has('isTopBuy')) {
+    if ((searchParams.has('categoryName') && availableCategories.length > 0) || 
+        (searchParams.has('category') && availableCategories.length > 0) ||
+        (!searchParams.has('categoryName') && !searchParams.has('category'))) {
         fetchProductsData();
     }
   }, [filters, pagination?.currentPage, searchParams, availableCategories]);
@@ -243,30 +251,39 @@ function ProductsPageContent() {
     if (filters.discountedOnly) query.set('discountedOnly', 'true');
     if (priceValue[0] < DEFAULT_MAX_PRICE) query.set('maxPrice', priceValue[0].toString());
 
-    let primaryCategoryName: string | null = null;
-    let primarySubcategoryName: string | null = null;
+    let primaryCategoryId: string | null = null;
+    let primaryCategoryNameForUrl: string | null = null;
+    let primarySubcategoryNameForUrl: string | null = null;
 
     Object.entries(filters.categories)
         .filter(([, checked]) => checked)
         .forEach(([filterKey]) => {
             const parts = filterKey.split('_SUB_');
             const catId = parts[0];
-            const mainCat = availableCategories.find(c => c._id.toString() === catId);
-            if (mainCat && !primaryCategoryName) primaryCategoryName = mainCat.name;
+            if (!primaryCategoryId) primaryCategoryId = catId; // Take first active category for URL
 
-            if (parts.length === 2) { // Is a subcategory
-                if (!primarySubcategoryName) primarySubcategoryName = parts[1];
+            const mainCat = availableCategories.find(c => c._id.toString() === catId);
+            if (mainCat && !primaryCategoryNameForUrl) primaryCategoryNameForUrl = mainCat.name;
+
+            if (parts.length === 2) { 
+                if (!primarySubcategoryNameForUrl) primarySubcategoryNameForUrl = parts[1];
             }
         });
     
-    if (primaryCategoryName) query.set('categoryName', primaryCategoryName);
-    if (primarySubcategoryName) query.set('subcategoryName', primarySubcategoryName);
-     if (searchParams.get('isTopBuy') === 'true' && !primaryCategoryName && !primarySubcategoryName) {
-      query.set('isTopBuy', 'true'); // Preserve isTopBuy if no category filters are active
+    // Use category ID primarily for robust filtering, categoryName for user-friendly URL
+    if (primaryCategoryId) query.set('category', primaryCategoryId);
+    if (primaryCategoryNameForUrl && !query.has('category')) query.set('categoryName', primaryCategoryNameForUrl); // Fallback to name if ID somehow missed
+    if (primarySubcategoryNameForUrl) query.set('subcategoryName', primarySubcategoryNameForUrl);
+    
+    if (searchParams.get('isTopBuy') === 'true' && !primaryCategoryId && !primaryCategoryNameForUrl) {
+      query.set('isTopBuy', 'true');
+    }
+    if (searchParams.get('isNewlyLaunched') === 'true' && !primaryCategoryId && !primaryCategoryNameForUrl) {
+      query.set('isNewlyLaunched', 'true');
     }
 
 
-    query.set('page', '1'); // Reset to page 1 on new filter application
+    query.set('page', '1'); 
 
     router.push(`${currentPath}?${query.toString()}`);
     document.getElementById('close-filter-sheet-products')?.click();
@@ -274,9 +291,8 @@ function ProductsPageContent() {
   };
 
   const handleClearFilters = () => {
-    router.push('/products'); // Clears all query params
+    router.push('/products'); 
     setPriceValue([DEFAULT_MAX_PRICE]);
-    // Filters state will be reset by the useEffect watching searchParams
     document.getElementById('close-filter-sheet-products')?.click();
     toast({ title: "Filters Cleared" });
   };
@@ -306,7 +322,6 @@ function ProductsPageContent() {
     query.set('page', newPage.toString());
     router.push(`/products?${query.toString()}`);
   };
-
 
  const handleAddToCart = async (product: FetchedProduct, selectedColor?: IProductColor) => {
     const productIdStr = product._id.toString();
@@ -345,7 +360,7 @@ function ProductsPageContent() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
-        window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
         toast({ title: "Added to Cart", description: `${itemToAdd} (Qty: ${quantity}) has been added.` });
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message || "Could not add item to cart." });
@@ -357,103 +372,6 @@ function ProductsPageContent() {
     setSelectedColorPerProduct(prev => ({ ...prev, [productId]: color }));
   };
 
-  const renderProductCard = (product: FetchedProduct) => {
-    const productIdStr = product._id.toString();
-    const selectedColor = selectedColorPerProduct[productIdStr];
-    const displayImage = selectedColor?.imageUrls?.[0] ?? product.thumbnailUrl ?? 'https://picsum.photos/300/200?random=placeholder';
-    const minOrderQty = product.minOrderQuantity || 1;
-    const currentStock = selectedColor?.stock ?? product.stock ?? 0;
-    const isOutOfStock = currentStock < minOrderQty;
-    const productIsAddingToCart = isAddingToCart[productIdStr] || false;
-
-
-    return (
-        <Card key={productIdStr} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-card group">
-        <CardHeader className="p-0 relative">
-            <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
-                <Image
-                src={displayImage}
-                alt={product.title}
-                width={300}
-                height={200}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                loading="lazy"
-                data-ai-hint="product image shop"
-                onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/300/200?random=onerror'; }}
-                />
-            </Link>
-            {product.discount && product.discount > 0 && (
-            <Badge variant="destructive" className="absolute top-2 right-2 shadow-md">{product.discount}% OFF</Badge>
-            )}
-        </CardHeader>
-        <CardContent className="p-4 flex-grow">
-            <Link href={`/products/${productIdStr}`}>
-                <CardTitle className="text-base md:text-lg font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2">{product.title}</CardTitle>
-            </Link>
-             {product.category && <p className="text-xs text-muted-foreground mb-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
-            <div className="flex items-center gap-1 mt-1">
-                 {[...Array(5)].map((_, i) => (
-                     <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
-                 ))}
-                <span className="text-xs text-muted-foreground ml-1">({product.rating?.toFixed(1) ?? 'N/A'})</span>
-            </div>
-            {product.colors && product.colors.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2 items-center">
-                    <Palette className="h-4 w-4 text-muted-foreground mr-1"/>
-                    {product.colors.map((color, index) => (
-                        <button
-                            key={color._id?.toString() || `${color.name}-${index}`}
-                            title={color.name}
-                            aria-label={`Select color ${color.name}`}
-                            onClick={() => handleColorSelection(productIdStr, color)}
-                            className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary transition-all
-                                ${selectedColor === color ? 'ring-2 ring-primary ring-offset-1 border-primary' : 'border-muted-foreground/30'}
-                                ${color.stock < minOrderQty ? 'opacity-50 cursor-not-allowed relative' : ''}`}
-                            style={{ backgroundColor: color.hexCode || 'transparent' }}
-                            disabled={color.stock < minOrderQty || productIsAddingToCart}
-                        >
-                           {!color.hexCode && <span className="sr-only">{color.name}</span>}
-                           {color.stock < minOrderQty && <X className="h-3 w-3 text-destructive-foreground absolute inset-0 m-auto opacity-70" />}
-                        </button>
-                    ))}
-                </div>
-            )}
-            {minOrderQty > 1 && (
-                <div className="flex items-center text-xs text-muted-foreground gap-1 mt-2">
-                    <Info className="h-3 w-3"/>
-                    <span>Min. order: {minOrderQty}</span>
-                </div>
-            )}
-        </CardContent>
-        <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto">
-            <div className="flex flex-col">
-                <span className="text-lg font-bold text-foreground">
-                    ₹{product.discount && product.discount > 0
-                        ? (product.price * (1 - product.discount / 100)).toFixed(2)
-                        : product.price.toFixed(2)}
-                </span>
-                {product.discount && product.discount > 0 && (
-                    <span className="text-xs text-muted-foreground line-through">
-                        ₹{product.price.toFixed(2)}
-                    </span>
-                )}
-            </div>
-            <Button
-                size="sm" variant="outline"
-                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                onClick={() => handleAddToCart(product, selectedColor)}
-                aria-label={`Add ${product.title} to cart`}
-                disabled={isOutOfStock || productIsAddingToCart}
-            >
-                {productIsAddingToCart ? <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin"/> :
-                 !isOutOfStock ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
-                 {productIsAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add'}
-            </Button>
-        </CardFooter>
-        </Card>
-    );
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -479,7 +397,7 @@ function ProductsPageContent() {
                     <Filter className="mr-2 h-4 w-4" /> Filters
                     </Button>
                 </SheetTrigger>
-                <SheetContent className="overflow-y-auto">
+                <SheetContent className="overflow-y-auto w-[300px] sm:w-[400px]">
                     <SheetHeader>
                     <SheetTitle>Filter Products</SheetTitle>
                     <SheetDescription>Refine your product search.</SheetDescription>
@@ -487,13 +405,15 @@ function ProductsPageContent() {
                     <div className="grid gap-4 py-4">
                         <fieldset className="space-y-2">
                             <legend className="font-semibold mb-1 text-sm">Category</legend>
-                            {availableCategories.length > 0 ? availableCategories.map(cat => (
-                                <React.Fragment key={cat._id.toString()}>
+                            {availableCategories.length > 0 ? availableCategories.map(cat => {
+                                const mainCatId = cat._id.toString();
+                                return (
+                                <React.Fragment key={mainCatId}>
                                    {cat.subcategories && cat.subcategories.length > 0 ? (
                                         <>
                                             <p className="font-medium text-xs pt-2 text-muted-foreground">{cat.name}</p>
                                             {cat.subcategories.map(sub => {
-                                                const filterKey = `${cat._id.toString()}_SUB_${sub}`;
+                                                const filterKey = `${mainCatId}_SUB_${sub}`;
                                                 return (
                                                     <div key={filterKey} className="flex items-center space-x-2 pl-2">
                                                         <Checkbox
@@ -508,18 +428,18 @@ function ProductsPageContent() {
                                             })}
                                         </>
                                     ) : (
-                                        <div key={cat._id.toString()} className="flex items-center space-x-2">
+                                        <div key={mainCatId} className="flex items-center space-x-2">
                                             <Checkbox
-                                                id={`filter-${cat._id.toString()}`}
-                                                checked={filters.categories[cat._id.toString()] || false}
-                                                onCheckedChange={(checked) => handleCategoryChange(cat._id.toString(), checked)}
-                                                aria-labelledby={`label-filter-${cat._id.toString()}`}
+                                                id={`filter-${mainCatId}`}
+                                                checked={filters.categories[mainCatId] || false}
+                                                onCheckedChange={(checked) => handleCategoryChange(mainCatId, checked)}
+                                                aria-labelledby={`label-filter-${mainCatId}`}
                                             />
-                                            <Label id={`label-filter-${cat._id.toString()}`} htmlFor={`filter-${cat._id.toString()}`} className="cursor-pointer text-sm font-normal">{cat.name}</Label>
+                                            <Label id={`label-filter-${mainCatId}`} htmlFor={`filter-${mainCatId}`} className="cursor-pointer text-sm font-normal">{cat.name}</Label>
                                         </div>
                                     )}
                                 </React.Fragment>
-                            )) : <Skeleton className="h-5 w-24 bg-muted" /> }
+                            )}) : <Skeleton className="h-5 w-24 bg-muted" /> }
                         </fieldset>
                         <div className="space-y-2">
                              <Label className="font-semibold text-sm" htmlFor="price-range-filter">Max Price: ₹{priceValue[0].toLocaleString('en-IN')}</Label>
@@ -553,31 +473,37 @@ function ProductsPageContent() {
         {isLoading ? (
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {[...Array(PRODUCTS_PER_PAGE)].map((_, i) => (
-                    <Card key={i} className="overflow-hidden shadow-md animate-pulse">
-                        <Skeleton className="w-full h-48 bg-muted" />
-                        <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
-                        <CardFooter className="p-4 pt-0 flex justify-between items-center"><Skeleton className="h-6 w-1/4 bg-muted rounded" /><Skeleton className="h-9 w-1/3 bg-muted rounded-md" /></CardFooter>
-                    </Card>
+                    <Skeleton key={`skel-prod-list-${i}`} className="h-[400px] w-full rounded-lg bg-muted" />
                 ))}
             </div>
         ) : error ? (
             <div className="text-center py-10 text-destructive bg-red-50 border border-destructive rounded-md p-6">
                 <h2 className="text-lg font-semibold mb-2">Failed to Load Products</h2>
                 <p className="mb-4">{error}</p>
+                 <Button onClick={() => router.refresh()} variant="outline">Try Again</Button>
             </div>
         ) : products.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {products.map(renderProductCard)}
+                {products.map(product => (
+                  <ProductCard
+                    key={product._id.toString()}
+                    product={product}
+                    selectedColor={selectedColorPerProduct[product._id.toString()]}
+                    onColorSelect={handleColorSelection}
+                    onAddToCart={handleAddToCart}
+                    isAddingToCart={isAddingToCart[product._id.toString()] || false}
+                  />
+                ))}
             </div>
         ) : (
             <div className="text-center py-10 col-span-full bg-muted/50 rounded-md p-6">
                 <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-semibold text-foreground mb-2">No products found</p>
                 <p className="text-muted-foreground">Try adjusting your filters or search query.</p>
+                 <Button onClick={handleClearFilters} variant="outline" className="mt-4">Clear Filters</Button>
             </div>
         )}
 
-        {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
             <div className="flex justify-center items-center mt-8 space-x-2">
                 <Button
@@ -610,20 +536,19 @@ function ProductsPageContent() {
 }
 
 
-// Wrap with Suspense because useSearchParams() needs it
 export default function ProductsPageWithSuspense() {
     return (
         <Suspense fallback={
             <div className="flex flex-col min-h-screen">
                 <Header />
                 <main className="flex-grow container mx-auto px-4 py-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <Skeleton className="h-8 w-48 bg-muted rounded" />
+                        <Skeleton className="h-10 w-32 bg-muted rounded" />
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {[...Array(PRODUCTS_PER_PAGE)].map((_, i) => (
-                             <Card key={i} className="overflow-hidden shadow-md animate-pulse">
-                                <Skeleton className="w-full h-48 bg-muted" />
-                                <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
-                                <CardFooter className="p-4 pt-0 flex justify-between items-center"><Skeleton className="h-6 w-1/4 bg-muted rounded" /><Skeleton className="h-9 w-1/3 bg-muted rounded-md" /></CardFooter>
-                            </Card>
+                             <Skeleton key={`fallback-skel-${i}`} className="h-[400px] w-full rounded-lg bg-muted" />
                         ))}
                     </div>
                 </main>
@@ -635,3 +560,6 @@ export default function ProductsPageWithSuspense() {
     );
 }
 
+// Helper for mongoose.Types.ObjectId.isValid if needed elsewhere
+// For now, it's okay inside the useEffect.
+const mongoose = { Types: { ObjectId: { isValid: (id: string) => /^[0-9a-fA-F]{24}$/.test(id) }}};
