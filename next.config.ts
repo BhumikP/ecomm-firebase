@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'placehold.co', // Added placehold.co
+        hostname: 'placehold.co', // Ensure placehold.co is here
         port: '',
         pathname: '/**',
       },
