@@ -1,3 +1,4 @@
+
 // src/app/api/products/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
@@ -31,7 +32,8 @@ interface ClientProductPUTData {
     colors?: ClientProductColorUpdateData[];
     thumbnailUrl?: string;
     minOrderQuantity?: number;
-    isTopBuy?: boolean; // Added for featured products
+    isTopBuy?: boolean;
+    isNewlyLaunched?: boolean; // Added
 }
 
 
@@ -109,8 +111,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
         }
         updateDataForDB.minOrderQuantity = body.minOrderQuantity;
     }
-    if (body.isTopBuy !== undefined) { // Handle isTopBuy
+    if (body.isTopBuy !== undefined) { 
       updateDataForDB.isTopBuy = body.isTopBuy;
+    }
+    if (body.isNewlyLaunched !== undefined) { // Handle isNewlyLaunched
+      updateDataForDB.isNewlyLaunched = body.isNewlyLaunched;
     }
 
 
@@ -125,11 +130,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) return NextResponse.json({ message: `Subcategory '${body.subcategory}' does not exist in category '${categoryExists.name}'` }, { status: 400 });
             updateDataForDB.subcategory = body.subcategory.trim();
         } else {
-             updateDataForDB.subcategory = undefined; // Explicitly set to undefined to remove it
+             updateDataForDB.subcategory = undefined; 
         }
-    } else if (body.hasOwnProperty('subcategory') && body.subcategory === '') { // If only subcategory is sent and it's empty
-        updateDataForDB.subcategory = undefined; // Remove subcategory
-    } else if (body.hasOwnProperty('subcategory') && body.subcategory && body.subcategory.trim() !== '') { // If only subcategory is sent and it's not empty
+    } else if (body.hasOwnProperty('subcategory') && body.subcategory === '') { 
+        updateDataForDB.subcategory = undefined; 
+    } else if (body.hasOwnProperty('subcategory') && body.subcategory && body.subcategory.trim() !== '') { 
         const existingProduct = await Product.findById(id).populate('category');
         if (!existingProduct) return NextResponse.json({ message: 'Product not found for subcategory update' }, { status: 404 });
         const productCategory = existingProduct.category as ICategory;
@@ -140,7 +145,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
 
-    // Handle color updates and calculate total stock
     let finalStock = 0;
     if (body.colors && Array.isArray(body.colors)) {
         const parsedColorsForUpdate: any[] = [];
@@ -175,16 +179,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
         updateDataForDB.colors = parsedColorsForUpdate;
          updateDataForDB.stock = finalStock;
 
-    } else if (body.hasOwnProperty('colors') && body.colors === null) { // Explicitly removing all colors
+    } else if (body.hasOwnProperty('colors') && body.colors === null) { 
         updateDataForDB.colors = [];
-        if (body.stock !== undefined) { // If overall stock is provided alongside color removal
+        if (body.stock !== undefined) { 
              if (body.stock < 0) return NextResponse.json({ message: 'Overall Stock cannot be negative when no colors are provided' }, { status: 400 });
              updateDataForDB.stock = body.stock;
-        } else { // If no overall stock provided, and colors are removed, stock becomes 0 or product's current stock if not touched.
+        } else { 
             const existingProduct = await Product.findById(id);
-            if (existingProduct) updateDataForDB.stock = existingProduct.stock; // retain current stock or set to 0
+            if (existingProduct) updateDataForDB.stock = existingProduct.stock; 
         }
-    } else if (body.hasOwnProperty('stock') && body.colors === undefined) { // Only stock is being updated, no changes to colors array
+    } else if (body.hasOwnProperty('stock') && body.colors === undefined) { 
          if (body.stock === undefined || typeof body.stock !== 'number' || body.stock < 0) {
              return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
          }
@@ -243,4 +247,3 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
-

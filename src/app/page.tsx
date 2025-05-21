@@ -12,7 +12,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star, Palette, X, Info } from 'lucide-react';
+import { Filter, Search, Loader2, ShoppingCart, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, Menu, ChevronLeft, ChevronRight, Star, Palette, X, Info, Zap } from 'lucide-react'; // Added Zap
 import {
   Sheet,
   SheetContent,
@@ -40,15 +40,16 @@ import type { ICategory } from '@/models/Category';
 
 interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
-  category: ICategory; // Ensure category is populated with ICategory structure
+  category: ICategory; 
   colors: IProductColor[];
   thumbnailUrl: string;
   minOrderQuantity: number;
-  isTopBuy?: boolean; // Added
+  isTopBuy?: boolean;
+  isNewlyLaunched?: boolean; // Added
 }
 
 interface FilterState {
-  categories: { [key: string]: boolean }; // Key: categoryId or categoryId_SUB_subcategoryName
+  categories: { [key: string]: boolean }; 
   priceRange: [number];
   discountedOnly: boolean;
   searchQuery: string;
@@ -61,11 +62,11 @@ interface CategoryLink {
     ariaLabel: string;
 }
 
-// These links will now point to /products page with query parameters
 const categoryLinks: CategoryLink[] = [
     { name: 'Top Offers', icon: Percent, href: '/products?discountedOnly=true', ariaLabel: 'Shop Top Offers and Discounts' },
-    { name: 'Mobiles', icon: ShoppingCart, href: '/products?categoryName=Mobiles', ariaLabel: 'Shop Mobile Phones' }, // Example: using categoryName
-    { name: 'TVs', icon: Tv, href: '/products?categoryName=Electronics&subcategoryName=TV', ariaLabel: 'Shop Televisions' }, // Example for subcategory
+    { name: 'Newly Launched', icon: Zap, href: '/products?isNewlyLaunched=true', ariaLabel: 'Shop Newly Launched Products' }, // Added
+    { name: 'Mobiles', icon: ShoppingCart, href: '/products?categoryName=Mobiles', ariaLabel: 'Shop Mobile Phones' },
+    { name: 'TVs', icon: Tv, href: '/products?categoryName=Electronics&subcategoryName=TV', ariaLabel: 'Shop Televisions' },
     { name: 'Electronics', icon: ShoppingCart, href: '/products?categoryName=Electronics', ariaLabel: 'Shop Electronics' },
     { name: 'Fashion', icon: Shirt, href: '/products?categoryName=Apparel', ariaLabel: 'Shop Fashion and Apparel' },
     { name: 'Home Goods', icon: HomeGoodsIcon, href: '/products?categoryName=Home Goods', ariaLabel: 'Shop Home Goods' },
@@ -82,31 +83,30 @@ const bannerImages = [
 
 const MAX_HOMEPAGE_CATEGORIES = 4;
 const MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE = 4;
+const MAX_FEATURED_PRODUCTS_HOMEPAGE = 4; // For Top Buys and Newly Launched
 const DEFAULT_MAX_PRICE = 50000;
 
 
 export default function Home() {
   const { toast } = useToast();
   
-  // State for filtered products view on homepage
   const [filteredProducts, setFilteredProducts] = useState<FetchedProduct[]>([]);
   const [isFilteredLoading, setIsFilteredLoading] = useState(false);
   const [filteredError, setFilteredError] = useState<string | null>(null);
 
-  // State for homepage category-wise display
   const [productsByCat, setProductsByCat] = useState<Record<string, FetchedProduct[]>>({});
   const [homepageCategories, setHomepageCategories] = useState<ICategory[]>([]);
   const [isHomepageContentLoading, setIsHomepageContentLoading] = useState(true);
   
-  // State for Top Buy products
   const [topBuyProducts, setTopBuyProducts] = useState<FetchedProduct[]>([]);
   const [isTopBuyLoading, setIsTopBuyLoading] = useState(true);
 
-  // State for add to cart loading
+  const [newlyLaunchedProducts, setNewlyLaunchedProducts] = useState<FetchedProduct[]>([]); // New state
+  const [isNewlyLaunchedLoading, setIsNewlyLaunchedLoading] = useState(true); // New state
+
   const [isAddingToCart, setIsAddingToCart] = useState<Record<string, boolean>>({});
 
 
-  // Common state
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
   
@@ -115,7 +115,6 @@ export default function Home() {
     availableCategoriesAndSubcategories.forEach(cat => {
         if (cat.subcategories && cat.subcategories.length > 0) {
             cat.subcategories.forEach(sub => {
-                 // Use a consistent key format: categoryId_SUB_subcategoryName
                 cats[`${cat._id.toString()}_SUB_${sub}`] = false;
             });
         } else {
@@ -137,7 +136,8 @@ export default function Home() {
 
   const fetchHomepageData = async () => {
     setIsHomepageContentLoading(true);
-    setIsTopBuyLoading(true); // Start loading top buys as well
+    setIsTopBuyLoading(true);
+    setIsNewlyLaunchedLoading(true); // Start loading newly launched
     try {
       const categoriesResponse = await fetch('/api/categories');
       if (!categoriesResponse.ok) {
@@ -176,6 +176,7 @@ export default function Home() {
               colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
               minOrderQuantity: p.minOrderQuantity || 1,
               isTopBuy: p.isTopBuy || false,
+              isNewlyLaunched: p.isNewlyLaunched || false,
             }))
           }))
       );
@@ -197,9 +198,8 @@ export default function Home() {
       setIsHomepageContentLoading(false);
     }
 
-    // Fetch Top Buy products
     try {
-        const topBuyResponse = await fetch(`/api/products?isTopBuy=true&limit=4&populate=category`);
+        const topBuyResponse = await fetch(`/api/products?isTopBuy=true&limit=${MAX_FEATURED_PRODUCTS_HOMEPAGE}&populate=category`);
         if (!topBuyResponse.ok) {
             throw new Error('Failed to fetch top buy products');
         }
@@ -211,11 +211,34 @@ export default function Home() {
             category: p.category || { _id: 'unknown', name: 'Unknown', subcategories: [] },
             minOrderQuantity: p.minOrderQuantity || 1,
             isTopBuy: p.isTopBuy || false,
+            isNewlyLaunched: p.isNewlyLaunched || false,
         })) : []);
     } catch (err) {
         console.error("Error fetching top buy products:", err);
     } finally {
         setIsTopBuyLoading(false);
+    }
+
+    // Fetch Newly Launched products
+    try {
+        const newlyLaunchedResponse = await fetch(`/api/products?isNewlyLaunched=true&limit=${MAX_FEATURED_PRODUCTS_HOMEPAGE}&populate=category`);
+        if (!newlyLaunchedResponse.ok) {
+            throw new Error('Failed to fetch newly launched products');
+        }
+        const newlyLaunchedData = await newlyLaunchedResponse.json();
+        setNewlyLaunchedProducts(Array.isArray(newlyLaunchedData.products) ? newlyLaunchedData.products.map((p: FetchedProduct) => ({
+            ...p,
+            _id: p._id.toString(),
+            colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
+            category: p.category || { _id: 'unknown', name: 'Unknown', subcategories: [] },
+            minOrderQuantity: p.minOrderQuantity || 1,
+            isTopBuy: p.isTopBuy || false,
+            isNewlyLaunched: p.isNewlyLaunched || false,
+        })) : []);
+    } catch (err) {
+        console.error("Error fetching newly launched products:", err);
+    } finally {
+        setIsNewlyLaunchedLoading(false);
     }
   };
 
@@ -233,10 +256,10 @@ export default function Home() {
             .forEach(([filterKey]) => {
                 const parts = filterKey.split('_SUB_');
                 if (parts.length === 2) { 
-                    params.append('category', parts[0]); // categoryId
-                    params.append('subcategory', parts[1]); // subcategoryName
+                    params.append('category', parts[0]); 
+                    params.append('subcategory', parts[1]); 
                 } else { 
-                    params.append('category', parts[0]); // categoryId
+                    params.append('category', parts[0]); 
                 }
             });
 
@@ -263,6 +286,7 @@ export default function Home() {
             colors: (p.colors || []).map(c => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
             minOrderQuantity: p.minOrderQuantity || 1,
             isTopBuy: p.isTopBuy || false,
+            isNewlyLaunched: p.isNewlyLaunched || false,
         }));
         setFilteredProducts(fetchedProductsList);
     } catch (err: any) {
@@ -315,7 +339,7 @@ export default function Home() {
         return;
     }
 
-    const quantity = product.minOrderQuantity || 1; // For homepage/listing, add min quantity
+    const quantity = product.minOrderQuantity || 1; 
     const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
 
     try {
@@ -335,7 +359,7 @@ export default function Home() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
-        window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify header
+        window.dispatchEvent(new CustomEvent('cartUpdated')); 
         toast({
             title: "Added to Cart",
             description: `${itemToAdd} (Qty: ${quantity}) has been added.`,
@@ -436,6 +460,9 @@ export default function Home() {
             </Link>
             {product.discount && product.discount > 0 && (
             <Badge variant="destructive" className="absolute top-2 right-2 shadow-md">{product.discount}% OFF</Badge>
+            )}
+             {product.isNewlyLaunched && !product.discount && ( // Show "New" badge if newly launched and not discounted
+                <Badge variant="default" className="absolute top-2 left-2 shadow-md bg-purple-600 text-white">New</Badge>
             )}
         </CardHeader>
         <CardContent className="p-4 flex-grow">
@@ -561,7 +588,6 @@ export default function Home() {
             </Carousel>
          </section>
 
-        {/* Top Buys Section */}
         <section aria-labelledby="top-buy-products" className="container mx-auto px-4 mb-12">
             <div className="flex justify-between items-center mb-6">
                 <h2 id="top-buy-products" className="text-2xl md:text-3xl font-bold text-foreground">Top Buys</h2>
@@ -571,7 +597,7 @@ export default function Home() {
             </div>
             {isTopBuyLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {[...Array(4)].map((_, i) => (
+                    {[...Array(MAX_FEATURED_PRODUCTS_HOMEPAGE)].map((_, i) => (
                         <Card key={`skel-topbuy-${i}`} className="overflow-hidden shadow-md animate-pulse">
                             <Skeleton className="w-full h-48 bg-muted" />
                             <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
@@ -585,6 +611,33 @@ export default function Home() {
                 </div>
             ) : (
                 <p className="text-muted-foreground">No top buy products featured at the moment.</p>
+            )}
+        </section>
+
+        {/* Newly Launched Section */}
+        <section aria-labelledby="newly-launched-products" className="container mx-auto px-4 mb-12">
+            <div className="flex justify-between items-center mb-6">
+                <h2 id="newly-launched-products" className="text-2xl md:text-3xl font-bold text-foreground">Newly Launched</h2>
+                <Button variant="link" asChild>
+                    <Link href="/products?isNewlyLaunched=true">View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
+                </Button>
+            </div>
+            {isNewlyLaunchedLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {[...Array(MAX_FEATURED_PRODUCTS_HOMEPAGE)].map((_, i) => (
+                        <Card key={`skel-newlylaunched-${i}`} className="overflow-hidden shadow-md animate-pulse">
+                            <Skeleton className="w-full h-48 bg-muted" />
+                            <CardContent className="p-4"><Skeleton className="h-5 w-3/4 mb-2 bg-muted rounded" /><Skeleton className="h-4 w-1/2 bg-muted rounded" /></CardContent>
+                            <CardFooter className="p-4 pt-0 flex justify-between items-center"><Skeleton className="h-6 w-1/4 bg-muted rounded" /><Skeleton className="h-9 w-1/3 bg-muted rounded-md" /></CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            ) : newlyLaunchedProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {newlyLaunchedProducts.map(renderProductCard)}
+                </div>
+            ) : (
+                <p className="text-muted-foreground">No newly launched products featured at the moment.</p>
             )}
         </section>
 
@@ -749,7 +802,6 @@ export default function Home() {
                             <section key={category._id.toString()} aria-labelledby={`category-title-${category._id.toString()}`} className="mb-12">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 id={`category-title-${category._id.toString()}`} className="text-2xl md:text-3xl font-bold text-foreground">{category.name}</h2>
-                                     {/* Update this link to point to the new /products page with categoryName */}
                                     <Button variant="link" asChild>
                                         <Link href={`/products?categoryName=${encodeURIComponent(category.name)}`}>View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
                                     </Button>
@@ -778,6 +830,3 @@ export default function Home() {
     </div>
   );
 }
-
-
-

@@ -1,3 +1,4 @@
+
 // src/app/api/products/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
@@ -21,13 +22,13 @@ interface ClientProductPOSTData {
     category: string; // Category ID string
     subcategory?: string;
     rating?: number;
-    // stock: number; // Overall stock is now calculated from colors or explicitly set if no colors
     features?: string[];
     colors?: ClientProductColorData[];
     thumbnailUrl: string;
     minOrderQuantity?: number;
-    stock?: number; // Added to allow explicit stock setting if no colors
-    isTopBuy?: boolean; // Added for featured products
+    stock?: number; 
+    isTopBuy?: boolean;
+    isNewlyLaunched?: boolean; // Added
 }
 
 
@@ -37,20 +38,19 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const filters: any = {};
-    const categoryIdQuery = searchParams.get('category'); // Expects category ID
+    const categoryIdQuery = searchParams.get('category'); 
     const subcategoryQuery = searchParams.get('subcategory');
     const searchQuery = searchParams.get('searchQuery');
     const maxPrice = searchParams.get('maxPrice');
     const discountedOnly = searchParams.get('discountedOnly');
     const populateCategory = searchParams.get('populate') === 'category';
     const isTopBuyQuery = searchParams.get('isTopBuy');
+    const isNewlyLaunchedQuery = searchParams.get('isNewlyLaunched'); // Added
 
     if (categoryIdQuery && mongoose.Types.ObjectId.isValid(categoryIdQuery)) {
         filters.category = new mongoose.Types.ObjectId(categoryIdQuery);
     }
     if (subcategoryQuery) {
-        // Ensure subcategory search is within the context of a category if categoryIdQuery is also present
-        // If only subcategory is provided, it might match across multiple parent categories if not handled carefully
         filters.subcategory = { $regex: `^${subcategoryQuery}$`, $options: 'i' };
     }
     if (searchQuery) {
@@ -72,6 +72,11 @@ export async function GET(req: NextRequest) {
         filters.isTopBuy = true;
      } else if (isTopBuyQuery === 'false') {
         filters.isTopBuy = false;
+     }
+     if (isNewlyLaunchedQuery === 'true') { // Added filter logic
+        filters.isNewlyLaunched = true;
+     } else if (isNewlyLaunchedQuery === 'false') {
+        filters.isNewlyLaunched = false;
      }
 
 
@@ -130,7 +135,6 @@ export async function POST(req: NextRequest) {
         }
 
 
-        // Validate category
         if (!mongoose.Types.ObjectId.isValid(body.category)) {
             return NextResponse.json({ message: 'Invalid category ID format' }, { status: 400 });
         }
@@ -139,7 +143,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: 'Selected category does not exist' }, { status: 400 });
         }
 
-        // Validate subcategory
         let subcategoryToSave: string | undefined = undefined;
         if (body.subcategory && body.subcategory.trim() !== '') {
             if (!categoryExists.subcategories.includes(body.subcategory.trim())) {
@@ -149,11 +152,9 @@ export async function POST(req: NextRequest) {
         }
 
 
-        // Validate and parse colors, calculate total stock
         let finalStock = 0;
-        const parsedColorsForDB: IProductColor[] = []; // Use IProductColor for stricter typing
+        const parsedColorsForDB: IProductColor[] = []; 
         if (body.colors && Array.isArray(body.colors) && body.colors.length > 0) {
-            // If colors array exists and is not empty, validate each color and sum their stock
             for (const clientColor of body.colors) {
                 if (!clientColor.name || typeof clientColor.name !== 'string' || clientColor.name.trim() === '') {
                     return NextResponse.json({ message: 'Each color variant must have a name.' }, { status: 400 });
@@ -173,12 +174,11 @@ export async function POST(req: NextRequest) {
                     hexCode: clientColor.hexCode?.trim() || undefined,
                     imageUrls: validImageUrls,
                     stock: Number(clientColor.stock),
-                } as IProductColor); // Cast to IProductColor to satisfy type, _id will be added by Mongoose
-                finalStock += Number(clientColor.stock); // Sum stock from colors
+                } as IProductColor); 
+                finalStock += Number(clientColor.stock); 
             }
         } else {
-            // If no colors or empty colors array, use the provided overall stock
-            if (body.stock == null || body.stock < 0) { // Check body.stock if no colors
+            if (body.stock == null || body.stock < 0) { 
                  return NextResponse.json({ message: 'Overall Stock is required and must be non-negative when no color variants are added.' }, { status: 400 });
             }
             finalStock = body.stock;
@@ -193,7 +193,8 @@ export async function POST(req: NextRequest) {
             category: new mongoose.Types.ObjectId(body.category),
             stock: finalStock, 
             minOrderQuantity: body.minOrderQuantity || 1,
-            isTopBuy: body.isTopBuy || false, // Handle isTopBuy
+            isTopBuy: body.isTopBuy || false,
+            isNewlyLaunched: body.isNewlyLaunched || false, // Added
         };
 
         if (body.discount !== undefined && body.discount !== null) newProductDataForDB.discount = body.discount;
@@ -206,7 +207,6 @@ export async function POST(req: NextRequest) {
         const newProduct = new Product(newProductDataForDB);
 
         const savedProduct = await newProduct.save();
-        // Populate category after saving
         const populatedProduct = await Product.findById(savedProduct._id)
                                               .populate<{ category: ICategory }>('category', 'name subcategories _id')
                                               .exec();
@@ -223,4 +223,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
 }
-
