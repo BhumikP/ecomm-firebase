@@ -4,6 +4,7 @@
 
 import React from 'react'; // Ensure React is imported for JSX
 import Link from 'next/link';
+import Image from 'next/image'; // Added this import
 import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -37,7 +38,7 @@ import type { ICategory } from '@/models/Category';
 import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card'; // Import ProductCard and its type
 
 interface FilterState {
-  categories: { [key: string]: boolean }; 
+  categories: { [key: string]: boolean };
   priceRange: [number];
   discountedOnly: boolean;
   searchQuery: string;
@@ -64,9 +65,9 @@ const categoryLinks: CategoryLink[] = [
 
 
 const bannerImages = [
-    { src: 'https://placehold.co/1200x400.png?text=Electronics+Sale', alt: 'Special discount on latest electronics', dataAiHint: 'sale promotion electronics' },
-    { src: 'https://placehold.co/1200x400.png?text=Fashion+Arrivals', alt: 'New season fashion arrivals', dataAiHint: 'new arrivals fashion' },
-    { src: 'https://placehold.co/1200x400.png?text=Home+Appliance+Offers', alt: 'Upgrade your home appliances with our offers', dataAiHint: 'home appliance discount' },
+    { src: 'https://placehold.co/1200x400.png?text=Modern+Electronics+Sale', alt: 'Special discount on latest electronics', dataAiHint: 'sale promotion electronics' },
+    { src: 'https://placehold.co/1200x400.png?text=Fresh+Fashion+Arrivals', alt: 'New season fashion arrivals', dataAiHint: 'new arrivals fashion' },
+    { src: 'https://placehold.co/1200x400.png?text=Home+Appliance+Deals', alt: 'Upgrade your home appliances with our offers', dataAiHint: 'home appliance discount' },
 ];
 
 const MAX_HOMEPAGE_CATEGORIES = 4;
@@ -77,7 +78,7 @@ const DEFAULT_MAX_PRICE = 50000;
 
 export default function Home() {
   const { toast } = useToast();
-  
+
   const [filteredProducts, setFilteredProducts] = useState<FetchedProduct[]>([]);
   const [isFilteredLoading, setIsFilteredLoading] = useState(false);
   const [filteredError, setFilteredError] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export default function Home() {
   const [productsByCat, setProductsByCat] = useState<Record<string, FetchedProduct[]>>({});
   const [homepageCategories, setHomepageCategories] = useState<ICategory[]>([]);
   const [isHomepageContentLoading, setIsHomepageContentLoading] = useState(true);
-  
+
   const [topBuyProducts, setTopBuyProducts] = useState<FetchedProduct[]>([]);
   const [isTopBuyLoading, setIsTopBuyLoading] = useState(true);
 
@@ -94,9 +95,9 @@ export default function Home() {
 
   const [isAddingToCart, setIsAddingToCart] = useState<Record<string, boolean>>({});
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
-  
+
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
-  
+
   const initialFilterCategoriesState = useMemo(() => {
     const cats: { [key: string]: boolean } = {};
     availableCategoriesAndSubcategories.forEach(cat => {
@@ -113,7 +114,7 @@ export default function Home() {
   }, [availableCategoriesAndSubcategories]);
 
   const [filters, setFilters] = useState<FilterState>({
-    categories: {}, 
+    categories: {},
     priceRange: [DEFAULT_MAX_PRICE],
     discountedOnly: false,
     searchQuery: '',
@@ -126,6 +127,7 @@ export default function Home() {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API Error for ${url}:`, errorText);
+      setError(`Failed to fetch products. Server responded with ${response.status} ${response.statusText}. ${errorText}`);
       throw new Error(`Failed to fetch products from ${url}. Status: ${response.status}`);
     }
     const data = await response.json();
@@ -148,7 +150,8 @@ export default function Home() {
     try {
       const categoriesResponse = await fetch('/api/categories');
       if (!categoriesResponse.ok) {
-        throw new Error(`Failed to fetch categories for homepage. Status: ${categoriesResponse.status}`);
+        const errorData = await categoriesResponse.json();
+        throw new Error(errorData.message || `Failed to fetch categories for homepage. Status: ${categoriesResponse.status}`);
       }
       const categoriesData = await categoriesResponse.json();
       const allCats: ICategory[] = Array.isArray(categoriesData.categories) ? categoriesData.categories : [];
@@ -172,7 +175,7 @@ export default function Home() {
         fetchAndProcessProducts(`/api/products?category=${cat._id}&limit=${MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE}&populate=category`)
           .then(products => ({ categoryId: cat._id.toString(), products }))
       );
-      
+
       const results = await Promise.allSettled(productsByCategoryPromises);
       const newProductsByCat: Record<string, FetchedProduct[]> = {};
       results.forEach(result => {
@@ -221,14 +224,14 @@ export default function Home() {
             .filter(([, checked]) => checked)
             .forEach(([filterKey]) => {
                 const parts = filterKey.split('_SUB_');
-                params.append('category', parts[0]); 
-                if (parts.length === 2) params.append('subcategory', parts[1]); 
+                params.append('category', parts[0]);
+                if (parts.length === 2) params.append('subcategory', parts[1]);
             });
 
         if (currentFilters.priceRange[0] < DEFAULT_MAX_PRICE) params.append('maxPrice', currentFilters.priceRange[0].toString());
         if (currentFilters.discountedOnly) params.append('discountedOnly', 'true');
-        
-        params.append('limit', '12'); 
+
+        params.append('limit', '12');
         params.append('populate', 'category');
 
         setFilteredProducts(await fetchAndProcessProducts(`/api/products?${params.toString()}`));
@@ -248,17 +251,17 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const activeFilter = filters.searchQuery || 
-                         Object.values(filters.categories).some(v => v) || 
+    const activeFilter = filters.searchQuery ||
+                         Object.values(filters.categories).some(v => v) ||
                          filters.priceRange[0] < DEFAULT_MAX_PRICE ||
                          filters.discountedOnly;
-    
+
     if (activeFilter) {
         setIsFilteredView(true);
-        const debounceTimer = setTimeout(() => { fetchFilteredProducts(filters); }, 500); 
+        const debounceTimer = setTimeout(() => { fetchFilteredProducts(filters); }, 500);
         return () => clearTimeout(debounceTimer);
     } else {
-        setIsFilteredView(false); 
+        setIsFilteredView(false);
     }
   }, [filters]);
 
@@ -282,7 +285,7 @@ export default function Home() {
         return;
     }
 
-    const quantity = product.minOrderQuantity || 1; 
+    const quantity = product.minOrderQuantity || 1;
     const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
 
     try {
@@ -302,7 +305,7 @@ export default function Home() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to add item to cart');
         }
-        window.dispatchEvent(new CustomEvent('cartUpdated')); 
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
         toast({
             title: "Added to Cart",
             description: `${itemToAdd} (Qty: ${quantity}) has been added.`,
@@ -317,7 +320,7 @@ export default function Home() {
         setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
     }
   };
-  
+
   const handleApplyFilters = () => {
      const newFiltersState = { ...filters, priceRange: [priceValue[0]] as [number] };
      setFilters(newFiltersState);
@@ -348,13 +351,13 @@ export default function Home() {
    const handleClearFilters = () => {
         const defaultFilters: FilterState = {
             categories: initialFilterCategoriesState,
-            priceRange: [DEFAULT_MAX_PRICE], 
+            priceRange: [DEFAULT_MAX_PRICE],
             discountedOnly: false,
             searchQuery: '',
         };
-        setPriceValue([DEFAULT_MAX_PRICE]); 
+        setPriceValue([DEFAULT_MAX_PRICE]);
         setFilters(defaultFilters);
-        setIsFilteredView(false); 
+        setIsFilteredView(false);
         toast({ title: "Filters Cleared", description: "Showing default homepage view." });
         document.getElementById('close-filter-sheet')?.click();
     };
@@ -362,14 +365,14 @@ export default function Home() {
   const handleColorSelection = (productId: string, color?: IProductColor) => {
       setSelectedColorPerProduct(prev => ({ ...prev, [productId]: color }));
   };
-  
+
   const renderProductSection = (title: string, products: FetchedProduct[], isLoading: boolean, viewAllLink?: string, sectionId?: string) => {
     return (
       <section aria-labelledby={sectionId || title.toLowerCase().replace(/\s+/g, '-')} className="container mx-auto px-4 mb-12">
         <div className="flex justify-between items-center mb-6">
           <h2 id={sectionId || title.toLowerCase().replace(/\s+/g, '-')} className="text-2xl md:text-3xl font-bold text-foreground">{title}</h2>
           {viewAllLink && (
-            <Button variant="link" asChild>
+            <Button variant="link" asChild className="text-primary hover:text-primary/80">
               <Link href={viewAllLink}>View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
             </Button>
           )}
@@ -405,10 +408,10 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
       <main className="flex-grow">
-        <section aria-labelledby="category-navigation" className="bg-secondary shadow-sm py-3 mb-6 print:hidden">
+        <section aria-labelledby="category-navigation" className="bg-background shadow-sm py-4 mb-8 print:hidden border-b border-border">
              <div className="container mx-auto px-4">
                  <h2 id="category-navigation" className="sr-only">Shop by Category</h2>
-                <div className="flex justify-center items-center gap-4 md:gap-8 overflow-x-auto pb-2 no-scrollbar">
+                <div className="flex justify-center items-center gap-x-4 md:gap-x-8 overflow-x-auto pb-1 no-scrollbar">
                     {categoryLinks.map((category, index) => (
                         <Link
                              key={index}
@@ -416,8 +419,8 @@ export default function Home() {
                              aria-label={category.ariaLabel}
                              className="flex flex-col items-center text-center hover:text-primary transition-colors duration-200 flex-shrink-0 w-20 group"
                          >
-                             <div className="p-2 bg-background rounded-full mb-1 group-hover:bg-primary/10 transition-colors">
-                                 <category.icon className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
+                             <div className="p-3 bg-muted rounded-full mb-1.5 group-hover:bg-primary/10 transition-colors">
+                                 <category.icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
                              </div>
                              <span className="text-xs font-medium text-foreground">{category.name}</span>
                          </Link>
@@ -426,11 +429,11 @@ export default function Home() {
              </div>
          </section>
 
-        <section aria-label="Promotional Banners" className="container mx-auto px-4 mb-8 print:hidden">
+        <section aria-label="Promotional Banners" className="container mx-auto px-4 mb-12 print:hidden">
            <Carousel
-                plugins={[ Autoplay({ delay: 5000, stopOnInteraction: true }) ]}
+                plugins={[ Autoplay({ delay: 4000, stopOnInteraction: true }) ]}
                 opts={{ loop: true }}
-                className="overflow-hidden rounded-lg shadow-md"
+                className="overflow-hidden rounded-lg shadow-lg border border-border"
            >
                 <CarouselContent>
                     {bannerImages.map((banner, index) => (
@@ -440,15 +443,15 @@ export default function Home() {
                                 alt={banner.alt}
                                 width={1200}
                                 height={400}
-                                className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px]"
+                                className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px] bg-muted"
                                 priority={index === 0}
                                 data-ai-hint={banner.dataAiHint}
                             />
                         </CarouselItem>
                     ))}
                 </CarouselContent>
-                <CarouselPrevious className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/70 hover:bg-background text-foreground" />
-                <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/70 hover:bg-background text-foreground" />
+                <CarouselPrevious className="absolute left-3 top-1/2 -translate-y-1/2 bg-background/60 hover:bg-background/90 text-foreground border-border" />
+                <CarouselNext className="absolute right-3 top-1/2 -translate-y-1/2 bg-background/60 hover:bg-background/90 text-foreground border-border" />
             </Carousel>
          </section>
 
@@ -520,7 +523,7 @@ export default function Home() {
                                         </div>
                                     )}
                                 </React.Fragment>
-                            )}) : isHomepageContentLoading || isFilteredLoading ? ( 
+                            )}) : isHomepageContentLoading || isFilteredLoading ? (
                                 <Skeleton className="h-5 w-24 bg-muted" />
                             ) : (
                                 <p className="text-sm text-muted-foreground">No categories available.</p>
@@ -532,7 +535,7 @@ export default function Home() {
                                 value={priceValue}
                                 onValueChange={setPriceValue}
                                 max={DEFAULT_MAX_PRICE}
-                                step={1000} 
+                                step={1000}
                                 id="price-range"
                                 aria-label="Maximum price slider"
                              />
@@ -617,8 +620,8 @@ export default function Home() {
                             <section key={category._id.toString()} aria-labelledby={`category-title-${category._id.toString()}`} className="mb-12">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 id={`category-title-${category._id.toString()}`} className="text-2xl md:text-3xl font-bold text-foreground">{category.name}</h2>
-                                    <Button variant="link" asChild>
-                                        <Link href={`/products?categoryName=${encodeURIComponent(category.name)}`}>View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
+                                    <Button variant="link" asChild className="text-primary hover:text-primary/80">
+                                        <Link href={`/products?category=${category._id.toString()}`}>View All <ChevronRight className="h-4 w-4 ml-1" /></Link>
                                     </Button>
                                 </div>
                                 {productsByCat[category._id.toString()] && productsByCat[category._id.toString()].length > 0 ? (
@@ -654,4 +657,3 @@ export default function Home() {
     </div>
   );
 }
-
