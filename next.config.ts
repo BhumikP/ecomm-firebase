@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
         port: '',
-        pathname: '/**', // Allow all paths within this bucket
+        pathname: '/**',
       },
       {
         protocol: 'https',
@@ -37,14 +37,12 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'placehold.co', // Ensure placehold.co is here
+        hostname: 'placehold.co', // Ensuring this entry is present
         port: '',
         pathname: '/**',
       },
       // Add any other domains you might use for images
     ],
-    // domains property is deprecated in favor of remotePatterns if both are used.
-    // If you were using domains previously, ensure they are migrated to remotePatterns.
   },
 };
 
