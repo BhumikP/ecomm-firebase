@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -49,6 +50,10 @@ const fetchPayments = async (filters: any): Promise<{ payments: PaymentData[], t
      }
 
     return { payments: filtered, totalCount: filtered.length };
+};
+
+const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 
@@ -205,7 +210,7 @@ export default function AdminPaymentsPage() {
                                         <TableCell className="text-xs text-muted-foreground">{payment.paymentDetails?.transactionId || 'N/A'}</TableCell>
                                         <TableCell>{payment.customerEmail || 'N/A'}</TableCell>
                                         <TableCell className="text-right font-medium">
-                                             {payment.currency === 'INR' ? '₹' : '$'}{payment.total.toFixed(2)}
+                                             {payment.currency === 'INR' ? '₹' : '$'}{formatCurrency(payment.total)}
                                         </TableCell>
                                         <TableCell>{payment.paymentMethod} ({payment.paymentDetails?.gateway || 'N/A'})</TableCell>
                                         <TableCell>
@@ -232,3 +237,4 @@ export default function AdminPaymentsPage() {
         </div>
     );
 }
+

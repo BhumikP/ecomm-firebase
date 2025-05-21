@@ -3,17 +3,26 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import type { IProduct, IProductColor } from '@/models/Product'; // Assuming ICategory is part of IProduct or not directly needed here
+import type { IProductColor } from '@/models/Product';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Star, Palette, X, ShoppingCart, Loader2, Info } from 'lucide-react';
 import type { ICategory } from '@/models/Category';
+import { cn } from '@/lib/utils';
 
-// Define FetchedProduct interface directly here or import from a shared types file
-export interface ProductCardProductType extends Omit<IProduct, 'category' | 'colors' | '_id'> {
+
+export interface ProductCardProductType {
   _id: string;
+  title: string;
+  description: string;
+  price: number;
+  discount: number | null;
   category: ICategory; // Expect category to be populated object
+  subcategory?: string;
+  rating?: number; // Optional rating
+  stock: number;
+  features: string[];
   colors: IProductColor[];
   thumbnailUrl: string;
   minOrderQuantity: number;
@@ -29,6 +38,10 @@ interface ProductCardProps {
   isAddingToCart: boolean;
   className?: string;
 }
+
+const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export function ProductCard({
   product,
@@ -58,9 +71,12 @@ export function ProductCard({
 
 
   return (
-    <Card className={cn("overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col bg-card group", className)}>
+    <Card className={cn(
+        "overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col bg-card group border border-transparent hover:border-primary/30",
+        className
+      )}>
       <CardHeader className="p-0 relative">
-        <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden">
+        <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden rounded-t-lg">
           <Image
             src={displayImage}
             alt={product.title}
@@ -73,18 +89,18 @@ export function ProductCard({
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/300x200.png'; }}
           />
         </Link>
-        {product.isNewlyLaunched && (
-          <Badge variant="default" className="absolute top-2 left-2 shadow-md bg-purple-600 text-white border-purple-700">New</Badge>
+        {product.isNewlyLaunched && !product.discount && ( // Show "New" only if not discounted, to avoid badge clutter
+          <Badge variant="default" className="absolute top-2 left-2 shadow-md bg-primary text-primary-foreground border-primary/50">New</Badge>
         )}
-        {product.discount && product.discount > 0 && (
+         {product.discount && product.discount > 0 && (
           <Badge variant="destructive" className={`absolute top-2 ${product.isNewlyLaunched ? 'right-2' : 'left-2'} shadow-md`}>{product.discount}% OFF</Badge>
         )}
       </CardHeader>
-      <CardContent className="p-4 flex-grow">
+      <CardContent className="p-3 md:p-4 flex-grow">
         <Link href={`/products/${productIdStr}`}>
-          <CardTitle className="text-base md:text-lg font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2" title={product.title}>{product.title}</CardTitle>
+          <CardTitle className="text-base font-semibold hover:text-primary transition-colors duration-200 mb-1 leading-tight line-clamp-2 h-10" title={product.title}>{product.title}</CardTitle>
         </Link>
-        {product.category && <p className="text-xs text-muted-foreground mb-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
+        {product.category && <p className="text-xs text-muted-foreground mb-1.5">{product.category.name}{product.subcategory ? ` > ${product.subcategory}` : ''}</p>}
         <div className="flex items-center gap-1 mt-1">
           {[...Array(5)].map((_, i) => (
             <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
@@ -93,24 +109,25 @@ export function ProductCard({
         </div>
 
         {product.colors && product.colors.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2 items-center">
-            <Palette className="h-4 w-4 text-muted-foreground mr-1 flex-shrink-0" aria-label="Available colors"/>
-            {product.colors.map((color, index) => (
+          <div className="mt-2.5 flex flex-wrap gap-2 items-center">
+            <Palette className="h-4 w-4 text-muted-foreground mr-0.5 flex-shrink-0" aria-label="Available colors"/>
+            {product.colors.slice(0,5).map((color, index) => ( // Show max 5 colors
               <button
                 key={color._id?.toString() || `${color.name}-${index}`}
                 title={color.name + (color.stock < minOrderQty ? ' (Low stock)' : '')}
                 aria-label={`Select color ${color.name}${color.stock < minOrderQty ? ', low stock' : ''}`}
                 onClick={(e) => handleColorButtonClick(e, color)}
                 className={`h-5 w-5 rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary transition-all
-                    ${selectedColor === color ? 'ring-2 ring-primary ring-offset-1 border-primary' : 'border-muted-foreground/30'}
-                    ${color.stock < minOrderQty ? 'opacity-50 cursor-not-allowed relative' : ''}`}
-                style={{ backgroundColor: color.hexCode || 'transparent' }} // Use transparent for names like "Mixed"
+                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-1 border-primary shadow-md' : 'border-muted-foreground/30 hover:border-primary/70'}
+                    ${color.stock < minOrderQty ? 'opacity-40 cursor-not-allowed relative' : ''}`}
+                style={{ backgroundColor: color.hexCode || 'transparent' }}
                 disabled={color.stock < minOrderQty || isAddingToCart}
               >
-                {!color.hexCode && <span className="sr-only">{color.name}</span>} {/* Accessibility for non-visual colors */}
+                {!color.hexCode && <span className="sr-only">{color.name}</span>}
                 {color.stock < minOrderQty && <X className="h-3 w-3 text-destructive-foreground absolute inset-0 m-auto opacity-70" />}
               </button>
             ))}
+            {product.colors.length > 5 && <span className="text-xs text-muted-foreground">& more</span>}
           </div>
         )}
          {minOrderQty > 1 && (
@@ -120,28 +137,33 @@ export function ProductCard({
             </div>
         )}
       </CardContent>
-      <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto">
+      <CardFooter className="p-3 md:p-4 pt-0 flex justify-between items-center mt-auto">
         <div className="flex flex-col">
           <span className="text-lg font-bold text-foreground">
-            ₹{product.discount && product.discount > 0
-              ? (product.price * (1 - product.discount / 100)).toFixed(2)
-              : product.price.toFixed(2)}
+            ₹{formatCurrency(product.discount && product.discount > 0
+              ? (product.price * (1 - product.discount / 100))
+              : product.price)}
           </span>
           {product.discount && product.discount > 0 && (
             <span className="text-xs text-muted-foreground line-through">
-              ₹{product.price.toFixed(2)}
+              ₹{formatCurrency(product.price)}
             </span>
           )}
         </div>
         <Button
           size="sm"
-          variant="outline"
-          className="border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+          variant={isOutOfStock ? "outline" : "default"}
+          className={cn(
+            "transition-colors duration-200",
+            isOutOfStock
+              ? "border-destructive text-destructive hover:bg-destructive/10 cursor-not-allowed"
+              : "bg-primary text-primary-foreground hover:bg-primary/80"
+          )}
           onClick={handleAddToCartButtonClick}
           aria-label={`Add ${product.title} to cart`}
           disabled={isOutOfStock || isAddingToCart}
         >
-          {isAddingToCart ? <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin"/> : 
+          {isAddingToCart ? <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin"/> :
            !isOutOfStock ? <ShoppingCart className="h-4 w-4 mr-1 md:mr-2"/> : null}
            {isAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add'}
         </Button>
@@ -149,3 +171,4 @@ export function ProductCard({
     </Card>
   );
 }
+

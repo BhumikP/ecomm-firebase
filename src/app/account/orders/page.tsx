@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -57,6 +58,9 @@ const mockOrders: Order[] = [
   },
 ];
 
+const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export default function OrderHistoryPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -145,7 +149,7 @@ export default function OrderHistoryPage() {
                         {order.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">₹{order.total.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">₹{formatCurrency(order.total)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" asChild>
                          {/* Link to a detailed order page (implement later) */}
@@ -166,3 +170,4 @@ export default function OrderHistoryPage() {
     </div>
   );
 }
+
