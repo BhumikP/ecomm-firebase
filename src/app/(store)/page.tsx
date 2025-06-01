@@ -36,6 +36,7 @@ import type { ICategory } from '@/models/Category';
 import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
 import type { IBanner } from '@/models/Banner';
 import { ScrollingH1AnnouncementBar } from '@/components/layout/scrolling-h1-announcement-bar';
+import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; // Import LoginPromptDialog
 
 
 interface FilterState {
@@ -96,6 +97,7 @@ export default function Home() {
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
 
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
+  const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false); // State for login prompt
 
   const initialFilterCategoriesState = useMemo(() => {
     const cats: { [key: string]: boolean } = {};
@@ -124,7 +126,6 @@ export default function Home() {
   const fetchAndProcessProducts = async (url: string): Promise<FetchedProduct[]> => {
     const response = await fetch(url);
     if (!response.ok) {
-      const errorText = await response.text();
       throw new Error(`Failed to fetch products from ${url}. Status: ${response.status}`);
     }
     const data = await response.json();
@@ -136,6 +137,7 @@ export default function Home() {
       minOrderQuantity: p.minOrderQuantity || 1,
       isTopBuy: p.isTopBuy || false,
       isNewlyLaunched: p.isNewlyLaunched || false,
+      numRatings: p.numRatings || 0, // Ensure numRatings is present
     }));
   };
 
@@ -278,9 +280,17 @@ export default function Home() {
 
   const handleAddToCart = async (product: FetchedProduct, selectedColor?: IProductColor) => {
     const productId = product._id.toString();
+    
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (!isLoggedIn) {
+        setIsLoginPromptOpen(true);
+        return;
+    }
+    
     setIsAddingToCart(prev => ({ ...prev, [productId]: true }));
 
     const userDataString = localStorage.getItem('userData');
+    // This check is somewhat redundant due to isLoggedIn check, but good for robustness
     if (!userDataString) {
         toast({ variant: "destructive", title: "Please Log In", description: "You need to be logged in to add items to your cart." });
         setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
@@ -376,7 +386,7 @@ export default function Home() {
       setSelectedColorPerProduct(prev => ({ ...prev, [productId]: color }));
   };
 
-  const renderProductSection = (title: string, products: FetchedProduct[], isLoadingFlag: boolean, viewAllLink?: string, sectionId?: string) => {
+  const renderProductSection = (title: string, productsToRender: FetchedProduct[], isLoadingFlag: boolean, viewAllLink?: string, sectionId?: string) => {
     return (
       <section aria-labelledby={sectionId || title.toLowerCase().replace(/\s+/g, '-')} className="container mx-auto px-4 mb-12">
         <div className="flex justify-between items-center mb-6">
@@ -393,9 +403,9 @@ export default function Home() {
               <Skeleton key={`skel-${title.toLowerCase()}-${i}`} className="h-[400px] w-full rounded-lg bg-muted" />
             ))}
           </div>
-        ) : products.length > 0 ? (
+        ) : productsToRender.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map(product => (
+            {productsToRender.map(product => (
               <ProductCard
                 key={product._id.toString()}
                 product={product}
@@ -416,6 +426,7 @@ export default function Home() {
 
   return (
     <>
+      <LoginPromptDialog isOpen={isLoginPromptOpen} onOpenChange={setIsLoginPromptOpen} />
       <section aria-labelledby="category-navigation" className="bg-background shadow-sm py-4 mb-8 print:hidden border-b border-border">
            <div className="container mx-auto px-4">
                <h2 id="category-navigation" className="sr-only">Shop by Category</h2>
@@ -686,4 +697,3 @@ export default function Home() {
     </>
   );
 }
-

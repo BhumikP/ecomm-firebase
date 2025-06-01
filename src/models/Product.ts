@@ -40,6 +40,7 @@ export interface IProduct extends Document {
   category: Types.ObjectId | ICategory; // Reference to Category model
   subcategory?: string; // Name of the subcategory (string)
   rating: number; // Average rating
+  numRatings: number; // Number of ratings received
   stock: number; // Overall stock for the product. If using per-color stock, this might be sum or base.
   features: string[];
   colors: Types.DocumentArray<IProductColor>; // Use Mongoose DocumentArray for subdocuments
@@ -59,6 +60,7 @@ const ProductSchema: Schema<IProduct> = new Schema({
   category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, index: true },
   subcategory: { type: String, trim: true, index: true }, // Optional, indexed for filtering
   rating: { type: Number, default: 0, min: 0, max: 5 },
+  numRatings: { type: Number, default: 0, min: 0 }, // Added numRatings
   stock: { type: Number, required: true, min: 0, default: 0 }, // Total/base stock
   features: [{ type: String }],
   colors: { type: [ProductColorSchema], default: [] }, // Array of color variants, default to empty array

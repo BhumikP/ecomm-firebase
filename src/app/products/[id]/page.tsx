@@ -3,14 +3,13 @@
 'use client';
 
 import Image from 'next/image';
-// Removed Metadata import as we'll use generateMetadata for dynamic SEO
 import Script from 'next/script';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart, Info } from 'lucide-react';
+import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart, Info, ThumbsUp } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, useCallback } from 'react';
@@ -18,6 +17,7 @@ import type { IProduct, IProductColor } from '@/models/Product';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
+import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; // Import LoginPromptDialog
 
 interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
@@ -25,61 +25,13 @@ interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   colors: PopulatedProductColor[];
   thumbnailUrl: string;
   minOrderQuantity: number;
+  numRatings: number; // Added for display
 }
 
 interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
     _id?: string;
     imageUrls: string[];
 }
-
-// It's better to handle dynamic metadata using generateMetadata in Next.js App Router
-// For client components that need to update title based on fetched data,
-// a useEffect hook is the way as shown below.
-// export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-//   try {
-//     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/products/${params.id}?populate=category`);
-//     if (!response.ok) {
-//       return { title: 'Product Not Found', description: 'The product you are looking for could not be found.' };
-//     }
-//     const productData: ProductDetail = await response.json();
-//     const discountedPriceValue = productData.discount && productData.discount > 0
-//       ? (productData.price * (1 - productData.discount / 100)).toFixed(2)
-//       : productData.price.toFixed(2);
-
-//     return {
-//       title: productData.title,
-//       description: productData.description.substring(0, 160), // Keep description concise
-//       openGraph: {
-//         title: productData.title,
-//         description: productData.description.substring(0, 160),
-//         type: 'product',
-//         url: `/products/${productData._id}`,
-//         images: [
-//           {
-//             url: productData.thumbnailUrl || '/og-image.png', // Fallback OG image
-//             width: 800, // Adjust as needed
-//             height: 600, // Adjust as needed
-//             alt: productData.title,
-//           },
-//         ],
-//         price: {
-//           amount: discountedPriceValue,
-//           currency: 'INR', // Assuming INR
-//         },
-//         availability: (selectedColor?.stock !== undefined ? selectedColor.stock : productData.stock) > 0 ? 'instock' : 'oos', // This needs selectedColor, tricky for server metadata
-//       },
-//       twitter: {
-//         card: 'summary_large_image',
-//         title: productData.title,
-//         description: productData.description.substring(0, 160),
-//         images: [productData.thumbnailUrl || '/twitter-image.png'], // Fallback Twitter image
-//       },
-//     };
-//   } catch (error) {
-//     console.error("Error generating metadata for product:", error);
-//     return { title: 'Error', description: 'Could not load product information.' };
-//   }
-// }
 
 
 export default function ProductDetailPage() {
@@ -97,6 +49,30 @@ export default function ProductDetailPage() {
    const [quantityInput, setQuantityInput] = useState("1");
    
    const [isAddingToCart, setIsAddingToCart] = useState(false);
+   const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false); // State for login prompt
+
+   // Rating state
+   const [isLoggedIn, setIsLoggedIn] = useState(false);
+   const [userId, setUserId] = useState<string | null>(null);
+   const [userRating, setUserRating] = useState(0); // User's current rating selection
+   const [hoverRating, setHoverRating] = useState(0); // For star hover effect
+   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+   const [averageRatingDisplay, setAverageRatingDisplay] = useState<number | null>(null);
+   const [numRatingsDisplay, setNumRatingsDisplay] = useState<number | null>(null);
+
+   useEffect(() => {
+    const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
+    setIsLoggedIn(loggedInStatus);
+    if (loggedInStatus) {
+        const userDataString = localStorage.getItem('userData');
+        if (userDataString) {
+            try {
+                const userData = JSON.parse(userDataString);
+                setUserId(userData._id);
+            } catch (e) { console.error("Error parsing user data for rating"); }
+        }
+    }
+   }, []);
 
 
    useEffect(() => {
@@ -128,8 +104,11 @@ export default function ProductDetailPage() {
                     ...productData,
                     colors: (productData.colors || []).map(c => ({...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : []})),
                     minOrderQuantity: productData.minOrderQuantity || 1,
+                    numRatings: productData.numRatings || 0,
                 };
                 setProduct(processedProductData);
+                setAverageRatingDisplay(processedProductData.rating);
+                setNumRatingsDisplay(processedProductData.numRatings);
                 
                 const initialMinQty = processedProductData.minOrderQuantity || 1;
                 setQuantity(initialMinQty); 
@@ -137,9 +116,7 @@ export default function ProductDetailPage() {
 
 
                 if (processedProductData) {
-                     // Update document title dynamically
                      document.title = `${processedProductData.title} | eShop Simplified`;
-                     // Update meta description (optional, less common for client-side)
                     let descriptionTag = document.querySelector('meta[name="description"]');
                     if (!descriptionTag) {
                         descriptionTag = document.createElement('meta');
@@ -165,7 +142,6 @@ export default function ProductDetailPage() {
                 }
 
             } catch (err: any) {
-                // console.error("Failed to fetch product:", err); // Removed
                 setError(err.message || "Failed to load product details.");
                 setProduct(null);
                  document.title = `Error Loading Product | eShop Simplified`;
@@ -208,7 +184,7 @@ export default function ProductDetailPage() {
             }
             
             if (currentEffectiveStock === 0 && currentMinOrderQty === 1) {
-                numValue = Math.max(0, currentMinOrderQty); // if stock is 0, qty can be 0 if min is 1, or stuck at min
+                numValue = Math.max(0, currentMinOrderQty);
             }
 
 
@@ -227,22 +203,12 @@ export default function ProductDetailPage() {
 
    const handleAddToCart = async () => {
     if (!product) return;
+
+    if (!isLoggedIn || !userId) {
+        setIsLoginPromptOpen(true);
+        return;
+    }
     setIsAddingToCart(true);
-
-    const userDataString = localStorage.getItem('userData');
-    if (!userDataString) {
-        toast({ variant: "destructive", title: "Please Log In", description: "You need to be logged in to add items to your cart." });
-        setIsAddingToCart(false);
-        return;
-    }
-    const userData = JSON.parse(userDataString);
-    const userId = userData._id;
-
-    if (!userId) {
-        toast({ variant: "destructive", title: "Error", description: "User ID not found. Please log in again." });
-        setIsAddingToCart(false);
-        return;
-    }
 
     const itemToAdd = selectedColor ? `${product.title} (${selectedColor.name})` : product.title;
 
@@ -303,7 +269,7 @@ export default function ProductDetailPage() {
             let newQuantityValue = prevQty + amount;
             if (newQuantityValue < minOrderQty) newQuantityValue = minOrderQty;
             if (newQuantityValue > currentEffectiveStock) newQuantityValue = currentEffectiveStock;
-            if (currentEffectiveStock === 0) newQuantityValue = 0; // Allow quantity to be 0 if stock is 0
+            if (currentEffectiveStock === 0) newQuantityValue = 0; 
 
             setQuantityInput(String(newQuantityValue)); 
             return newQuantityValue;
@@ -312,6 +278,37 @@ export default function ProductDetailPage() {
 
     const handleManualQuantityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setQuantityInput(e.target.value);
+    };
+
+
+    const handleSubmitRating = async () => {
+        if (!product || !userId || userRating === 0) {
+            toast({ variant: "destructive", title: "Rating Error", description: "Please select a rating and ensure you are logged in." });
+            return;
+        }
+        setIsSubmittingRating(true);
+        try {
+            const response = await fetch(`/api/products/${product._id}/rate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, ratingValue: userRating }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to submit rating.");
+            }
+            toast({ title: "Rating Submitted", description: "Thank you for your feedback!" });
+            // Update displayed rating
+            if (data.updatedProduct) {
+                setAverageRatingDisplay(data.updatedProduct.rating);
+                setNumRatingsDisplay(data.updatedProduct.numRatings);
+            }
+            setUserRating(0); // Reset user's selection
+        } catch (err: any) {
+            toast({ variant: "destructive", title: "Rating Failed", description: err.message });
+        } finally {
+            setIsSubmittingRating(false);
+        }
     };
 
 
@@ -334,14 +331,14 @@ export default function ProductDetailPage() {
          "image":  productData.thumbnailUrl || `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002'}/default-product-image.png`, 
          "description": productData.description,
          "sku": productData._id,
-         "brand": { // Add brand if available, otherwise a generic one
+         "brand": { 
             "@type": "Brand",
             "name": productData.category?.name || "eShop Simplified"
          },
-         "aggregateRating": productData.rating && productData.rating > 0 ? {
+         "aggregateRating": averageRatingDisplay && averageRatingDisplay > 0 && numRatingsDisplay && numRatingsDisplay > 0 ? {
              "@type": "AggregateRating",
-             "ratingValue": productData.rating.toFixed(1),
-             "reviewCount": productData.rating > 0 ? Math.max(1, Math.floor(Math.random() * 50) + 5) : 0, // Placeholder review count
+             "ratingValue": averageRatingDisplay.toFixed(1),
+             "reviewCount": numRatingsDisplay,
              "bestRating": "5",
          } : undefined,
          "offers": {
@@ -349,7 +346,7 @@ export default function ProductDetailPage() {
            "url": productUrl, 
            "priceCurrency": "INR",
            "price": discountedPriceValue,
-           "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], // Valid for 30 days
+           "priceValidUntil": new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], 
            "itemCondition": "https://schema.org/NewCondition",
            "availability": stockForSchema > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
            "seller": {
@@ -358,7 +355,6 @@ export default function ProductDetailPage() {
            }
          }
        };
-       // Clean up undefined optional fields for cleaner JSON-LD
        Object.keys(schema).forEach(key => (schema as any)[key] === undefined && delete (schema as any)[key]);
        if (schema.offers && (schema.offers as any).availability === undefined) delete (schema.offers as any).availability;
        if (schema.aggregateRating === undefined) delete schema.aggregateRating;
@@ -447,10 +443,11 @@ export default function ProductDetailPage() {
                  id="product-schema"
                  type="application/ld+json"
                  dangerouslySetInnerHTML={{ __html: productSchemaJson }}
-                 strategy="afterInteractive" // Load after page content is interactive
+                 strategy="afterInteractive"
              />
        )}
       <Header />
+      <LoginPromptDialog isOpen={isLoginPromptOpen} onOpenChange={setIsLoginPromptOpen} />
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start max-w-6xl mx-auto">
           <div className="flex flex-col gap-4">
@@ -493,13 +490,12 @@ export default function ProductDetailPage() {
                      ))}
                  </div>
              )}
-             {/* Show product.thumbnailUrl as a selectable thumb if no color is selected but product has colors */}
              {!selectedColor && product.colors && product.colors.length > 0 && product.thumbnailUrl && (
                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                      <button
-                        onClick={() => setSelectedImageIndex(0)} // Assuming 0 is the main image index
+                        onClick={() => setSelectedImageIndex(0)} 
                         className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
-                             ${'border-primary'}`} // Always "selected" as it's the default
+                             ${'border-primary'}`} 
                         aria-label={`View main image of ${product.title}`}
                         aria-current={true}
                      >
@@ -528,13 +524,15 @@ export default function ProductDetailPage() {
                          <Star
                             key={i}
                              className={`h-5 w-5 ${
-                                 i < Math.round(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                                 i < Math.round(averageRatingDisplay || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
                              }`}
                              aria-hidden="true"
                          />
                       ))}
-                    <span className="ml-2 text-foreground sr-only">Rating: {(product.rating || 0).toFixed(1)} out of 5 stars</span>
-                     <span className="ml-2 text-foreground" aria-hidden="true">({(product.rating || 0).toFixed(1)})</span>
+                    <span className="ml-2 text-foreground sr-only">Rating: {(averageRatingDisplay || 0).toFixed(1)} out of 5 stars, from {numRatingsDisplay || 0} ratings.</span>
+                     <span className="ml-2 text-foreground" aria-hidden="true">
+                        ({(averageRatingDisplay || 0).toFixed(1)} from {numRatingsDisplay || 0} ratings)
+                     </span>
                  </div>
                   <span className="text-xs">ID: {product._id}</span>
             </div>
@@ -589,7 +587,7 @@ export default function ProductDetailPage() {
                  ): !isOutOfStock && currentStock > 0 ? (
                      <Badge variant="default" className="text-sm px-3 py-1 bg-green-100 text-green-800 border-green-200">In Stock</Badge>
                  ) : (
-                     <Badge variant="destructive" className="text-sm px-3 py-1">Unavailable</Badge> // Fallback for complex stock/minOrderQty issues
+                     <Badge variant="destructive" className="text-sm px-3 py-1">Unavailable</Badge> 
                  )}
              </div>
 
@@ -635,6 +633,36 @@ export default function ProductDetailPage() {
                     </div>
                  )}
             </div>
+
+            {isLoggedIn && userId && (
+                <div className="pt-4 space-y-2">
+                    <h3 className="text-md font-semibold text-foreground">Rate this product:</h3>
+                    <div className="flex items-center space-x-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                                key={star}
+                                onClick={() => setUserRating(star)}
+                                onMouseEnter={() => setHoverRating(star)}
+                                onMouseLeave={() => setHoverRating(0)}
+                                className="focus:outline-none"
+                                aria-label={`Rate ${star} out of 5 stars`}
+                                disabled={isSubmittingRating}
+                            >
+                                <Star
+                                    className={`h-7 w-7 cursor-pointer transition-colors
+                                        ${(hoverRating || userRating) >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 hover:text-yellow-300'}`}
+                                />
+                            </button>
+                        ))}
+                    </div>
+                    {userRating > 0 && (
+                        <Button onClick={handleSubmitRating} disabled={isSubmittingRating} size="sm" className="mt-2">
+                            {isSubmittingRating ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <ThumbsUp className="h-4 w-4 mr-2"/>}
+                            Submit {userRating}-Star Rating
+                        </Button>
+                    )}
+                </div>
+            )}
 
 
              {product.features && product.features.length > 0 && (
