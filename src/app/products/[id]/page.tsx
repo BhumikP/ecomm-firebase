@@ -540,9 +540,9 @@ export default function ProductDetailPage() {
             </div>
 
             <Separator className="my-4" />
-            {/* Display product description as plain text */}
-            <div className="text-foreground/90 whitespace-pre-wrap">
-                {product.description || ""}
+            
+            <div className="mt-4 text-foreground/90 whitespace-pre-wrap">
+              {product.description || ""}
             </div>
 
 

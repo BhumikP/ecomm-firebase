@@ -3,14 +3,14 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-// Quill (Rich Text Editor) related imports removed
+// ReactQuill and its CSS import removed
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { Textarea } from "@/components/ui/textarea"; // Reverted to Textarea
+import { Textarea } from "@/components/ui/textarea"; // Textarea imported
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
-// ReactQuill dynamic import and config removed
+// ReactQuill dynamic import removed
 
 interface ProductColorFormData {
     _id?: string;
@@ -204,10 +204,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Reverted from ReactQuill change to work with Textarea event
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: e.target.value }));
-  };
+  // handleDescriptionChange removed as ReactQuill is removed. handleInputChange will handle Textarea.
 
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -432,6 +429,8 @@ export default function AdminProductsPage() {
    const currentSubcategories = useMemo(() => availableCategories.find(c => c._id === selectedCategoryId)?.subcategories || [], [selectedCategoryId, availableCategories]);
    const calculateTotalStock = (product: FetchedProduct): number => product.colors?.length > 0 ? product.colors.reduce((sum, color) => sum + (color.stock || 0), 0) : (product.stock || 0);
 
+  // quillModules removed
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -475,18 +474,17 @@ export default function AdminProductsPage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
-                        {/* Reverted to Textarea */}
                         <Textarea
                             id="description"
                             name="description"
                             value={currentProduct.description}
-                            onChange={handleDescriptionChange}
+                            onChange={handleInputChange}
                             placeholder="Enter product description..."
                             className="min-h-[200px]"
                             disabled={isDialogLoading}
                         />
                     </div>
-                    <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
+                    <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Input id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
 
                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox
