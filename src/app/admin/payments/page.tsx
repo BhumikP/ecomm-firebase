@@ -1,56 +1,25 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Filter, Loader2 } from 'lucide-react';
+import { Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
-// Assuming an Order model exists and includes payment details
-import type { IOrder } from '@/models/Order';
+import type { IOrder } from '@/models/Order'; // Import IOrder
 
 // Define a type for the payment data we expect (derived from Order)
 type PaymentData = Pick<IOrder, '_id' | 'orderId' | 'total' | 'currency' | 'paymentStatus' | 'paymentMethod' | 'createdAt'> & {
     paymentDetails?: { transactionId?: string; gateway?: string };
-    // userId?: { _id: string; email: string; name: string }; // Include necessary user info if needed
-    customerEmail?: string; // Placeholder if userId not populated fully
+    // customerEmail field removed as IOrder does not directly contain it.
+    // If needed, Order model would need userId and population, or email stored on order.
 };
 
-
-// Mock Function to fetch payment data (replace with API call)
-const fetchPayments = async (filters: any): Promise<{ payments: PaymentData[], totalCount: number }> => {
-    console.log("Fetching payments with filters:", filters);
-    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
-
-    // Mock data based on Order structure
-    const mockPayments: PaymentData[] = [
-        { _id: '60f...', orderId: 'ORD-1001', total: 105.98, currency: 'INR', paymentStatus: 'Paid', paymentMethod: 'Visa **** 4321', createdAt: new Date('2024-03-10'), paymentDetails: { transactionId: 'txn_123abc', gateway: 'Juspay' }, customerEmail: 'alice@example.com' },
-        { _id: '60f...', orderId: 'ORD-1002', total: 47.25, currency: 'INR', paymentStatus: 'Paid', paymentMethod: 'Mastercard **** 5678', createdAt: new Date('2024-03-15'), paymentDetails: { transactionId: 'txn_456def', gateway: 'Juspay' }, customerEmail: 'bob@example.com'},
-         { _id: '60f...', orderId: 'ORD-1003', total: 102.00, currency: 'INR', paymentStatus: 'Pending', paymentMethod: 'PayPal', createdAt: new Date('2024-03-18'), customerEmail: 'charlie@example.com' },
-        { _id: '60f...', orderId: 'ORD-1004', total: 25.00, currency: 'INR', paymentStatus: 'Failed', paymentMethod: 'Visa **** 9999', createdAt: new Date('2024-03-19'), paymentDetails: { gateway: 'Juspay' }, customerEmail: 'dave@example.com' },
-         { _id: '60f...', orderId: 'ORD-1005', total: 199.50, currency: 'INR', paymentStatus: 'Paid', paymentMethod: 'Amex **** 1001', createdAt: new Date('2024-03-20'), paymentDetails: { transactionId: 'txn_789ghi', gateway: 'Juspay' }, customerEmail: 'eve@example.com' },
-    ];
-
-    // Basic mock filtering (implement properly in API)
-    let filtered = mockPayments;
-    if (filters.searchQuery) {
-         const query = filters.searchQuery.toLowerCase();
-         filtered = filtered.filter(p =>
-             p.orderId.toLowerCase().includes(query) ||
-             (p.paymentDetails?.transactionId && p.paymentDetails.transactionId.toLowerCase().includes(query)) ||
-             (p.customerEmail && p.customerEmail.toLowerCase().includes(query))
-         );
-    }
-     if (filters.status && filters.status !== 'all') {
-         filtered = filtered.filter(p => p.paymentStatus.toLowerCase() === filters.status.toLowerCase());
-     }
-
-    return { payments: filtered, totalCount: filtered.length };
-};
+const ITEMS_PER_PAGE = 10;
 
 const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -62,58 +31,111 @@ export default function AdminPaymentsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'paid', 'pending', 'failed'
+    const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'Paid', 'Pending', 'Failed'
     const { toast } = useToast();
-    // TODO: Add pagination state
+    
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
 
-    // Fetch payments on mount and when filters change
-    useEffect(() => {
-        const loadPayments = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const filters = { searchQuery: searchTerm, status: statusFilter };
-                const result = await fetchPayments(filters); // Replace with actual API call: /api/payments?search=...&status=...
-                setPayments(result.payments);
-                // Set pagination data if implemented
-            } catch (err: any) {
-                console.error("Error fetching payments:", err);
-                setError(err.message || "Could not load payment history.");
-                toast({ variant: "destructive", title: "Error", description: err.message || "Could not load payment history." });
-            } finally {
-                setIsLoading(false);
+    const fetchPaymentsData = useCallback(async (page: number, search: string, status: string) => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const params = new URLSearchParams({
+                page: String(page),
+                limit: String(ITEMS_PER_PAGE),
+            });
+            if (search) params.append('searchQuery', search);
+            if (status !== 'all') params.append('status', status);
+
+            const response = await fetch(`/api/admin/orders?${params.toString()}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch payment data');
             }
-        };
-        loadPayments();
-    }, [searchTerm, statusFilter, toast]);
+            const data = await response.json();
+            
+            // Transform fetched IOrder[] to PaymentData[]
+            // This is straightforward if PaymentData is a subset of IOrder fields
+            setPayments(data.orders as PaymentData[]);
+            setTotalCount(data.totalCount);
+            setTotalPages(data.totalPages);
+            setCurrentPage(data.currentPage);
+
+        } catch (err: any) {
+            console.error("Error fetching payments:", err);
+            setError(err.message || "Could not load payment history.");
+            toast({ variant: "destructive", title: "Error", description: err.message || "Could not load payment history." });
+            setPayments([]);
+            setTotalCount(0);
+            setTotalPages(0);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    // Fetch payments on mount and when filters or page change
+    useEffect(() => {
+        fetchPaymentsData(currentPage, searchTerm, statusFilter);
+    }, [currentPage, searchTerm, statusFilter, fetchPaymentsData]);
 
 
-     const getStatusBadgeVariant = (status: PaymentData['paymentStatus']) => {
+     const getStatusBadgeVariant = (status?: PaymentData['paymentStatus']) => {
+        if (!status) return 'outline';
         switch (status) {
             case 'Paid': return 'default';
             case 'Pending': return 'outline';
             case 'Failed': return 'destructive';
-            case 'Refunded': return 'secondary';
+            case 'Refunded': return 'secondary'; // Assuming Refunded is a possible status
             default: return 'outline';
         }
      };
 
-      const getStatusBadgeColor = (status: PaymentData['paymentStatus']) => {
+      const getStatusBadgeColor = (status?: PaymentData['paymentStatus']) => {
+         if (!status) return '';
          switch (status) {
            case 'Paid': return 'bg-green-100 text-green-800 border-green-200';
            case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
            case 'Failed': return 'bg-red-100 text-red-800 border-red-200';
-            case 'Refunded': return 'bg-blue-100 text-blue-800 border-blue-200';
+           case 'Refunded': return 'bg-blue-100 text-blue-800 border-blue-200';
            default: return '';
          }
        };
+    
+    const handleSearchDebounced = () => {
+        setCurrentPage(1); // Reset to first page on new search
+        // fetchPaymentsData will be called by useEffect due to searchTerm change
+    };
+    
+    // Simple debounce for search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchTerm !== undefined) { // Check if searchTerm has been initialized
+                 handleSearchDebounced();
+            }
+        }, 500); // 500ms debounce
+        return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm]);
+
+    const handleStatusFilterChange = (newStatus: string) => {
+        setCurrentPage(1); // Reset to first page
+        setStatusFilter(newStatus);
+        // fetchPaymentsData will be called by useEffect due to statusFilter change
+    };
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage > 0 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
 
 
     return (
         <div className="space-y-6">
             <h2 className="text-3xl font-bold tracking-tight">Payment History</h2>
 
-             {/* Filters Section */}
              <Card>
                 <CardHeader>
                     <CardTitle>Filters</CardTitle>
@@ -122,22 +144,19 @@ export default function AdminPaymentsPage() {
                      <div className="relative flex-grow">
                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                          <Input
-                            placeholder="Search Order ID, Txn ID, Email..."
+                            placeholder="Search Order ID, Txn ID..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-10 w-full bg-background"
                          />
                      </div>
-                     <div className="flex gap-2">
-                         {/* Status Filter Buttons */}
-                        <Button variant={statusFilter === 'all' ? 'default' : 'outline'} onClick={() => setStatusFilter('all')}>All</Button>
-                        <Button variant={statusFilter === 'Paid' ? 'default' : 'outline'} onClick={() => setStatusFilter('Paid')}>Paid</Button>
-                        <Button variant={statusFilter === 'Pending' ? 'default' : 'outline'} onClick={() => setStatusFilter('Pending')}>Pending</Button>
-                        <Button variant={statusFilter === 'Failed' ? 'default' : 'outline'} onClick={() => setStatusFilter('Failed')}>Failed</Button>
-                        {/* Add Refunded if needed */}
-                        {/* <Button variant={statusFilter === 'Refunded' ? 'default' : 'outline'} onClick={() => setStatusFilter('Refunded')}>Refunded</Button> */}
+                     <div className="flex gap-2 flex-wrap">
+                        <Button variant={statusFilter === 'all' ? 'default' : 'outline'} onClick={() => handleStatusFilterChange('all')}>All</Button>
+                        <Button variant={statusFilter === 'Paid' ? 'default' : 'outline'} onClick={() => handleStatusFilterChange('Paid')}>Paid</Button>
+                        <Button variant={statusFilter === 'Pending' ? 'default' : 'outline'} onClick={() => handleStatusFilterChange('Pending')}>Pending</Button>
+                        <Button variant={statusFilter === 'Failed' ? 'default' : 'outline'} onClick={() => handleStatusFilterChange('Failed')}>Failed</Button>
+                        <Button variant={statusFilter === 'Refunded' ? 'default' : 'outline'} onClick={() => handleStatusFilterChange('Refunded')}>Refunded</Button>
                      </div>
-                      {/* TODO: Add Date Range Filter */}
                 </CardContent>
              </Card>
 
@@ -147,29 +166,27 @@ export default function AdminPaymentsPage() {
                     <CardDescription>Overview of recent payment transactions.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isLoading ? (
+                    {isLoading && payments.length === 0 ? ( // Show skeleton only on initial load or full data refresh
                          <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Order ID</TableHead>
                                     <TableHead>Transaction ID</TableHead>
-                                     <TableHead>Customer</TableHead>
-                                    <TableHead>Amount</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
                                     <TableHead>Method</TableHead>
                                     <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {[...Array(5)].map((_, i) => (
+                                {[...Array(ITEMS_PER_PAGE)].map((_, i) => (
                                     <TableRow key={`skel-${i}`}>
-                                        <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
                                         <TableCell><Skeleton className="h-5 w-24 bg-muted" /></TableCell>
                                         <TableCell><Skeleton className="h-5 w-28 bg-muted" /></TableCell>
-                                         <TableCell><Skeleton className="h-5 w-32 bg-muted" /></TableCell>
-                                        <TableCell><Skeleton className="h-5 w-16 bg-muted" /></TableCell>
-                                        <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
-                                        <TableCell><Skeleton className="h-6 w-16 bg-muted rounded-full" /></TableCell>
+                                        <TableCell><Skeleton className="h-5 w-32 bg-muted" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-5 w-20 bg-muted ml-auto" /></TableCell>
+                                        <TableCell><Skeleton className="h-5 w-24 bg-muted" /></TableCell>
+                                        <TableCell><Skeleton className="h-6 w-20 bg-muted rounded-full" /></TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -187,54 +204,64 @@ export default function AdminPaymentsPage() {
                                     <TableHead>Date</TableHead>
                                     <TableHead>Order ID</TableHead>
                                     <TableHead>Transaction ID</TableHead>
-                                    <TableHead>Customer Email</TableHead>
                                     <TableHead className="text-right">Amount</TableHead>
                                     <TableHead>Method</TableHead>
                                     <TableHead>Status</TableHead>
-                                    {/* Add Actions if needed */}
-                                    {/* <TableHead className="text-right">Actions</TableHead> */}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {payments.map((payment) => (
-                                    <TableRow key={payment._id}>
+                                    <TableRow key={payment._id?.toString()}>
                                         <TableCell>{new Date(payment.createdAt).toLocaleString()}</TableCell>
                                         <TableCell className="font-medium">
-                                            <Button variant="link" asChild className="p-0 h-auto">
-                                                {/* TODO: Link to Order Detail Page if exists */}
-                                                {/* <Link href={`/admin/orders/${payment.orderId}`}> */}
-                                                    {payment.orderId}
-                                                {/* </Link> */}
-                                            </Button>
+                                            {/* TODO: Link to Order Detail Page if exists e.g. /admin/orders/{payment.orderId} */}
+                                            {payment.orderId}
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground">{payment.paymentDetails?.transactionId || 'N/A'}</TableCell>
-                                        <TableCell>{payment.customerEmail || 'N/A'}</TableCell>
                                         <TableCell className="text-right font-medium">
                                              {payment.currency === 'INR' ? '₹' : '$'}{formatCurrency(payment.total)}
                                         </TableCell>
                                         <TableCell>{payment.paymentMethod} ({payment.paymentDetails?.gateway || 'N/A'})</TableCell>
                                         <TableCell>
-                                             <Badge variant={getStatusBadgeVariant(payment.paymentStatus)} className={getStatusBadgeColor(payment.paymentStatus)}>
+                                             <Badge 
+                                                variant={getStatusBadgeVariant(payment.paymentStatus)} 
+                                                className={getStatusBadgeColor(payment.paymentStatus)}
+                                              >
                                                 {payment.paymentStatus}
                                             </Badge>
                                         </TableCell>
-                                         {/* <TableCell className="text-right">
-                                             {/* Add actions like 'Refund', 'View Details' */}
-                                         {/* </TableCell> */}
                                     </TableRow>
                                 ))}
                             </TableBody>
                         </Table>
                     )}
                 </CardContent>
-                 {/* TODO: Add Pagination Controls */}
-                 {/* <CardFooter>
-                     <div className="flex justify-center w-full">
-                          Pagination component here
-                     </div>
-                 </CardFooter> */}
+                {payments.length > 0 && totalPages > 0 && (
+                     <CardFooter className="flex items-center justify-between border-t pt-4">
+                        <span className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalPages} ({totalCount} items)
+                        </span>
+                        <div className="space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage <= 1 || isLoading}
+                            >
+                                <ChevronLeft className="mr-1 h-4 w-4"/> Previous
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage >= totalPages || isLoading}
+                            >
+                                Next <ChevronRight className="ml-1 h-4 w-4"/>
+                            </Button>
+                        </div>
+                     </CardFooter>
+                )}
             </Card>
         </div>
     );
 }
-
