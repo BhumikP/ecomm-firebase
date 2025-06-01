@@ -540,7 +540,9 @@ export default function ProductDetailPage() {
             </div>
 
             <Separator className="my-4" />
-             <p className="text-base text-foreground/90 leading-relaxed">{product.description}</p>
+             <div className="text-foreground/90">
+                <p>{product.description}</p>
+             </div>
 
             <div className="space-y-1">
                 <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
@@ -560,7 +562,7 @@ export default function ProductDetailPage() {
                                 key={color._id?.toString() || color.name}
                                 onClick={() => handleColorSelect(color)}
                                 className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary' : 'border-muted-foreground/30 hover:border-primary'}
+                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-md' : 'border-muted-foreground/30 hover:border-primary'}
                                     ${color.stock < (product.minOrderQuantity || 1) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 style={{ backgroundColor: color.hexCode || '#ccc' }}
                                 title={`${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : `(Stock: ${color.stock})`}`}
@@ -661,3 +663,4 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+

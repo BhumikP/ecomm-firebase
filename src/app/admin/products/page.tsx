@@ -3,15 +3,14 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-// import dynamic from 'next/dynamic'; // Commented out dynamic import for ReactQuill
-// import 'react-quilljs/dist/quill.snow.css'; // Commented out Quill's snow theme CSS
+// Rich text editor (ReactQuill) related imports are removed
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { Textarea } from "@/components/ui/textarea"; // Ensure Textarea is imported
+import { Textarea } from "@/components/ui/textarea"; // Textarea will be used for description
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -25,29 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
-/* Commented out ReactQuill related code
-const ReactQuill = dynamic(() => import('react-quilljs'), {
-  ssr: false,
-  loading: () => <Skeleton className="h-[200px] w-full bg-muted rounded-md" />,
-});
-
-const quillModules = {
-  toolbar: [
-    [{ 'header': [1, 2, 3, false] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    [{'list': 'ordered'}, {'list': 'bullet'}],
-    ['link'],
-    ['clean']
-  ],
-};
-
-const quillFormats = [
-  'header',
-  'bold', 'italic', 'underline', 'strike',
-  'list', 'bullet',
-  'link',
-];
-*/
+// ReactQuill dynamic import and its CSS/modules/formats are removed.
 
 interface ProductColorFormData {
     _id?: string;
@@ -218,7 +195,10 @@ export default function AdminProductsPage() {
         const numericFields = ['price', 'discount', 'stock', 'minOrderQuantity'];
         if (name === 'features') {
              setCurrentProduct(prev => ({ ...prev as ProductFormData, features: value.split(',').map(f => f.trim()).filter(f => f) }));
-        } else {
+        } else if (name === 'description') { // Handle description separately for textarea
+            setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: value }));
+        }
+         else {
             setCurrentProduct(prev => ({
                 ...(prev as ProductFormData),
                 [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
@@ -227,11 +207,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  /* Commented out handleDescriptionChange as it's specific to Quill
-  const handleDescriptionChange = (value: string) => {
-    setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: value }));
-  };
-  */
+  // handleDescriptionChange is removed as ReactQuill is removed. Textarea uses handleInputChange.
 
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -499,7 +475,6 @@ export default function AdminProductsPage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
-                        {/* Reverted to Textarea due to ReactQuill installation issues */}
                         <Textarea
                             id="description"
                             name="description"
