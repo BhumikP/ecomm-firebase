@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { X, AlertCircle } from 'lucide-react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AnnouncementData {
@@ -17,22 +17,32 @@ export function AnnouncementBar() {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true); // Component has mounted, safe to use client-side APIs
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return; // Guard against running fetch/localStorage logic on server or before mount
+
     const fetchAnnouncement = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const response = await fetch('/api/settings');
         if (!response.ok) {
-          throw new Error('Failed to fetch announcement settings');
+          const errorData = await response.json().catch(() => ({ message: 'Failed to fetch announcement settings and parse error' }));
+          throw new Error(errorData.message || 'Failed to fetch announcement settings');
         }
         const data: AnnouncementData = await response.json();
         setAnnouncement(data);
+        
+        const currentText = data.announcementText || ""; // Ensure currentText is a string
+        // Dismissed if localStorage has the same non-empty text
+        const dismissed = localStorage.getItem('announcementDismissed') === currentText && currentText !== ""; 
 
-        // Check local storage for dismissal
-        const dismissed = localStorage.getItem('announcementDismissed') === data.announcementText;
-        if (data.isAnnouncementActive && data.announcementText && !dismissed) {
+        if (data.isAnnouncementActive && currentText && !dismissed) {
           setIsVisible(true);
         } else {
           setIsVisible(false);
@@ -47,25 +57,23 @@ export function AnnouncementBar() {
     };
 
     fetchAnnouncement();
-  }, []);
+  }, [isClient]); // Re-run when isClient becomes true
 
   const handleDismiss = () => {
+    if (!isClient) return;
     setIsVisible(false);
-    if (announcement?.announcementText) {
-      // Store the specific text of the dismissed announcement.
-      // This way, if the announcement text changes, the new one will show.
+    if (announcement?.announcementText) { // Only store if text exists
       localStorage.setItem('announcementDismissed', announcement.announcementText);
     }
   };
-
-  if (isLoading) {
-    // Optional: render a slim skeleton or nothing during load to avoid layout shift
+  
+  if (!isClient || isLoading) {
     return <div className="h-0" aria-busy="true"></div>;
   }
 
   if (error) {
-    // Optional: render a small error indicator or log, but usually best to fail silently for non-critical UI like this
-    console.warn("Announcement bar error:", error);
+    // In a real app, you might log this to an error reporting service
+    // For the user, it's often better to just not show the bar if it errors.
     return null; 
   }
 
@@ -75,7 +83,8 @@ export function AnnouncementBar() {
 
   const BarContent = () => (
     <>
-      <span className="text-sm text-center flex-grow">{announcement.announcementText}</span>
+      {/* Added px-8 to give text space from absolute positioned close button */}
+      <span className="text-sm text-center flex-grow px-8">{announcement.announcementText}</span>
       <button
         onClick={handleDismiss}
         aria-label="Dismiss announcement"
