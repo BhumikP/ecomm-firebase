@@ -19,7 +19,7 @@ const nextConfig = defineNextConfig({
     ignoreDuringBuilds: true,
   },
   images: {
-    remotePatterns: [``
+    remotePatterns: [
       {
         protocol: 'https',
         hostname: 'picsum.photos',

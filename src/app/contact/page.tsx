@@ -1,15 +1,13 @@
 
 'use client';
 
-// import type { Metadata } from 'next'; // Not used directly in client components for export
-import { useState, useEffect } from 'react'; // Added useEffect
+import type { Metadata } from 'next'; // Import Metadata for export const metadata
+import { useState } from 'react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-// Label from form is preferred over direct ui/label
-// import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -18,24 +16,23 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Mail, Phone, MapPin } from 'lucide-react';
 
-
-// Client-side metadata setting (useEffect for dynamic title based on component state or props)
-// For static titles in client components, it's often simpler to manage via a layout or specific hook if many pages need it.
-// Next.js 13+ App Router generally prefers `generateMetadata` for server components.
-// This is a client component due to react-hook-form and useState.
-useEffect(() => {
-    document.title = 'Contact Us | eShop Simplified';
-    let metaDescription = document.querySelector('meta[name="description"]');
-    if (!metaDescription) {
-        metaDescription = document.createElement('meta');
-        metaDescription.setAttribute('name', 'description');
-        document.head.appendChild(metaDescription);
-    }
-    metaDescription.setAttribute('content', 'Get in touch with eShop Simplified. Send us a message or find our contact details. We are here to help with your queries.');
-     // It's good practice to also set OpenGraph and Twitter titles/descriptions if possible client-side,
-     // but these are more effectively handled by server-side metadata for crawlers.
-}, []);
-
+// Metadata for SEO
+export const metadata: Metadata = {
+  title: 'Contact Us',
+  description: 'Get in touch with eShop Simplified. Send us a message or find our contact details. We are here to help with your queries.',
+  keywords: ['contact us', 'support', 'customer service', 'eshop contact'],
+  openGraph: {
+    title: 'Contact Us | eShop Simplified',
+    description: 'Reach out to eShop Simplified for support and inquiries.',
+    type: 'website',
+    url: '/contact', // Assuming relative to metadataBase in layout
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Contact Us | eShop Simplified',
+    description: 'Reach out to eShop Simplified for support and inquiries.',
+  },
+};
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(100, { message: "Name cannot exceed 100 characters."}),
