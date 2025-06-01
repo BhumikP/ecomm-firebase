@@ -66,12 +66,6 @@ const categoryLinks: CategoryLink[] = [
 ];
 
 
-// const bannerImages_OLD = [
-//     { src: 'https://placehold.co/1200x400.png?text=Modern+Electronics+Sale', alt: 'Special discount on latest electronics', dataAiHint: 'sale promotion electronics' },
-//     { src: 'https://placehold.co/1200x400.png?text=Fresh+Fashion+Arrivals', alt: 'New season fashion arrivals', dataAiHint: 'new arrivals fashion' },
-//     { src: 'https://placehold.co/1200x400.png?text=Home+Appliance+Deals', alt: 'Upgrade your home appliances with our offers', dataAiHint: 'home appliance discount' },
-// ];
-
 const MAX_HOMEPAGE_CATEGORIES = 4;
 const MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE = 4;
 const MAX_FEATURED_PRODUCTS_HOMEPAGE = 4;
@@ -132,7 +126,7 @@ export default function Home() {
     const response = await fetch(url);
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API Error for ${url}:`, errorText);
+      
       // Removed setError to avoid global error state during product fetching
       throw new Error(`Failed to fetch products from ${url}. Status: ${response.status}`);
     }
@@ -158,7 +152,7 @@ export default function Home() {
         const data = await response.json();
         setBannerImages(Array.isArray(data.banners) ? data.banners : []);
     } catch (err) {
-        console.error("Error fetching banners:", err);
+        
         toast({ variant: "destructive", title: "Banners Error", description: (err as Error).message });
         setBannerImages([]); // Set to empty array on error
     } finally {
@@ -207,13 +201,13 @@ export default function Home() {
         if (result.status === 'fulfilled' && result.value) {
           newProductsByCat[result.value.categoryId] = result.value.products;
         } else if (result.status === 'rejected') {
-          console.error("Error fetching products for a category:", result.reason);
+          
         }
       });
       setProductsByCat(newProductsByCat);
 
     } catch (err) {
-      console.error("Error fetching homepage data:", err);
+      
       toast({ variant: "destructive", title: "Homepage Load Error", description: (err as Error).message });
     } finally {
       setIsHomepageContentLoading(false);
@@ -222,7 +216,7 @@ export default function Home() {
     try {
         setTopBuyProducts(await fetchAndProcessProducts(`/api/products?isTopBuy=true&limit=${MAX_FEATURED_PRODUCTS_HOMEPAGE}&populate=category`));
     } catch (err) {
-        console.error("Error fetching top buy products:", err);
+        
         toast({ variant: "destructive", title: "Top Buys Error", description: (err as Error).message });
     } finally {
         setIsTopBuyLoading(false);
@@ -231,7 +225,7 @@ export default function Home() {
     try {
         setNewlyLaunchedProducts(await fetchAndProcessProducts(`/api/products?isNewlyLaunched=true&limit=${MAX_FEATURED_PRODUCTS_HOMEPAGE}&populate=category`));
     } catch (err) {
-        console.error("Error fetching newly launched products:", err);
+        
         toast({ variant: "destructive", title: "New Arrivals Error", description: (err as Error).message });
     } finally {
         setIsNewlyLaunchedLoading(false);
@@ -261,7 +255,7 @@ export default function Home() {
 
         setFilteredProducts(await fetchAndProcessProducts(`/api/products?${params.toString()}`));
     } catch (err: any) {
-        console.error("Error fetching filtered products:", err);
+        
         setFilteredError(err.message || "Could not load products.");
         setFilteredProducts([]);
         toast({ variant: "destructive", title: "Filter Error", description: err.message });
@@ -464,31 +458,28 @@ export default function Home() {
             >
                 <CarouselContent>
                     {bannerImages.map((banner, index) => (
-                        <CarouselItem key={banner._id?.toString() || index}>
-                            {banner.linkUrl ? (
-                                <Link href={banner.linkUrl} aria-label={banner.altText}>
-                                    <Image
-                                        src={banner.imageUrl}
-                                        alt={banner.altText}
-                                        width={1200}
-                                        height={400}
-                                        className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px] bg-muted"
-                                        priority={index === 0}
-                                        data-ai-hint={banner.dataAiHint || 'promotional banner'}
-                                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/1200x400.png?text=Banner+Error'; }}
-                                    />
-                                </Link>
-                            ) : (
+                        <CarouselItem key={banner._id?.toString() || index} className="relative">
+                             <div className="relative w-full h-auto max-h-[250px] md:max-h-[400px] overflow-hidden">
                                 <Image
                                     src={banner.imageUrl}
                                     alt={banner.altText}
                                     width={1200}
                                     height={400}
-                                    className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px] bg-muted"
+                                    className="w-full h-full object-cover bg-muted"
                                     priority={index === 0}
                                     data-ai-hint={banner.dataAiHint || 'promotional banner'}
                                     onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/1200x400.png?text=Banner+Error'; }}
                                 />
+                                {banner.title && (
+                                  <div className="absolute inset-x-0 top-0 p-4 md:p-8 bg-gradient-to-b from-black/70 via-black/50 to-transparent">
+                                    <h3 className="text-xl md:text-3xl lg:text-4xl font-bold text-white shadow-md">{banner.title}</h3>
+                                  </div>
+                                )}
+                             </div>
+                            {banner.linkUrl && (
+                                <Link href={banner.linkUrl} aria-label={banner.altText} className="absolute inset-0">
+                                    <span className="sr-only">Navigate to: {banner.altText}</span>
+                                </Link>
                             )}
                         </CarouselItem>
                     ))}
@@ -705,4 +696,3 @@ export default function Home() {
     </div>
   );
 }
-

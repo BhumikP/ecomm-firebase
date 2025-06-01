@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
     return NextResponse.json({ banner }, { status: 200 });
   } catch (error) {
-    console.error(`Error fetching banner ${id}:`, error);
+    
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
@@ -44,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json() as Partial<Pick<IBanner, 'imageUrl' | 'altText' | 'linkUrl' | 'order' | 'dataAiHint' | 'isActive'>>;
+    const body = await req.json() as Partial<Pick<IBanner, 'title' | 'imageUrl' | 'altText' | 'linkUrl' | 'order' | 'dataAiHint' | 'isActive'>>;
 
     if (Object.keys(body).length === 0) {
       return NextResponse.json({ message: 'No update data provided' }, { status: 400 });
@@ -52,6 +52,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     
     // Ensure required fields are not accidentally cleared if not provided for update
     const updateData: Partial<IBanner> = {};
+    if (body.title !== undefined) updateData.title = body.title;
     if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl;
     if (body.altText !== undefined) updateData.altText = body.altText;
     if (body.linkUrl !== undefined) updateData.linkUrl = body.linkUrl;
@@ -72,7 +73,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     return NextResponse.json(updatedBanner, { status: 200 });
   } catch (error: any) {
-    console.error(`Error updating banner ${id}:`, error);
+    
     if (error.name === 'ValidationError') {
       return NextResponse.json({ message: 'Validation failed', errors: error.errors }, { status: 400 });
     }
@@ -99,7 +100,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ message: 'Banner deleted successfully' }, { status: 200 });
   } catch (error) {
-    console.error(`Error deleting banner ${id}:`, error);
+    
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

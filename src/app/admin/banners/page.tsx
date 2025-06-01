@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch'; // For isActive toggle
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Loader2, UploadCloud, Link as LinkIcon, Eye, EyeOff } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, UploadCloud, Link as LinkIcon, Eye, EyeOff, Baseline } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { IBanner } from '@/models/Banner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 type BannerData = IBanner & { _id: string };
 
 const emptyBanner: Omit<BannerData, '_id' | 'createdAt' | 'updatedAt'> = {
+    title: '',
     imageUrl: '',
     altText: '',
     linkUrl: '',
@@ -135,6 +136,7 @@ export default function AdminBannersPage() {
         }
 
         const bannerDataToSave = {
+            title: currentBanner.title || undefined,
             imageUrl: currentBanner.imageUrl,
             altText: currentBanner.altText,
             linkUrl: currentBanner.linkUrl || undefined,
@@ -207,7 +209,11 @@ export default function AdminBannersPage() {
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
-                                <Label htmlFor="imageUrl">Banner Image</Label>
+                                <Label htmlFor="title">Banner Title (Optional)</Label>
+                                <Input id="title" name="title" value={currentBanner.title || ''} onChange={handleInputChange} placeholder="e.g., Summer Sale Extravaganza" className="w-full" disabled={isDialogLoading}/>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="imageUrl">Banner Image <span className="text-destructive">*</span></Label>
                                 {currentBanner.imageUrl && (
                                     <div className="relative w-full h-48 rounded-md overflow-hidden border bg-muted">
                                         <Image src={currentBanner.imageUrl} alt="Banner Preview" layout="fill" objectFit="contain" data-ai-hint="admin banner preview"/>
@@ -259,7 +265,7 @@ export default function AdminBannersPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[100px]">Preview</TableHead>
-                                <TableHead>Alt Text / AI Hint</TableHead>
+                                <TableHead>Title / Alt Text</TableHead>
                                 <TableHead>Link URL</TableHead>
                                 <TableHead className="text-center">Order</TableHead>
                                 <TableHead className="text-center">Status</TableHead>
@@ -271,7 +277,7 @@ export default function AdminBannersPage() {
                                 [...Array(2)].map((_, i) => (
                                     <TableRow key={`skel-banner-${i}`}>
                                         <TableCell><Skeleton className="h-16 w-24 rounded-md bg-muted" /></TableCell>
-                                        <TableCell><Skeleton className="h-5 w-3/4 bg-muted" /></TableCell>
+                                        <TableCell><Skeleton className="h-5 w-3/4 bg-muted" /><Skeleton className="h-4 w-1/2 bg-muted mt-1" /></TableCell>
                                         <TableCell><Skeleton className="h-5 w-1/2 bg-muted" /></TableCell>
                                         <TableCell className="text-center"><Skeleton className="h-5 w-8 bg-muted mx-auto" /></TableCell>
                                         <TableCell className="text-center"><Skeleton className="h-6 w-16 bg-muted mx-auto rounded-full" /></TableCell>
@@ -285,7 +291,8 @@ export default function AdminBannersPage() {
                                             <Image src={banner.imageUrl} alt={banner.altText} width={96} height={40} className="rounded-md object-contain border bg-muted" data-ai-hint="admin banner list"/>
                                         </TableCell>
                                         <TableCell>
-                                            <p className="font-medium">{banner.altText}</p>
+                                            {banner.title && <p className="font-semibold">{banner.title}</p>}
+                                            <p className={`font-medium ${banner.title ? 'text-xs text-muted-foreground' : ''}`}>{banner.altText}</p>
                                             {banner.dataAiHint && <p className="text-xs text-muted-foreground">Hint: {banner.dataAiHint}</p>}
                                         </TableCell>
                                         <TableCell className="text-xs">

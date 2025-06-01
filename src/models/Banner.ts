@@ -3,6 +3,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
 export interface IBanner extends Document {
+  title?: string; // New optional title field
   imageUrl: string;
   altText: string;
   linkUrl?: string; // Optional URL the banner links to
@@ -14,6 +15,10 @@ export interface IBanner extends Document {
 }
 
 const BannerSchema: Schema<IBanner> = new Schema({
+  title: { // Definition for the new title field
+    type: String,
+    trim: true,
+  },
   imageUrl: {
     type: String,
     required: [true, 'Banner image URL is required.'],
