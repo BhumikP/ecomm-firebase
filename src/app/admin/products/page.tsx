@@ -3,6 +3,9 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
+import 'react-quill/dist/quill.snow.css'; // Import Quill's snow theme CSS
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
@@ -12,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Search, Loader2, Star, Palette, X, UploadCloud, Image as LucideImage, Zap } from 'lucide-react'; // Added Zap for Newly Launched
+import { PlusCircle, Edit, Trash2, Search, Loader2, Star, Palette, X, UploadCloud, Image as LucideImage, Zap } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { IProduct, IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
@@ -21,6 +24,28 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+
+const ReactQuill = dynamic(() => import('react-quill'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[200px] w-full bg-muted rounded-md" />,
+});
+
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{'list': 'ordered'}, {'list': 'bullet'}],
+    ['link'], // Image button removed for simplicity, users can paste URLs or we can add custom upload later
+    ['clean']
+  ],
+};
+
+const quillFormats = [
+  'header',
+  'bold', 'italic', 'underline', 'strike',
+  'list', 'bullet',
+  'link',
+];
 
 
 interface ProductColorFormData {
@@ -38,7 +63,7 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
     thumbnailUrl: string;
     minOrderQuantity: number;
     isTopBuy?: boolean;
-    isNewlyLaunched?: boolean; // Added
+    isNewlyLaunched?: boolean;
     createdAt?: Date;
     updatedAt?: Date;
 };
@@ -50,7 +75,7 @@ interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   minOrderQuantity: number;
   thumbnailUrl: string;
   isTopBuy?: boolean;
-  isNewlyLaunched?: boolean; // Added
+  isNewlyLaunched?: boolean;
 }
 
 const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'rating' > = {
@@ -66,7 +91,7 @@ const emptyProduct: Omit<ProductFormData, '_id' | 'createdAt' | 'updatedAt' | 'r
     colors: [],
     minOrderQuantity: 1,
     isTopBuy: false,
-    isNewlyLaunched: false, // Added
+    isNewlyLaunched: false,
 };
 
 export default function AdminProductsPage() {
@@ -82,7 +107,7 @@ export default function AdminProductsPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); 
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null); // Combined for TopBuy and NewlyLaunched
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
 
   const { toast } = useToast();
@@ -156,12 +181,12 @@ export default function AdminProductsPage() {
         stock: product.stock,
         minOrderQuantity: product.minOrderQuantity || 1,
         isTopBuy: product.isTopBuy || false,
-        isNewlyLaunched: product.isNewlyLaunched || false, // Added
+        isNewlyLaunched: product.isNewlyLaunched || false,
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
     } else {
-      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, thumbnailUrl: '', isTopBuy: false, isNewlyLaunched: false }); // Added
+      setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, thumbnailUrl: '', isTopBuy: false, isNewlyLaunched: false });
       setSelectedCategoryId('');
       setIsEditing(false);
     }
@@ -199,6 +224,10 @@ export default function AdminProductsPage() {
             }));
         }
     }
+  };
+
+  const handleDescriptionChange = (value: string) => {
+    setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: value }));
   };
 
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,7 +376,7 @@ export default function AdminProductsPage() {
         stock: finalStock,
         minOrderQuantity: productData.minOrderQuantity,
         isTopBuy: typeof productData.isTopBuy === 'boolean' ? productData.isTopBuy : false,
-        isNewlyLaunched: typeof productData.isNewlyLaunched === 'boolean' ? productData.isNewlyLaunched : false, // Added
+        isNewlyLaunched: typeof productData.isNewlyLaunched === 'boolean' ? productData.isNewlyLaunched : false,
     };
 
     let finalPayload: any;
@@ -465,7 +494,20 @@ export default function AdminProductsPage() {
                         </div>
                     )}
 
-                    <div className="space-y-2"><Label htmlFor="description">Description <span className="text-destructive">*</span></Label><Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} className="min-h-[100px]" disabled={isDialogLoading}/></div>
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
+                        <div className="bg-background rounded-md border border-input">
+                           <ReactQuill
+                              theme="snow"
+                              value={currentProduct.description}
+                              onChange={handleDescriptionChange}
+                              modules={quillModules}
+                              formats={quillFormats}
+                              className="min-h-[200px]"
+                              readOnly={isDialogLoading}
+                           />
+                        </div>
+                    </div>
                     <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
                     
                     <div className="flex items-center space-x-2 pt-2">
@@ -483,7 +525,7 @@ export default function AdminProductsPage() {
                             Mark as Top Buy
                         </Label>
                     </div>
-                    <div className="flex items-center space-x-2 pt-1"> {/* Adjusted pt */}
+                    <div className="flex items-center space-x-2 pt-1">
                         <Checkbox
                             id="isNewlyLaunched"
                             name="isNewlyLaunched"
@@ -572,7 +614,7 @@ export default function AdminProductsPage() {
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Top Buy</TableHead>
-                <TableHead>Newly Launched</TableHead> {/* New Column */}
+                <TableHead>Newly Launched</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
             </TableRow>
             </TableHeader>
@@ -589,7 +631,7 @@ export default function AdminProductsPage() {
                         <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-16 bg-muted" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell> {/* Skeleton for new column */}
+                        <TableCell><Skeleton className="h-5 w-20 bg-muted" /></TableCell>
                         <TableCell className="text-center"><Skeleton className="h-8 w-20 mx-auto bg-muted" /></TableCell>
                     </TableRow>
                  ))
@@ -636,7 +678,7 @@ export default function AdminProductsPage() {
                                 {product.isTopBuy ? 'Yes' : 'No'}
                             </Badge>
                       </TableCell>
-                      <TableCell> {/* Newly Launched Column */}
+                      <TableCell>
                             <Badge variant={product.isNewlyLaunched ? "default" : "outline"} className={product.isNewlyLaunched ? 'bg-purple-100 text-purple-800 border-purple-200' : ''}>
                                 {product.isNewlyLaunched ? 'Yes' : 'No'}
                             </Badge>
@@ -699,3 +741,4 @@ function getContrastColor(hexcolor: string | undefined): string {
     const b = parseInt(hexcolor.substring(4, 6), 16);
     return ((r * 299) + (g * 587) + (b * 114)) / 1000 >= 128 ? '#000000' : '#FFFFFF';
 }
+
