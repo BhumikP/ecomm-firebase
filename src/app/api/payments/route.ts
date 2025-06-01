@@ -1,4 +1,4 @@
-'use server';
+
 // src/app/api/payments/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';

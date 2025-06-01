@@ -8,9 +8,11 @@ import Setting, { ISetting } from '@/models/Setting';
 const DEFAULT_SETTINGS: Omit<ISetting, '_id' | 'configKey' | 'createdAt' | 'updatedAt'> = {
   storeName: 'eShop Simplified',
   supportEmail: 'support@eshop.com',
-  // maintenanceMode: false, // Removed
   taxPercentage: 0,
   shippingCharge: 0,
+  announcementText: '',
+  announcementLink: '',
+  isAnnouncementActive: false,
 };
 
 // GET current store settings
@@ -26,13 +28,15 @@ export async function GET(req: NextRequest) {
       // If no settings doc, return defaults directly (no need to create one here for GET)
       return NextResponse.json({ settings: DEFAULT_SETTINGS }, { status: 200 });
     }
-    // Ensure only defined fields in the model are returned, or use a projection
+    // Ensure all fields are present, falling back to defaults if API might return partials
     const responseSettings = {
-        storeName: settings.storeName,
-        supportEmail: settings.supportEmail,
-        taxPercentage: settings.taxPercentage,
-        shippingCharge: settings.shippingCharge,
-        // maintenanceMode is no longer part of the model or response
+        storeName: settings.storeName ?? DEFAULT_SETTINGS.storeName,
+        supportEmail: settings.supportEmail ?? DEFAULT_SETTINGS.supportEmail,
+        taxPercentage: settings.taxPercentage ?? DEFAULT_SETTINGS.taxPercentage,
+        shippingCharge: settings.shippingCharge ?? DEFAULT_SETTINGS.shippingCharge,
+        announcementText: settings.announcementText ?? DEFAULT_SETTINGS.announcementText,
+        announcementLink: settings.announcementLink ?? DEFAULT_SETTINGS.announcementLink,
+        isAnnouncementActive: settings.isAnnouncementActive ?? DEFAULT_SETTINGS.isAnnouncementActive,
     };
     return NextResponse.json({ settings: responseSettings }, { status: 200 });
   } catch (error) {
@@ -58,15 +62,20 @@ export async function POST(req: NextRequest) {
     if (body.supportEmail !== undefined && (typeof body.supportEmail !== 'string' || !body.supportEmail.includes('@'))) {
         return NextResponse.json({ message: 'Invalid support email' }, { status: 400 });
     }
-    // Maintenance mode validation removed
-    // if (typeof body.maintenanceMode !== 'boolean') {
-    //     return NextResponse.json({ message: 'Invalid maintenance mode value' }, { status: 400 });
-    // }
     if (body.taxPercentage !== undefined && (typeof body.taxPercentage !== 'number' || body.taxPercentage < 0 || body.taxPercentage > 100)) {
         return NextResponse.json({ message: 'Tax percentage must be between 0 and 100' }, { status: 400 });
     }
      if (body.shippingCharge !== undefined && (typeof body.shippingCharge !== 'number' || body.shippingCharge < 0)) {
         return NextResponse.json({ message: 'Shipping charge must be non-negative' }, { status: 400 });
+    }
+    if (body.announcementText !== undefined && typeof body.announcementText !== 'string') {
+        return NextResponse.json({ message: 'Invalid announcement text' }, { status: 400 });
+    }
+    if (body.announcementLink !== undefined && typeof body.announcementLink !== 'string') {
+        return NextResponse.json({ message: 'Invalid announcement link' }, { status: 400 });
+    }
+    if (body.isAnnouncementActive !== undefined && typeof body.isAnnouncementActive !== 'boolean') {
+        return NextResponse.json({ message: 'Invalid announcement active status' }, { status: 400 });
     }
     
     const updatePayload: Partial<ISetting> = {};
@@ -74,7 +83,9 @@ export async function POST(req: NextRequest) {
     if(body.supportEmail !== undefined) updatePayload.supportEmail = body.supportEmail;
     if(body.taxPercentage !== undefined) updatePayload.taxPercentage = body.taxPercentage;
     if(body.shippingCharge !== undefined) updatePayload.shippingCharge = body.shippingCharge;
-    // maintenanceMode is no longer part of the update payload
+    if(body.announcementText !== undefined) updatePayload.announcementText = body.announcementText;
+    if(body.announcementLink !== undefined) updatePayload.announcementLink = body.announcementLink;
+    if(body.isAnnouncementActive !== undefined) updatePayload.isAnnouncementActive = body.isAnnouncementActive;
 
 
     const updatedSettingsDoc = await Setting.findOneAndUpdate(
@@ -83,12 +94,14 @@ export async function POST(req: NextRequest) {
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true } // Create if doesn't exist
     );
 
-    // Construct response settings to exclude fields not in the model anymore
     const responseSettings = {
         storeName: updatedSettingsDoc.storeName,
         supportEmail: updatedSettingsDoc.supportEmail,
         taxPercentage: updatedSettingsDoc.taxPercentage,
         shippingCharge: updatedSettingsDoc.shippingCharge,
+        announcementText: updatedSettingsDoc.announcementText,
+        announcementLink: updatedSettingsDoc.announcementLink,
+        isAnnouncementActive: updatedSettingsDoc.isAnnouncementActive,
     };
 
 

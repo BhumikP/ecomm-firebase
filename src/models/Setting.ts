@@ -6,9 +6,11 @@ export interface ISetting extends Document {
   configKey: string; // Unique key, e.g., "global_settings"
   storeName: string;
   supportEmail: string;
-  // maintenanceMode: boolean; // Removed
   taxPercentage: number;
   shippingCharge: number;
+  announcementText?: string;
+  announcementLink?: string;
+  isAnnouncementActive?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,11 +33,6 @@ const SettingSchema: Schema<ISetting> = new Schema({
     required: true,
     default: 'support@eshop.com',
   },
-  // maintenanceMode: { // Removed
-  //   type: Boolean,
-  //   required: true,
-  //   default: false,
-  // },
   taxPercentage: {
     type: Number,
     required: true,
@@ -48,6 +45,18 @@ const SettingSchema: Schema<ISetting> = new Schema({
     required: true,
     min: 0,
     default: 0,
+  },
+  announcementText: {
+    type: String,
+    trim: true,
+  },
+  announcementLink: {
+    type: String,
+    trim: true,
+  },
+  isAnnouncementActive: {
+    type: Boolean,
+    default: false,
   },
 }, { timestamps: true });
 

@@ -1,4 +1,4 @@
-'use server';
+
 // src/models/Order.ts
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import type { IUser } from './User'; // Import User type if linking users

@@ -6,26 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-// import { Switch } from "@/components/ui/switch"; // Maintenance mode switch removed
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Percent, Truck } from 'lucide-react'; // AlertTriangle removed
+import { Loader2, Percent, Truck, Megaphone, Link as LinkIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 
 
 interface StoreSettings {
   storeName: string;
   supportEmail: string;
-  // maintenanceMode: boolean; // Removed
   taxPercentage: number;
   shippingCharge: number;
+  announcementText?: string;
+  announcementLink?: string;
+  isAnnouncementActive?: boolean;
 }
 
 const defaultSettingsState: StoreSettings = {
     storeName: 'eShop Simplified',
     supportEmail: 'support@eshop.com',
-    // maintenanceMode: false, // Removed
     taxPercentage: 0,
     shippingCharge: 0,
+    announcementText: '',
+    announcementLink: '',
+    isAnnouncementActive: false,
 };
 
 export default function AdminSettingsPage() {
@@ -50,9 +55,11 @@ export default function AdminSettingsPage() {
                 setSettings({
                     storeName: data.settings.storeName ?? defaultSettingsState.storeName,
                     supportEmail: data.settings.supportEmail ?? defaultSettingsState.supportEmail,
-                    // maintenanceMode: data.settings.maintenanceMode ?? defaultSettingsState.maintenanceMode, // Removed
                     taxPercentage: data.settings.taxPercentage ?? defaultSettingsState.taxPercentage,
                     shippingCharge: data.settings.shippingCharge ?? defaultSettingsState.shippingCharge,
+                    announcementText: data.settings.announcementText ?? defaultSettingsState.announcementText,
+                    announcementLink: data.settings.announcementLink ?? defaultSettingsState.announcementLink,
+                    isAnnouncementActive: data.settings.isAnnouncementActive ?? defaultSettingsState.isAnnouncementActive,
                 });
             }
         } catch (error: any) {
@@ -67,15 +74,21 @@ export default function AdminSettingsPage() {
   }, [toast]);
 
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    setSettings(prev => ({
+     setSettings(prev => ({
       ...prev,
       [name]: type === 'number' ? parseFloat(value) || 0 : value,
     }));
   };
+  
+  const handleSwitchChange = (checked: boolean, name: keyof StoreSettings) => {
+    setSettings(prev => ({
+      ...prev,
+      [name]: checked,
+    }));
+  };
 
-  // handleSwitchChange removed as maintenance mode is removed
 
   const handleSaveChanges = async () => {
     setIsLoading(true);
@@ -112,7 +125,7 @@ export default function AdminSettingsPage() {
     return (
         <div className="space-y-8">
             <Skeleton className="h-9 w-1/3 rounded" /> {/* Title Skeleton */}
-            {[...Array(2)].map((_, i) => ( // Reduced to 2 cards as maintenance card is removed
+            {[...Array(3)].map((_, i) => ( 
                 <Card key={i}>
                     <CardHeader>
                         <Skeleton className="h-7 w-1/4 rounded" />
@@ -207,9 +220,50 @@ export default function AdminSettingsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Maintenance Mode Card Removed */}
       
+      <Card>
+        <CardHeader>
+          <CardTitle>Announcement Bar</CardTitle>
+          <CardDescription>Configure a site-wide announcement bar.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="announcementText" className="flex items-center"><Megaphone className="mr-2 h-4 w-4 text-muted-foreground" />Announcement Text</Label>
+            <Textarea
+              id="announcementText"
+              name="announcementText"
+              value={settings.announcementText || ''}
+              onChange={handleInputChange}
+              placeholder="e.g., 🎉 Free shipping on orders over ₹500! 🎉"
+              disabled={isLoading}
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="announcementLink" className="flex items-center"><LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />Announcement Link (Optional)</Label>
+            <Input
+              id="announcementLink"
+              name="announcementLink"
+              value={settings.announcementLink || ''}
+              onChange={handleInputChange}
+              placeholder="e.g., /products/new-arrivals"
+              disabled={isLoading}
+            />
+             <p className="text-xs text-muted-foreground">Enter a relative path (e.g., /sale) or a full URL (e.g., https://example.com).</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="isAnnouncementActive"
+              name="isAnnouncementActive"
+              checked={settings.isAnnouncementActive || false}
+              onCheckedChange={(checked) => handleSwitchChange(checked, 'isAnnouncementActive')}
+              disabled={isLoading}
+            />
+            <Label htmlFor="isAnnouncementActive">Enable Announcement Bar</Label>
+          </div>
+        </CardContent>
+      </Card>
+
        <Card>
         <CardHeader>
           <CardTitle>Operational Settings</CardTitle>
