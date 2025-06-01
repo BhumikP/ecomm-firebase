@@ -136,7 +136,7 @@ export default function AdminBannersPage() {
         }
 
         const bannerDataToSave = {
-            title: currentBanner.title || undefined,
+            title: currentBanner.title, // Pass title directly; if it's '', API will receive it as ''
             imageUrl: currentBanner.imageUrl,
             altText: currentBanner.altText,
             linkUrl: currentBanner.linkUrl || undefined,
@@ -341,3 +341,4 @@ export default function AdminBannersPage() {
         </div>
     );
 }
+
