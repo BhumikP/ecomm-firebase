@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ settings: responseSettings }, { status: 200 });
   } catch (error) {
-    console.error('Error fetching settings:', error);
+    // console.error('Error fetching settings:', error); // Omitted
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
@@ -83,20 +83,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Invalid value for announcement active status' }, { status: 400 });
     }
     
-    // Construct the payload for update, explicitly including all fields from the body
     const updatePayload: Partial<ISetting> = {};
     if (body.storeName !== undefined) updatePayload.storeName = body.storeName;
     if (body.supportEmail !== undefined) updatePayload.supportEmail = body.supportEmail;
     if (body.taxPercentage !== undefined) updatePayload.taxPercentage = body.taxPercentage;
     if (body.shippingCharge !== undefined) updatePayload.shippingCharge = body.shippingCharge;
-    // Add announcement fields to payload
-    if (body.announcementText !== undefined) updatePayload.announcementText = body.announcementText;
-    if (body.announcementLink !== undefined) updatePayload.announcementLink = body.announcementLink;
-    if (body.isAnnouncementActive !== undefined) updatePayload.isAnnouncementActive = body.isAnnouncementActive;
+    
+    // Explicitly include announcement fields in the update payload.
+    // If the client sends them, use those values. If client omits them (which current client setup should not),
+    // fall back to model defaults to ensure they are part of the $set operation.
+    updatePayload.announcementText = (body.announcementText !== undefined) ? body.announcementText : DEFAULT_SETTINGS_FROM_MODEL.announcementText;
+    updatePayload.announcementLink = (body.announcementLink !== undefined) ? body.announcementLink : DEFAULT_SETTINGS_FROM_MODEL.announcementLink;
+    updatePayload.isAnnouncementActive = (body.isAnnouncementActive !== undefined) ? body.isAnnouncementActive : DEFAULT_SETTINGS_FROM_MODEL.isAnnouncementActive;
 
 
-    if (Object.keys(updatePayload).length === 0) {
-        return NextResponse.json({ message: "No valid fields provided for update." }, { status: 400 });
+    if (Object.keys(updatePayload).length === 0 && 
+        body.announcementText === undefined && 
+        body.announcementLink === undefined && 
+        body.isAnnouncementActive === undefined) {
+        // Check if any field was actually intended for update.
+        // The explicit setting above ensures announcement fields are always considered, so this condition might need adjustment
+        // if we *only* want to update if body explicitly sends something.
+        // However, the current goal is to ensure announcement fields *are* set.
+        // This check is now less relevant if we always set announcement fields.
+        // Let's ensure at least one *other* field was sent, or an announcement field.
+        const nonAnnouncementFieldsInBody = ['storeName', 'supportEmail', 'taxPercentage', 'shippingCharge'].some(key => body.hasOwnProperty(key));
+        const announcementFieldsInBody = ['announcementText', 'announcementLink', 'isAnnouncementActive'].some(key => body.hasOwnProperty(key));
+        if (!nonAnnouncementFieldsInBody && !announcementFieldsInBody) {
+           return NextResponse.json({ message: "No valid fields provided for update." }, { status: 400 });
+        }
     }
 
     const updatedSettingsDoc = await Setting.findOneAndUpdate(
@@ -118,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ settings: responseSettings, message: 'Settings updated successfully' }, { status: 200 });
   } catch (error: any) {
-    console.error('Error updating settings:', error);
+    // console.error('Error updating settings:', error); // Omitted
     if (error.name === 'ValidationError') {
         return NextResponse.json({ message: 'Validation failed', errors: error.errors }, { status: 400 });
     }
