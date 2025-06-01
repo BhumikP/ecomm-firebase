@@ -33,9 +33,11 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProductColor } from '@/models/Product'; // IProduct removed as ProductCardProductType includes it
+import type { IProductColor } from '@/models/Product'; 
 import type { ICategory } from '@/models/Category';
-import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card'; // Import ProductCard and its type
+import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
+import type { IBanner } from '@/models/Banner'; // Import IBanner type
+
 
 interface FilterState {
   categories: { [key: string]: boolean };
@@ -54,7 +56,7 @@ interface CategoryLink {
 const categoryLinks: CategoryLink[] = [
     { name: 'Top Offers', icon: Percent, href: '/products?discountedOnly=true', ariaLabel: 'Shop Top Offers and Discounts' },
     { name: 'Newly Launched', icon: Zap, href: '/products?isNewlyLaunched=true', ariaLabel: 'Shop Newly Launched Products' },
-    { name: 'Mobiles', icon: ShoppingCart, href: '/products?categoryName=Mobiles', ariaLabel: 'Shop Mobile Phones' }, // Example, ensure "Mobiles" category exists
+    { name: 'Mobiles', icon: ShoppingCart, href: '/products?categoryName=Mobiles', ariaLabel: 'Shop Mobile Phones' }, 
     { name: 'TVs', icon: Tv, href: '/products?categoryName=Electronics&subcategoryName=TV', ariaLabel: 'Shop Televisions' },
     { name: 'Electronics', icon: ShoppingCart, href: '/products?categoryName=Electronics', ariaLabel: 'Shop Electronics' },
     { name: 'Fashion', icon: Shirt, href: '/products?categoryName=Apparel', ariaLabel: 'Shop Fashion and Apparel' },
@@ -64,11 +66,11 @@ const categoryLinks: CategoryLink[] = [
 ];
 
 
-const bannerImages = [
-    { src: 'https://placehold.co/1200x400.png?text=Modern+Electronics+Sale', alt: 'Special discount on latest electronics', dataAiHint: 'sale promotion electronics' },
-    { src: 'https://placehold.co/1200x400.png?text=Fresh+Fashion+Arrivals', alt: 'New season fashion arrivals', dataAiHint: 'new arrivals fashion' },
-    { src: 'https://placehold.co/1200x400.png?text=Home+Appliance+Deals', alt: 'Upgrade your home appliances with our offers', dataAiHint: 'home appliance discount' },
-];
+// const bannerImages_OLD = [
+//     { src: 'https://placehold.co/1200x400.png?text=Modern+Electronics+Sale', alt: 'Special discount on latest electronics', dataAiHint: 'sale promotion electronics' },
+//     { src: 'https://placehold.co/1200x400.png?text=Fresh+Fashion+Arrivals', alt: 'New season fashion arrivals', dataAiHint: 'new arrivals fashion' },
+//     { src: 'https://placehold.co/1200x400.png?text=Home+Appliance+Deals', alt: 'Upgrade your home appliances with our offers', dataAiHint: 'home appliance discount' },
+// ];
 
 const MAX_HOMEPAGE_CATEGORIES = 4;
 const MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE = 4;
@@ -92,6 +94,10 @@ export default function Home() {
 
   const [newlyLaunchedProducts, setNewlyLaunchedProducts] = useState<FetchedProduct[]>([]);
   const [isNewlyLaunchedLoading, setIsNewlyLaunchedLoading] = useState(true);
+  
+  const [bannerImages, setBannerImages] = useState<IBanner[]>([]);
+  const [isBannersLoading, setIsBannersLoading] = useState(true);
+
 
   const [isAddingToCart, setIsAddingToCart] = useState<Record<string, boolean>>({});
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
@@ -127,7 +133,7 @@ export default function Home() {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API Error for ${url}:`, errorText);
-      setError(`Failed to fetch products. Server responded with ${response.status} ${response.statusText}. ${errorText}`);
+      // Removed setError to avoid global error state during product fetching
       throw new Error(`Failed to fetch products from ${url}. Status: ${response.status}`);
     }
     const data = await response.json();
@@ -135,11 +141,29 @@ export default function Home() {
       ...p,
       _id: p._id.toString(),
       colors: (p.colors || []).map((c: any) => ({ ...c, imageUrls: Array.isArray(c.imageUrls) ? c.imageUrls : [] })),
-      category: p.category || { _id: 'unknown', name: 'Uncategorized', subcategories: [] }, // Ensure category is an object
+      category: p.category || { _id: 'unknown', name: 'Uncategorized', subcategories: [] }, 
       minOrderQuantity: p.minOrderQuantity || 1,
       isTopBuy: p.isTopBuy || false,
       isNewlyLaunched: p.isNewlyLaunched || false,
     }));
+  };
+
+  const fetchBannersData = async () => {
+    setIsBannersLoading(true);
+    try {
+        const response = await fetch('/api/banners');
+        if (!response.ok) {
+            throw new Error('Failed to fetch banners');
+        }
+        const data = await response.json();
+        setBannerImages(Array.isArray(data.banners) ? data.banners : []);
+    } catch (err) {
+        console.error("Error fetching banners:", err);
+        toast({ variant: "destructive", title: "Banners Error", description: (err as Error).message });
+        setBannerImages([]); // Set to empty array on error
+    } finally {
+        setIsBannersLoading(false);
+    }
   };
 
 
@@ -147,6 +171,7 @@ export default function Home() {
     setIsHomepageContentLoading(true);
     setIsTopBuyLoading(true);
     setIsNewlyLaunchedLoading(true);
+    fetchBannersData(); // Fetch banners in parallel
     try {
       const categoriesResponse = await fetch('/api/categories');
       if (!categoriesResponse.ok) {
@@ -247,8 +272,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchHomepageData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const activeFilter = filters.searchQuery ||
@@ -366,7 +390,7 @@ export default function Home() {
       setSelectedColorPerProduct(prev => ({ ...prev, [productId]: color }));
   };
 
-  const renderProductSection = (title: string, products: FetchedProduct[], isLoading: boolean, viewAllLink?: string, sectionId?: string) => {
+  const renderProductSection = (title: string, products: FetchedProduct[], isLoadingFlag: boolean, viewAllLink?: string, sectionId?: string) => {
     return (
       <section aria-labelledby={sectionId || title.toLowerCase().replace(/\s+/g, '-')} className="container mx-auto px-4 mb-12">
         <div className="flex justify-between items-center mb-6">
@@ -377,7 +401,7 @@ export default function Home() {
             </Button>
           )}
         </div>
-        {isLoading ? (
+        {isLoadingFlag ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(MAX_FEATURED_PRODUCTS_HOMEPAGE)].map((_, i) => (
               <Skeleton key={`skel-${title.toLowerCase()}-${i}`} className="h-[400px] w-full rounded-lg bg-muted" />
@@ -430,29 +454,53 @@ export default function Home() {
          </section>
 
         <section aria-label="Promotional Banners" className="container mx-auto px-4 mb-12 print:hidden">
-           <Carousel
+          {isBannersLoading ? (
+            <Skeleton className="w-full h-[250px] md:h-[400px] rounded-lg bg-muted" />
+          ) : bannerImages.length > 0 ? (
+            <Carousel
                 plugins={[ Autoplay({ delay: 4000, stopOnInteraction: true }) ]}
                 opts={{ loop: true }}
                 className="overflow-hidden rounded-lg shadow-lg border border-border"
-           >
+            >
                 <CarouselContent>
                     {bannerImages.map((banner, index) => (
-                        <CarouselItem key={index}>
-                            <Image
-                                src={banner.src}
-                                alt={banner.alt}
-                                width={1200}
-                                height={400}
-                                className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px] bg-muted"
-                                priority={index === 0}
-                                data-ai-hint={banner.dataAiHint}
-                            />
+                        <CarouselItem key={banner._id?.toString() || index}>
+                            {banner.linkUrl ? (
+                                <Link href={banner.linkUrl} aria-label={banner.altText}>
+                                    <Image
+                                        src={banner.imageUrl}
+                                        alt={banner.altText}
+                                        width={1200}
+                                        height={400}
+                                        className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px] bg-muted"
+                                        priority={index === 0}
+                                        data-ai-hint={banner.dataAiHint || 'promotional banner'}
+                                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/1200x400.png?text=Banner+Error'; }}
+                                    />
+                                </Link>
+                            ) : (
+                                <Image
+                                    src={banner.imageUrl}
+                                    alt={banner.altText}
+                                    width={1200}
+                                    height={400}
+                                    className="w-full h-auto object-cover max-h-[250px] md:max-h-[400px] bg-muted"
+                                    priority={index === 0}
+                                    data-ai-hint={banner.dataAiHint || 'promotional banner'}
+                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/1200x400.png?text=Banner+Error'; }}
+                                />
+                            )}
                         </CarouselItem>
                     ))}
                 </CarouselContent>
                 <CarouselPrevious className="absolute left-3 top-1/2 -translate-y-1/2 bg-background/60 hover:bg-background/90 text-foreground border-border" />
                 <CarouselNext className="absolute right-3 top-1/2 -translate-y-1/2 bg-background/60 hover:bg-background/90 text-foreground border-border" />
             </Carousel>
+           ) : (
+             <div className="w-full h-[250px] md:h-[400px] rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                No promotional banners available currently.
+             </div>
+           )}
          </section>
 
         {renderProductSection("Top Buys", topBuyProducts, isTopBuyLoading, "/products?isTopBuy=true", "top-buy-products")}
@@ -657,3 +705,4 @@ export default function Home() {
     </div>
   );
 }
+

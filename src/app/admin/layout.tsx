@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react';
@@ -17,7 +18,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, Loader2, ListOrdered } from 'lucide-react'; // Added ListOrdered for Categories
+import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, Loader2, ListOrdered, Image as ImageIcon } from 'lucide-react'; // Added ListOrdered for Categories and ImageIcon for Banners
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminLayout({
@@ -92,11 +93,19 @@ export default function AdminLayout({
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
-                         <SidebarMenuItem> {/* Categories Link */}
+                         <SidebarMenuItem>
                             <SidebarMenuButton asChild tooltip="Manage Categories">
                                 <Link href="/admin/categories">
                                     <ListOrdered />
                                     <span>Categories</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild tooltip="Manage Banners">
+                                <Link href="/admin/banners">
+                                    <ImageIcon />
+                                    <span>Banners</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
