@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import 'react-quill/dist/quill.snow.css'; // Import Quill's snow theme CSS
+import 'react-quilljs/dist/quill.snow.css'; // Import Quill's snow theme CSS from react-quilljs
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
-const ReactQuill = dynamic(() => import('react-quill'), {
+const ReactQuill = dynamic(() => import('react-quilljs'), {
   ssr: false,
   loading: () => <Skeleton className="h-[200px] w-full bg-muted rounded-md" />,
 });
@@ -35,7 +35,7 @@ const quillModules = {
     [{ 'header': [1, 2, 3, false] }],
     ['bold', 'italic', 'underline', 'strike'],
     [{'list': 'ordered'}, {'list': 'bullet'}],
-    ['link'], // Image button removed for simplicity, users can paste URLs or we can add custom upload later
+    ['link'],
     ['clean']
   ],
 };
