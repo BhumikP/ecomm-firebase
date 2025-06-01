@@ -63,7 +63,8 @@ const TableRow = React.forwardRef<
     )}
     {...props}
   >
-    {children}
+    {/* Filter out any non-element children, like whitespace text nodes */}
+    {React.Children.toArray(children).filter(child => React.isValidElement(child))}
   </tr>
 ))
 TableRow.displayName = "TableRow"
