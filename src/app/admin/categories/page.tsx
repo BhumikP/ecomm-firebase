@@ -39,15 +39,14 @@ export default function AdminCategoriesPage() {
         try {
             const response = await fetch('/api/categories');
             if (!response.ok) {
-                // Log more details if the response is not OK
                 const errorText = await response.text();
-                console.error("Failed to fetch categories. Status:", response.status, "Response:", errorText);
+                // console.error("Failed to fetch categories. Status:", response.status, "Response:", errorText); // Removed
                 throw new Error(`Failed to fetch categories. Status: ${response.status}`);
             }
             const data = await response.json();
             setCategories(Array.isArray(data.categories) ? data.categories : []);
         } catch (error: any) {
-            console.error('Error fetching categories:', error);
+            // console.error('Error fetching categories:', error); // Removed
             toast({ variant: "destructive", title: "Error", description: error.message || "Could not load categories." });
         } finally {
             setIsLoading(false);
@@ -136,7 +135,7 @@ export default function AdminCategoriesPage() {
             toast({ title: isEditing ? "Category Updated" : "Category Added", description: successMessage });
             handleCloseDialog();
         } catch (error: any) {
-            console.error("Error saving category:", error);
+            // console.error("Error saving category:", error); // Removed
             toast({ variant: "destructive", title: "Error", description: error.message || "Could not save category." });
         } finally {
             setIsDialogLoading(false);
@@ -154,7 +153,7 @@ export default function AdminCategoriesPage() {
             setCategories(prev => prev.filter(c => c._id !== categoryId));
             toast({ title: "Category Deleted", description: `Category "${categoryName}" has been removed.` });
         } catch (error: any) {
-            console.error("Error deleting category:", error);
+            // console.error("Error deleting category:", error); // Removed
             toast({ variant: "destructive", title: "Error", description: error.message || "Could not delete category." });
         } finally {
             setIsDeleting(null);

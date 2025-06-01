@@ -129,7 +129,7 @@ export default function AdminProductsPage() {
       setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
 
     } catch (error: any) {
-      console.error('Error fetching data:', error);
+      // console.error('Error fetching data:', error); // Removed
       toast({ variant: "destructive", title: "Error", description: error.message || "Could not load data." });
     } finally {
       setIsLoading(false);
@@ -375,14 +375,14 @@ export default function AdminProductsPage() {
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error("Error saving product:", errorData);
+            // console.error("Error saving product:", errorData); // Removed
             throw new Error(errorData.message || 'Failed to save product');
         }
         await fetchProductsAndCategories();
         toast({ title: isEditing ? "Product Updated" : "Product Added" });
         handleCloseDialog();
     } catch (error: any) {
-        console.error("Error in handleSaveProduct:", error);
+        // console.error("Error in handleSaveProduct:", error); // Removed
         toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
         setIsDialogLoading(false);

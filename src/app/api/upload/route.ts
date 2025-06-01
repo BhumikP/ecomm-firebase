@@ -9,7 +9,7 @@ const AWS_ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
 const AWS_SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
 
 if (!BUCKET_NAME || !S3_REGION || !AWS_ACCESS_KEY || !AWS_SECRET_KEY) {
-  console.error("AWS S3 configuration is missing in environment variables.");
+  // console.error("AWS S3 configuration is missing in environment variables."); // Removed
   // For a production app, you might want to prevent startup or return an error immediately.
 }
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, url: fileUrl }, { status: 200 });
 
   } catch (error) {
-    console.error('Error uploading file to S3:', error);
+    // console.error('Error uploading file to S3:', error); // Removed
     return NextResponse.json({ success: false, message: 'File upload failed.', error: (error as Error).message }, { status: 500 });
   }
 }

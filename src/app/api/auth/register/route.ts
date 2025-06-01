@@ -54,16 +54,16 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     // Log the detailed error for server-side debugging
-    console.error('Registration error:', error);
+    // console.error('Registration error:', error); // Removed
 
      if ((error as any).name === 'ValidationError') {
          // Log specific validation errors
-         console.error('Validation Errors:', (error as any).errors);
+         // console.error('Validation Errors:', (error as any).errors); // Removed
        return NextResponse.json({ message: 'Validation failed', errors: (error as any).errors }, { status: 400 });
      }
       // Catch potential duplicate key errors (though the initial check should prevent most)
       if ((error as any).code === 11000) {
-         console.error('Duplicate key error:', error);
+         // console.error('Duplicate key error:', error); // Removed
          return NextResponse.json({ message: 'Email already in use (duplicate key)' }, { status: 409 });
       }
 

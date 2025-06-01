@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
     return NextResponse.json({category}, { status: 200 }); // Wrap in {category: category}
   } catch (error) {
-    console.error(`Error fetching category ${id}:`, error);
+    // console.error(`Error fetching category ${id}:`, error); // Removed
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
@@ -76,7 +76,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({category: updatedCategory}, { status: 200 }); // Wrap in {category: updatedCategory}
   } catch (error: any) {
-    console.error(`Error updating category ${id}:`, error);
+    // console.error(`Error updating category ${id}:`, error); // Removed
     if (error.code === 11000) { // Duplicate key error for name
       return NextResponse.json({ message: 'Category name already exists' }, { status: 409 });
     }
@@ -114,7 +114,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ message: 'Category deleted successfully' }, { status: 200 });
   } catch (error) {
-    console.error(`Error deleting category ${id}:`, error);
+    // console.error(`Error deleting category ${id}:`, error); // Removed
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

@@ -165,7 +165,7 @@ export default function ProductDetailPage() {
                 }
 
             } catch (err: any) {
-                console.error("Failed to fetch product:", err);
+                // console.error("Failed to fetch product:", err); // Removed
                 setError(err.message || "Failed to load product details.");
                 setProduct(null);
                  document.title = `Error Loading Product | eShop Simplified`;
@@ -541,9 +541,10 @@ export default function ProductDetailPage() {
 
             <Separator className="my-4" />
             
-            <div className="mt-4 text-foreground/90 whitespace-pre-wrap">
-              {product.description || ""}
-            </div>
+            <div 
+                className="mt-4 text-foreground/90 prose prose-sm sm:prose-base dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: product.description || "" }}
+            />
 
 
             <div className="space-y-1">
