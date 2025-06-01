@@ -540,9 +540,11 @@ export default function ProductDetailPage() {
             </div>
 
             <Separator className="my-4" />
-             <div className="text-foreground/90">
-                <p>{product.description}</p>
-             </div>
+            {/* Display product description as plain text */}
+            <div className="text-foreground/90 whitespace-pre-wrap">
+                {product.description || ""}
+            </div>
+
 
             <div className="space-y-1">
                 <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
@@ -663,4 +665,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-

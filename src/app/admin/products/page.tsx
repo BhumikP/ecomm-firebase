@@ -3,14 +3,14 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-// Rich text editor (ReactQuill) related imports are removed
+// Quill (Rich Text Editor) related imports removed
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { Textarea } from "@/components/ui/textarea"; // Textarea will be used for description
+import { Textarea } from "@/components/ui/textarea"; // Reverted to Textarea
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
-// ReactQuill dynamic import and its CSS/modules/formats are removed.
+// ReactQuill dynamic import and config removed
 
 interface ProductColorFormData {
     _id?: string;
@@ -195,10 +195,7 @@ export default function AdminProductsPage() {
         const numericFields = ['price', 'discount', 'stock', 'minOrderQuantity'];
         if (name === 'features') {
              setCurrentProduct(prev => ({ ...prev as ProductFormData, features: value.split(',').map(f => f.trim()).filter(f => f) }));
-        } else if (name === 'description') { // Handle description separately for textarea
-            setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: value }));
-        }
-         else {
+        } else {
             setCurrentProduct(prev => ({
                 ...(prev as ProductFormData),
                 [name]: numericFields.includes(name) ? (value === '' ? (name === 'discount' ? null : 0) : Number(value)) : value,
@@ -207,7 +204,10 @@ export default function AdminProductsPage() {
     }
   };
 
-  // handleDescriptionChange is removed as ReactQuill is removed. Textarea uses handleInputChange.
+  // Reverted from ReactQuill change to work with Textarea event
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: e.target.value }));
+  };
 
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -475,13 +475,14 @@ export default function AdminProductsPage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
+                        {/* Reverted to Textarea */}
                         <Textarea
                             id="description"
                             name="description"
                             value={currentProduct.description}
-                            onChange={handleInputChange}
-                            className="min-h-[200px]"
+                            onChange={handleDescriptionChange}
                             placeholder="Enter product description..."
+                            className="min-h-[200px]"
                             disabled={isDialogLoading}
                         />
                     </div>
@@ -718,4 +719,3 @@ function getContrastColor(hexcolor: string | undefined): string {
     const b = parseInt(hexcolor.substring(4, 6), 16);
     return ((r * 299) + (g * 587) + (b * 114)) / 1000 >= 128 ? '#000000' : '#FFFFFF';
 }
-
