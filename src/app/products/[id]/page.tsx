@@ -1,4 +1,3 @@
-
 // src/app/products/[id]/page.tsx
 'use client';
 
@@ -15,9 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, useCallback } from 'react';
 import type { IProduct, IProductColor } from '@/models/Product';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
-import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; // Import LoginPromptDialog
+import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; 
 
 interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
@@ -25,7 +24,7 @@ interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   colors: PopulatedProductColor[];
   thumbnailUrl: string;
   minOrderQuantity: number;
-  numRatings: number; // Added for display
+  numRatings: number; 
 }
 
 interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
@@ -37,6 +36,7 @@ interface PopulatedProductColor extends Omit<IProductColor, '_id'> {
 export default function ProductDetailPage() {
    const params = useParams();
    const id = typeof params?.id === 'string' ? params.id : null;
+   const nextRouter = useRouter(); // Renamed to avoid conflict with router prop if any
 
    const { toast } = useToast();
    const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -49,13 +49,13 @@ export default function ProductDetailPage() {
    const [quantityInput, setQuantityInput] = useState("1");
    
    const [isAddingToCart, setIsAddingToCart] = useState(false);
-   const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false); // State for login prompt
+   const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false); 
 
    // Rating state
    const [isLoggedIn, setIsLoggedIn] = useState(false);
    const [userId, setUserId] = useState<string | null>(null);
-   const [userRating, setUserRating] = useState(0); // User's current rating selection
-   const [hoverRating, setHoverRating] = useState(0); // For star hover effect
+   const [userRating, setUserRating] = useState(0); 
+   const [hoverRating, setHoverRating] = useState(0); 
    const [isSubmittingRating, setIsSubmittingRating] = useState(false);
    const [averageRatingDisplay, setAverageRatingDisplay] = useState<number | null>(null);
    const [numRatingsDisplay, setNumRatingsDisplay] = useState<number | null>(null);
@@ -234,6 +234,7 @@ export default function ProductDetailPage() {
             title: "Added to Cart",
             description: `${quantity} x ${itemToAdd} has been added to your cart.`,
         });
+        nextRouter.push('/cart'); // Redirect to cart page
     } catch (error: any) {
         toast({
             variant: "destructive",
@@ -298,12 +299,11 @@ export default function ProductDetailPage() {
                 throw new Error(data.message || "Failed to submit rating.");
             }
             toast({ title: "Rating Submitted", description: "Thank you for your feedback!" });
-            // Update displayed rating
             if (data.updatedProduct) {
                 setAverageRatingDisplay(data.updatedProduct.rating);
                 setNumRatingsDisplay(data.updatedProduct.numRatings);
             }
-            setUserRating(0); // Reset user's selection
+            setUserRating(0); 
         } catch (err: any) {
             toast({ variant: "destructive", title: "Rating Failed", description: err.message });
         } finally {

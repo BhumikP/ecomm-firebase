@@ -8,92 +8,99 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft } from 'lucide-react'; // Import icon
+import { ArrowLeft, Loader2, PackageOpen } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import type { IOrder, OrderItem as OrderItemType } from '@/models/Order'; // Use IOrder from model
 
-// Mock Order Data Structure
-interface OrderItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
+interface FetchedOrderItem extends Omit<OrderItemType, 'productId'> {
+  productId: {
+    _id: string;
+    title: string;
+    thumbnailUrl?: string; // Assuming product might have this
+  } | string; // Can be populated or just ID string
 }
 
-interface Order {
-  id: string;
-  date: string;
-  total: number;
-  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
-  items: OrderItem[];
+interface FetchedOrder extends Omit<IOrder, 'items' | 'userId' | '_id'> {
+  _id: string; // Ensure _id is string
+  userId: string; // Assuming userId will be string after population or direct
+  items: FetchedOrderItem[];
 }
-
-// Mock Order Data
-const mockOrders: Order[] = [
-  {
-    id: 'ORD-1001',
-    date: '2024-03-10',
-    total: 105.98,
-    status: 'Delivered',
-    items: [
-      { productId: '1', productName: 'Stylish T-Shirt', quantity: 1, price: 25.99 },
-      { productId: '2', productName: 'Wireless Headphones', quantity: 1, price: 79.99 },
-    ],
-  },
-   {
-    id: 'ORD-1002',
-    date: '2024-03-15',
-    total: 47.25,
-    status: 'Shipped',
-    items: [
-        { productId: '3', productName: 'Coffee Maker', quantity: 1, price: 45.00 * 0.95 }, // Assuming 5% discount applied
-    ],
-  },
-   {
-    id: 'ORD-1003',
-    date: '2024-03-18',
-    total: 120.00 * 0.85, // Assuming 15% discount applied
-    status: 'Processing',
-    items: [
-      { productId: '4', productName: 'Running Shoes', quantity: 1, price: 120.00 * 0.85 },
-    ],
-  },
-];
 
 const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 export default function OrderHistoryPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<FetchedOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate fetching order data for the logged-in user
+    const userDataString = localStorage.getItem('userData');
+    if (userDataString) {
+      try {
+        const userData = JSON.parse(userDataString);
+        setUserId(userData._id);
+      } catch (e) {
+        setError("Failed to load user data. Please log in again.");
+        setIsLoading(false);
+      }
+    } else {
+      setError("Please log in to view your order history.");
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+        if (!error && isLoading) setIsLoading(false); // Stop loading if no userId and no prior error
+        return;
+    }
+
     const fetchOrders = async () => {
       setIsLoading(true);
-      // Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 700)); // Simulate delay
-      setOrders(mockOrders); // Use mock data
-      setIsLoading(false);
+      setError(null);
+      try {
+        const response = await fetch(`/api/orders?userId=${userId}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch orders');
+        }
+        const data = await response.json();
+        setOrders(data.orders as FetchedOrder[]);
+      } catch (err: any) {
+        setError(err.message || "Could not load order history.");
+        setOrders([]);
+        toast({ variant: "destructive", title: "Load Error", description: err.message });
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchOrders();
-  }, []);
+  }, [userId, toast]);
 
-  const getStatusBadgeVariant = (status: Order['status']) => {
+  const getStatusBadgeVariant = (status: FetchedOrder['status']) => {
     switch (status) {
-      case 'Delivered': return 'default'; // Consider a success variant if added
+      case 'Delivered': return 'default';
       case 'Shipped': return 'secondary';
-      case 'Processing': return 'outline'; // Consider a warning/info variant
+      case 'Processing': return 'outline';
+      case 'Pending': return 'outline';
+      case 'Payment Failed': return 'destructive';
       case 'Cancelled': return 'destructive';
       default: return 'outline';
     }
   };
-   const getStatusBadgeColor = (status: Order['status']) => {
+   const getStatusBadgeColor = (status: FetchedOrder['status']) => {
      switch (status) {
        case 'Delivered': return 'bg-green-100 text-green-800 border-green-200';
        case 'Shipped': return 'bg-blue-100 text-blue-800 border-blue-200';
        case 'Processing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-       case 'Cancelled': return 'bg-red-100 text-red-800 border-red-200';
+       case 'Pending': return 'bg-orange-100 text-orange-800 border-orange-200';
+       case 'Payment Failed': return 'bg-red-100 text-red-800 border-red-200';
+       case 'Cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
        default: return '';
      }
    };
@@ -115,7 +122,7 @@ export default function OrderHistoryPage() {
         <CardContent>
           {isLoading ? (
             <div className="space-y-4">
-                 {[...Array(3)].map((_, i) => ( // Skeleton rows
+                 {[...Array(3)].map((_, i) => ( 
                     <div key={i} className="flex justify-between items-center p-4 border rounded-md">
                        <div className="space-y-2">
                          <Skeleton className="h-5 w-24" />
@@ -128,11 +135,13 @@ export default function OrderHistoryPage() {
                     </div>
                  ))}
             </div>
+          ) : error ? (
+             <p className="text-center py-10 text-destructive">{error}</p>
           ) : orders.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">Order ID</TableHead>
+                  <TableHead className="w-[150px]">Order ID</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
@@ -141,9 +150,9 @@ export default function OrderHistoryPage() {
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                  <TableRow key={order._id}>
+                    <TableCell className="font-medium">{order.orderId}</TableCell>
+                    <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeColor(order.status)}>
                         {order.status}
@@ -152,22 +161,25 @@ export default function OrderHistoryPage() {
                     <TableCell className="text-right">₹{formatCurrency(order.total)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" asChild>
-                         {/* Link to a detailed order page (implement later) */}
-                         <Link href={`/account/orders/${order.id}`}>View Details</Link>
+                         <Link href={`/account/orders/${order._id}`}>View Details</Link>
                        </Button>
-                       {/* Add other actions like 'Reorder' or 'Track Shipment' if applicable */}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
-            <p className="text-center text-muted-foreground py-10">You haven't placed any orders yet.</p>
+            <div className="text-center py-10">
+                <PackageOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-semibold text-foreground">No Orders Yet</p>
+                <p className="text-muted-foreground">You haven't placed any orders. Start shopping to see them here!</p>
+                <Button asChild className="mt-4">
+                    <Link href="/">Start Shopping</Link>
+                </Button>
+            </div>
           )}
         </CardContent>
       </Card>
-      {/* Add pagination if needed */}
     </div>
   );
 }
-

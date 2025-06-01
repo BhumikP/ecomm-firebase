@@ -1,4 +1,3 @@
-
 // src/app/(store)/page.tsx
 'use client';
 
@@ -36,7 +35,8 @@ import type { ICategory } from '@/models/Category';
 import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
 import type { IBanner } from '@/models/Banner';
 import { ScrollingH1AnnouncementBar } from '@/components/layout/scrolling-h1-announcement-bar';
-import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; // Import LoginPromptDialog
+import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog';
+import { useRouter } from 'next/navigation';
 
 
 interface FilterState {
@@ -74,6 +74,7 @@ const DEFAULT_MAX_PRICE = 50000;
 
 export default function Home() {
   const { toast } = useToast();
+  const router = useRouter();
 
   const [filteredProducts, setFilteredProducts] = useState<FetchedProduct[]>([]);
   const [isFilteredLoading, setIsFilteredLoading] = useState(false);
@@ -97,7 +98,7 @@ export default function Home() {
   const [selectedColorPerProduct, setSelectedColorPerProduct] = useState<Record<string, IProductColor | undefined>>({});
 
   const [availableCategoriesAndSubcategories, setAvailableCategoriesAndSubcategories] = useState<ICategory[]>([]);
-  const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false); // State for login prompt
+  const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false); 
 
   const initialFilterCategoriesState = useMemo(() => {
     const cats: { [key: string]: boolean } = {};
@@ -137,7 +138,7 @@ export default function Home() {
       minOrderQuantity: p.minOrderQuantity || 1,
       isTopBuy: p.isTopBuy || false,
       isNewlyLaunched: p.isNewlyLaunched || false,
-      numRatings: p.numRatings || 0, // Ensure numRatings is present
+      numRatings: p.numRatings || 0, 
     }));
   };
 
@@ -290,7 +291,6 @@ export default function Home() {
     setIsAddingToCart(prev => ({ ...prev, [productId]: true }));
 
     const userDataString = localStorage.getItem('userData');
-    // This check is somewhat redundant due to isLoggedIn check, but good for robustness
     if (!userDataString) {
         toast({ variant: "destructive", title: "Please Log In", description: "You need to be logged in to add items to your cart." });
         setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
@@ -330,6 +330,7 @@ export default function Home() {
             title: "Added to Cart",
             description: `${itemToAdd} (Qty: ${quantity}) has been added.`,
         });
+        router.push('/cart'); // Redirect to cart page
     } catch (error: any) {
         toast({
             variant: "destructive",
