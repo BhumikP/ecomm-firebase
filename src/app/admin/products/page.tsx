@@ -3,15 +3,15 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import dynamic from 'next/dynamic';
-import 'react-quilljs/dist/quill.snow.css'; // Import Quill's snow theme CSS from react-quilljs
+// import dynamic from 'next/dynamic'; // Commented out dynamic import for ReactQuill
+// import 'react-quilljs/dist/quill.snow.css'; // Commented out Quill's snow theme CSS
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@/components/ui/textarea"; // Ensure Textarea is imported
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
+/* Commented out ReactQuill related code
 const ReactQuill = dynamic(() => import('react-quilljs'), {
   ssr: false,
   loading: () => <Skeleton className="h-[200px] w-full bg-muted rounded-md" />,
@@ -46,7 +47,7 @@ const quillFormats = [
   'list', 'bullet',
   'link',
 ];
-
+*/
 
 interface ProductColorFormData {
     _id?: string;
@@ -71,7 +72,7 @@ type ProductFormData = Omit<IProduct, 'category' | 'createdAt' | 'updatedAt' | '
 interface FetchedProduct extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
   category: ICategory;
-  colors: IProductColor[]; 
+  colors: IProductColor[];
   minOrderQuantity: number;
   thumbnailUrl: string;
   isTopBuy?: boolean;
@@ -106,7 +107,7 @@ export default function AdminProductsPage() {
   const [isDialogLoading, setIsDialogLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
-  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({}); 
+  const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({});
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
 
@@ -169,10 +170,10 @@ export default function AdminProductsPage() {
         ...product,
         _id: product._id.toString(),
         category: categoryId,
-        thumbnailUrl: product.thumbnailUrl, 
+        thumbnailUrl: product.thumbnailUrl,
         features: product.features || [],
         colors: (product.colors || []).map(c => ({
-            _id: c._id?.toString(), 
+            _id: c._id?.toString(),
             name: c.name,
             hexCode: c.hexCode,
             imageUrls: c.imageUrls || [],
@@ -206,7 +207,7 @@ export default function AdminProductsPage() {
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    
+
     if (type === 'checkbox') {
         const { checked } = e.target as HTMLInputElement;
          setCurrentProduct(prev => ({
@@ -226,9 +227,11 @@ export default function AdminProductsPage() {
     }
   };
 
+  /* Commented out handleDescriptionChange as it's specific to Quill
   const handleDescriptionChange = (value: string) => {
     setCurrentProduct(prev => ({ ...(prev as ProductFormData), description: value }));
   };
+  */
 
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -272,7 +275,7 @@ export default function AdminProductsPage() {
 
     const productData = currentProduct as ProductFormData;
     const newImageUrls: string[] = [];
-    
+
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const uploadKey = `${colorIndex}-new-${productData.colors[colorIndex].imageUrls.length + i}`;
@@ -383,8 +386,8 @@ export default function AdminProductsPage() {
     if (isEditing && productData._id) {
         finalPayload = { ...productToSave };
         if (productData._id) finalPayload._id = productData._id;
-    } else { 
-        const { _id, ...restOfProductToSave } = productToSave; 
+    } else {
+        const { _id, ...restOfProductToSave } = productToSave;
         finalPayload = restOfProductToSave;
     }
 
@@ -439,7 +442,7 @@ export default function AdminProductsPage() {
                 const errorData = await response.json();
                 throw new Error(errorData.message || `Failed to update ${statusType} status`);
             }
-            await fetchProductsAndCategories(); 
+            await fetchProductsAndCategories();
             toast({ title: "Success", description: `Product ${!currentValue ? 'marked as' : 'removed from'} ${statusType === 'isTopBuy' ? 'Top Buy' : 'Newly Launched'}.` });
         } catch (error: any) {
             toast({ variant: "destructive", title: "Error", description: error.message });
@@ -485,7 +488,7 @@ export default function AdminProductsPage() {
                     <div className="space-y-2"><Label htmlFor="price">Price (₹) <span className="text-destructive">*</span></Label><Input id="price" name="price" type="number" step="0.01" min="0" value={currentProduct.price ?? ''} onChange={handleInputChange} disabled={isDialogLoading}/></div>
                     <div className="space-y-2"><Label htmlFor="discount">Discount (%)</Label><Input id="discount" name="discount" type="number" min="0" max="100" value={currentProduct.discount ?? ''} onChange={handleInputChange} placeholder="e.g., 10" disabled={isDialogLoading}/></div>
                     <div className="space-y-2"><Label htmlFor="minOrderQuantity">Min Order Qty <span className="text-destructive">*</span></Label><Input id="minOrderQuantity" name="minOrderQuantity" type="number" min="1" step="1" value={currentProduct.minOrderQuantity ?? 1} onChange={handleInputChange} disabled={isDialogLoading}/></div>
-                    
+
                     {(!currentProduct.colors || currentProduct.colors.length === 0) && (
                         <div className="space-y-2">
                             <Label htmlFor="stock">Overall Stock <span className="text-destructive">*</span></Label>
@@ -496,20 +499,19 @@ export default function AdminProductsPage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
-                        <div className="bg-background rounded-md border border-input">
-                           <ReactQuill
-                              theme="snow"
-                              value={currentProduct.description}
-                              onChange={handleDescriptionChange}
-                              modules={quillModules}
-                              formats={quillFormats}
-                              className="min-h-[200px]"
-                              readOnly={isDialogLoading}
-                           />
-                        </div>
+                        {/* Reverted to Textarea due to ReactQuill installation issues */}
+                        <Textarea
+                            id="description"
+                            name="description"
+                            value={currentProduct.description}
+                            onChange={handleInputChange}
+                            className="min-h-[200px]"
+                            placeholder="Enter product description..."
+                            disabled={isDialogLoading}
+                        />
                     </div>
                     <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Textarea id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} className="min-h-[80px]" placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
-                    
+
                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox
                             id="isTopBuy"
@@ -547,7 +549,7 @@ export default function AdminProductsPage() {
                              <Button type="button" variant="outline" size="sm" onClick={handleAddColor} disabled={isDialogLoading}><PlusCircle className="mr-2 h-4 w-4" /> Add Variant</Button>
                         </div>
                         <p className="text-xs text-muted-foreground">Add color variants. If added, "Overall Stock" is ignored and total stock will be sum of variant stocks. Each color variant needs at least one image and stock quantity.</p>
-                        
+
                         {currentProduct.colors.map((color, colorIndex) => (
                             <div key={color._id || colorIndex} className="space-y-3 border p-3 rounded-md">
                                 <div className="flex justify-between items-center">
@@ -565,7 +567,7 @@ export default function AdminProductsPage() {
                                         <Input type="color" value={color.hexCode || '#000000'} onChange={(e) => handleColorFieldChange(colorIndex, 'hexCode', e.target.value)} className="p-0 h-8 w-8 rounded-md" disabled={isDialogLoading}/>
                                     </div>
                                 </div>
-                                
+
                                 <div className="space-y-2">
                                     <Label className="text-xs">Images for this Color <span className="text-destructive">*</span></Label>
                                     <div className="grid grid-cols-3 gap-2 mb-2">
@@ -580,7 +582,7 @@ export default function AdminProductsPage() {
                                     {Object.keys(uploadingColorImages).some(key => key.startsWith(`${colorIndex}-new`) && uploadingColorImages[key]) && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                                      <p className="text-xs text-muted-foreground">Upload one or more images for this color variant.</p>
                                 </div>
-                                
+
                                 <div className="space-y-2">
                                     <Label htmlFor={`colorStock-${colorIndex}`} className="text-xs">Stock for this color <span className="text-destructive">*</span></Label>
                                     <Input id={`colorStock-${colorIndex}`} type="number" min="0" step="1" value={color.stock ?? ''} onChange={(e) => handleColorFieldChange(colorIndex, 'stock', parseInt(e.target.value, 10))} placeholder="Enter stock" disabled={isDialogLoading}/>
