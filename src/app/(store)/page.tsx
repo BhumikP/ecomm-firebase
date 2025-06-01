@@ -1,3 +1,4 @@
+
 // src/app/(store)/page.tsx
 'use client';
 
@@ -34,6 +35,7 @@ import type { IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
 import type { IBanner } from '@/models/Banner';
+import { ScrollingH1AnnouncementBar } from '@/components/layout/scrolling-h1-announcement-bar';
 
 
 interface FilterState {
@@ -435,6 +437,8 @@ export default function Home() {
            </div>
        </section>
 
+      <ScrollingH1AnnouncementBar text="🎉 Grand Opening Sale! Up to 50% OFF on selected items. Limited time offer! 🎉" className="mb-8" />
+
       <section aria-label="Promotional Banners" className="container mx-auto px-4 mb-12 print:hidden">
         {isBannersLoading ? (
           <Skeleton className="w-full h-[250px] md:h-[400px] rounded-lg bg-muted" />
@@ -682,3 +686,4 @@ export default function Home() {
     </>
   );
 }
+

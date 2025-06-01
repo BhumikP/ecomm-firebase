@@ -94,3 +94,40 @@ body {
     flex-grow: 1;
   }
 }
+
+/* Scrolling H1 Announcement Bar */
+.scrolling-h1-container {
+  width: 100%;
+  overflow: hidden; /* Clips the content outside the container */
+  background-color: hsl(var(--secondary)); /* Theme background */
+  color: hsl(var(--secondary-foreground)); /* Theme foreground */
+  padding: 0.5rem 0; /* Vertical padding for the bar */
+}
+
+.scrolling-h1-text {
+  display: inline-block; /* Allows the text to be treated as a block for animation */
+  white-space: nowrap; /* Keeps the H1 content on a single line */
+  animation: scroll-left-h1 20s linear infinite; /* Adjust duration for speed */
+  padding-left: 100%; /* Starts the text off-screen to the right */
+}
+
+.scrolling-h1-text h1 {
+  font-size: 1.25rem; /* Tailwind text-xl */
+  line-height: 1.75rem; /* Tailwind text-xl */
+  font-weight: 600; /* Tailwind semibold */
+  margin: 0; /* Remove default H1 margins */
+  display: inline-block; /* Ensures it respects white-space: nowrap */
+  vertical-align: middle; /* Better vertical alignment within the bar */
+}
+
+@keyframes scroll-left-h1 {
+  0% {
+    transform: translateX(0%); /* Text is off-screen to the right due to padding-left */
+  }
+  100% {
+    transform: translateX(-250%); /* Scrolls the text (padding + content) to the left.
+                                     Adjust if text is extremely long or short.
+                                     This value should be -(100% for padding + 100% for text itself + some buffer)
+                                     A value like -250% or more usually ensures it scrolls completely off. */
+  }
+}
