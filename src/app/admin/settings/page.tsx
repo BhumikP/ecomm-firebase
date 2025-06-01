@@ -18,9 +18,9 @@ interface StoreSettings {
   supportEmail: string;
   taxPercentage: number;
   shippingCharge: number;
-  announcementText?: string;
-  announcementLink?: string;
-  isAnnouncementActive?: boolean;
+  announcementText: string; // Ensure it's not optional for consistent state handling
+  announcementLink: string; // Ensure it's not optional
+  isAnnouncementActive: boolean; // Ensure it's not optional
 }
 
 const defaultSettingsState: StoreSettings = {
@@ -61,11 +61,15 @@ export default function AdminSettingsPage() {
                     announcementLink: data.settings.announcementLink ?? defaultSettingsState.announcementLink,
                     isAnnouncementActive: data.settings.isAnnouncementActive ?? defaultSettingsState.isAnnouncementActive,
                 });
+            } else {
+                // If data.settings is null/undefined, initialize with defaults
+                setSettings(defaultSettingsState);
             }
         } catch (error: any) {
             console.error("Failed to fetch settings:", error);
             toast({ variant: "destructive", title: "Load Error", description: error.message || "Could not load store settings."});
             // Keep default settings on error
+            setSettings(defaultSettingsState);
         } finally {
             setIsPageLoading(false);
         }
@@ -93,10 +97,21 @@ export default function AdminSettingsPage() {
   const handleSaveChanges = async () => {
     setIsLoading(true);
     try {
+      // Ensure all parts of settings state are sent, even if empty or default
+      const payloadToSave: StoreSettings = {
+        storeName: settings.storeName,
+        supportEmail: settings.supportEmail,
+        taxPercentage: Number(settings.taxPercentage) || 0,
+        shippingCharge: Number(settings.shippingCharge) || 0,
+        announcementText: settings.announcementText || '', // Send empty string if undefined/null
+        announcementLink: settings.announcementLink || '', // Send empty string
+        isAnnouncementActive: settings.isAnnouncementActive || false, // Send false if undefined/null
+      };
+
       const response = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payloadToSave),
       });
        const result = await response.json();
       if (!response.ok) {
@@ -107,7 +122,15 @@ export default function AdminSettingsPage() {
         description: "Your store settings have been updated successfully.",
       });
       if (result.settings) { // Update state with potentially validated/formatted data from backend
-         setSettings(result.settings);
+         setSettings({
+            storeName: result.settings.storeName ?? defaultSettingsState.storeName,
+            supportEmail: result.settings.supportEmail ?? defaultSettingsState.supportEmail,
+            taxPercentage: result.settings.taxPercentage ?? defaultSettingsState.taxPercentage,
+            shippingCharge: result.settings.shippingCharge ?? defaultSettingsState.shippingCharge,
+            announcementText: result.settings.announcementText ?? defaultSettingsState.announcementText,
+            announcementLink: result.settings.announcementLink ?? defaultSettingsState.announcementLink,
+            isAnnouncementActive: result.settings.isAnnouncementActive ?? defaultSettingsState.isAnnouncementActive,
+         });
       }
     } catch (error: any) {
       console.error("Error saving settings:", error);
@@ -232,7 +255,7 @@ export default function AdminSettingsPage() {
             <Textarea
               id="announcementText"
               name="announcementText"
-              value={settings.announcementText || ''}
+              value={settings.announcementText} // Direct binding to state
               onChange={handleInputChange}
               placeholder="e.g., 🎉 Free shipping on orders over ₹500! 🎉"
               disabled={isLoading}
@@ -244,7 +267,7 @@ export default function AdminSettingsPage() {
             <Input
               id="announcementLink"
               name="announcementLink"
-              value={settings.announcementLink || ''}
+              value={settings.announcementLink} // Direct binding to state
               onChange={handleInputChange}
               placeholder="e.g., /products/new-arrivals"
               disabled={isLoading}
@@ -255,7 +278,7 @@ export default function AdminSettingsPage() {
             <Switch
               id="isAnnouncementActive"
               name="isAnnouncementActive"
-              checked={settings.isAnnouncementActive || false}
+              checked={settings.isAnnouncementActive} // Direct binding to state
               onCheckedChange={(checked) => handleSwitchChange(checked, 'isAnnouncementActive')}
               disabled={isLoading}
             />
