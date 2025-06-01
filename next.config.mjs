@@ -19,7 +19,7 @@ const nextConfig = defineNextConfig({
     ignoreDuringBuilds: true,
   },
   images: {
-    remotePatterns: [
+    remotePatterns: [``
       {
         protocol: 'https',
         hostname: 'picsum.photos',
@@ -31,6 +31,12 @@ const nextConfig = defineNextConfig({
         hostname: 'eshop-test1.s3.ap-south-1.amazonaws.com',
         port: '',
         pathname: '/**', // Allow all paths within this bucket
+      },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co', // Ensuring this entry is present and correct
+        port: '',
+        pathname: '/**',
       },
     ],
   },
