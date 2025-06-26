@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     if (!cart || cart.items.length === 0) {
       return NextResponse.json({ message: 'Your cart is empty.' }, { status: 400 });
     }
-    
+
     const settings = await Setting.findOne({ configKey: 'global_settings' });
     const taxPercentage = settings?.taxPercentage || 0;
     const shippingCharge = settings?.shippingCharge || 0;
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       shippingCost: shippingCharge,
       taxAmount,
     });
-
+    
     const options = {
       amount: Math.round(totalAmount * 100),
       currency: 'INR',
