@@ -7,6 +7,7 @@ import Transaction, { ITransaction } from '@/models/Transaction'; // Import Tran
 import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
+import Cart from '@/models/Cart';
 
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
@@ -115,6 +116,10 @@ export async function POST(req: NextRequest) {
         
         // Create order since this is the source of truth
         await createOrderFromTransaction(transaction, session);
+
+        // Clear the user's cart after successful order creation
+        await Cart.deleteOne({ userId: transaction.userId }).session(session);
+        console.log(`Cart for user ${transaction.userId} cleared after successful payment via webhook.`);
       }
     } else if (event.event === 'payment.failed') {
         if (transaction.status !== 'Success') {

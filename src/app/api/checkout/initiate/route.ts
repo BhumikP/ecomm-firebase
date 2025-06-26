@@ -70,9 +70,6 @@ export async function POST(req: NextRequest) {
     });
     await newTransaction.save();
     
-    // Clear cart after initiating transaction
-    await Cart.findByIdAndDelete(cart._id);
-    
     return NextResponse.json({
       success: true,
       message: 'Transaction initiated',
