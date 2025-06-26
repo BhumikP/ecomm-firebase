@@ -7,6 +7,7 @@ import { verifyPaymentSignature } from '@/lib/razorpay';
 import { v4 as uuidv4 } from 'uuid';
 import mongoose from 'mongoose';
 import Setting from '@/models/Setting'; // Import Setting model
+import Cart from '@/models/Cart'; // Import Cart model for deletion
 
 export async function POST(req: NextRequest) {
   await connectDb();
@@ -71,6 +72,11 @@ export async function POST(req: NextRequest) {
         taxAmount: taxAmount,
     });
     await newOrder.save();
+    
+    // Clear the user's cart for immediate UI feedback.
+    await Cart.deleteOne({ userId: transaction.userId });
+    console.log(`Cart for user ${transaction.userId} cleared after successful payment verification.`);
+
 
     // NOTE: Stock reduction should be handled definitively by the webhook to prevent race conditions.
     // This API provides a fast response to the user, but the webhook is the ultimate source of truth.
