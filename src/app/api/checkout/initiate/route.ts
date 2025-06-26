@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       message: 'Order initiated',
       order: newOrder,
       razorpayOrder,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+      razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     }, { status: 200 });
 
   } catch (error: any) {
