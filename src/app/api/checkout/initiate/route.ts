@@ -1,3 +1,4 @@
+
 // src/app/api/checkout/initiate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
@@ -50,15 +51,7 @@ export async function POST(req: NextRequest) {
     const taxAmount = subtotal * (taxPercentage / 100);
     const totalAmount = subtotal + taxAmount + shippingCharge;
     
-    // Create Razorpay order
-    const options = {
-      amount: Math.round(totalAmount * 100), // amount in smallest currency unit
-      currency: 'INR',
-      receipt: `receipt_user_${userId}_${Date.now()}`,
-    };
-    const razorpayOrder = await razorpayInstance.orders.create(options);
-
-    // Create a new Transaction document in our DB
+    // Step 1: Create a pending transaction record in our DB first
     const newTransaction = new Transaction({
         userId,
         items: transactionItems,
@@ -66,8 +59,20 @@ export async function POST(req: NextRequest) {
         amount: totalAmount,
         currency: 'INR',
         status: 'Pending',
-        razorpay_order_id: razorpayOrder.id,
+        // razorpay_order_id will be added after creating the Razorpay order
     });
+    await newTransaction.save();
+
+    // Step 2: Create Razorpay order using our transaction ID as the receipt
+    const options = {
+      amount: Math.round(totalAmount * 100), // amount in smallest currency unit
+      currency: 'INR',
+      receipt: newTransaction._id.toString(), // Use internal transaction ID as receipt
+    };
+    const razorpayOrder = await razorpayInstance.orders.create(options);
+
+    // Step 3: Update our transaction record with the Razorpay order ID
+    newTransaction.razorpay_order_id = razorpayOrder.id;
     await newTransaction.save();
     
     return NextResponse.json({
@@ -80,6 +85,10 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error initiating checkout:', error);
+    // Provide the specific Razorpay error back to the client if it exists
+    if (error.statusCode === 400 && error.error) {
+       return NextResponse.json({ message: `Error initiating checkout: ${error.error.description}`, error: error }, { status: 400 });
+    }
     return NextResponse.json({ message: 'Internal server error.', error: error.message }, { status: 500 });
   }
 }
