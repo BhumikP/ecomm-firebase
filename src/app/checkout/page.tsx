@@ -1,7 +1,7 @@
 // src/app/checkout/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -20,6 +20,8 @@ import type { ICart, ICartItem } from '@/models/Cart';
 import type { IProduct } from '@/models/Product';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+
 
 const addressSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -54,22 +56,10 @@ export default function CheckoutPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
+
 
   const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
 
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressSchema),
@@ -84,6 +74,8 @@ export default function CheckoutPage() {
       const userData = JSON.parse(userDataString);
       setUserId(userData._id);
       form.setValue('name', userData.name || '');
+      form.setValue('phone', userData.phone || ''); // Assuming user model might have phone
+      setUserEmail(userData.email || ''); // Get user email for prefill
     } else {
       router.push('/auth/login?redirect=/checkout');
     }
@@ -114,119 +106,93 @@ export default function CheckoutPage() {
 
   const subtotal = cart?.items.reduce((acc, item) => acc + item.priceSnapshot * item.quantity, 0) || 0;
 
-  const handlePayment = async (item: any) => {
-    // if (!user || !token) {
-    //   toast({ title: "Authentication Error", description: "Please log in to make a payment.", variant: "destructive" });
-    //   return;
-    // }
-    if (!RAZORPAY_KEY_ID) {
-        toast({ title: "Payment Error", description: "Payment gateway is not configured. Please contact support.", variant: "destructive" });
-        console.warn("Razorpay Key ID not found, mocking payment process for dev.");
-        try {
-             await fetch('/api/payments/verify-monthly-payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                    razorpay_payment_id: `mock_pay_${Date.now()}`,
-                    razorpay_order_id: `mock_order_${Date.now()}`,
-                    razorpay_signature: 'mock_signature',
-                    year: item.year,
-                    month: item.month,
-                }),
-            });
-            toast({ title: "Payment Processed (Mocked)", description: `Payment for ${item.period} has been recorded as successful.`});
-        } catch (verificationError: any) {
-             toast({ title: "Mock Payment Error", description: verificationError.message, variant: "destructive" });
-        }
+  const processOrder = async (shippingAddress: AddressFormValues) => {
+    setIsProcessing(true);
+    if (!userId) {
+        toast({ title: "Error", description: "User session not found. Please log in again.", variant: "destructive" });
+        setIsProcessing(false);
+        return;
+    }
+     if (!RAZORPAY_KEY_ID) {
+        toast({ title: "Configuration Error", description: "Payment gateway is not configured. Please contact support.", variant: "destructive" });
+        setIsProcessing(false);
         return;
     }
 
-    const scriptLoaded = await loadRazorpayScript();
-    if (!scriptLoaded) {
-      toast({ title: "Payment Error", description: "Could not load payment gateway. Please try again.", variant: "destructive" });
-      return;
-    }
-
-    let rzpOrderId = ''; 
-
     try {
-      const createOrderResponse = await fetch('/api/checkout/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: item.totalAmount,
-          currency: item.currency,
-        }),
-      });
-      const orderData = await createOrderResponse.json();
+        // Step 1: Initiate order creation in our DB and with Razorpay
+        const initiateResponse = await fetch('/api/checkout/initiate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, shippingAddress }),
+        });
+        const orderData = await initiateResponse.json();
 
-      if (!createOrderResponse.ok || !orderData.razorpayOrderId) {
-        throw new Error(orderData.message || "Failed to create Razorpay order.");
-      }
-      
-      rzpOrderId = orderData.razorpayOrderId;
-
-      const options = {
-        key: RAZORPAY_KEY_ID,
-        amount: orderData.amount, 
-        currency: orderData.currency,
-        name: "Ecommerce Store", 
-        description: `Ecommerce Store `, 
-        order_id: orderData.razorpayOrderId,
-        handler: async function (response: any) {
-          try {
-            const verifyResponse = await fetch('/api/checkout/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-                year: item.year,
-                month: item.month,
-              }),
-            });
-            const verificationResult = await verifyResponse.json();
-            if (verifyResponse.ok) {
-              toast({ title: "Payment Successful", description: `Payment for ${item.period} confirmed. ${verificationResult.message}` });
-            } else {
-              throw new Error(verificationResult.message || "Payment verification failed.");
-            }
-          } catch (verificationError: any) {
-            toast({ title: "Payment Verification Error", description: verificationError.message, variant: "destructive" });
-          }
-        },
-        prefill: {
-          name: user.name,
-          email: user.email,
-        },
-        theme: {
-          color: "#008080", 
-        },
-        modal: {
-          ondismiss: async function() {
-            toast({ title: "Payment Cancelled", description: "The payment process was cancelled by you.", variant: "default" });
-            if (rzpOrderId) {
-              try {
-                await fetch('/api/payments/cancel-monthly-payment', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ razorpay_order_id: rzpOrderId }),
-                });
-                console.log("Payment cancellation reported to backend for order:", rzpOrderId);
-              } catch (cancelError: any) {
-                console.error("Failed to report payment cancellation:", cancelError);
-              }
-            }
-          }
+        if (!initiateResponse.ok) {
+            throw new Error(orderData.message || "Failed to initiate order.");
         }
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (paymentError: any) {
-      toast({ title: "Payment Initiation Error", description: paymentError.message, variant: "destructive" });
+
+        const { order: dbOrder, razorpayOrder } = orderData;
+
+        // Step 2: Launch Razorpay Modal
+        const options = {
+            key: RAZORPAY_KEY_ID,
+            amount: razorpayOrder.amount,
+            currency: razorpayOrder.currency,
+            name: "eShop Simplified",
+            description: `Order #${dbOrder.orderId}`,
+            order_id: razorpayOrder.id,
+            handler: async function (response: any) {
+                // Step 3: Verify payment on client-side for immediate feedback
+                const verifyResponse = await fetch('/api/payments/verify-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature,
+                    }),
+                });
+                const verificationResult = await verifyResponse.json();
+                if (verifyResponse.ok && verificationResult.success) {
+                    toast({ title: "Payment Successful!", description: `Order ${dbOrder.orderId} is being processed.`});
+                    router.push(`/payment/success?order_id=${dbOrder.orderId}`);
+                } else {
+                     toast({ title: "Payment Verification Failed", description: verificationResult.message || "Please contact support.", variant: "destructive" });
+                    router.push(`/payment/failure?order_id=${dbOrder.orderId}`);
+                }
+            },
+            prefill: {
+                name: shippingAddress.name,
+                email: userEmail,
+                contact: shippingAddress.phone,
+            },
+            theme: { color: "#008080" },
+            modal: {
+                ondismiss: async function() {
+                    // Step 4: Handle payment cancellation
+                     toast({ title: "Payment Cancelled", description: "Your order was not completed.", variant: "default" });
+                     try {
+                        await fetch('/api/payments/cancel-payment', {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ razorpay_order_id: razorpayOrder.id, order_id: dbOrder.orderId }),
+                        });
+                     } catch (cancelError) { console.error("Failed to report payment cancellation to backend:", cancelError); }
+                    setIsProcessing(false);
+                }
+            }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+
+    } catch (error: any) {
+        toast({ title: "Order Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+        setIsProcessing(false);
     }
   };
+
 
   if (isLoading) {
     return (
@@ -256,10 +222,10 @@ export default function CheckoutPage() {
 
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
             <Card>
-              <CardHeader><CardTitle>Shipping Information</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Shipping & Payment</CardTitle></CardHeader>
               <CardContent>
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handlePayment)} className="space-y-4">
+                  <form onSubmit={form.handleSubmit(processOrder)} className="space-y-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
@@ -279,15 +245,14 @@ export default function CheckoutPage() {
                         <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={form.control} name="country" render={({ field }) => (
-                        <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>
                       )} />
                     </div>
                     <FormField control={form.control} name="phone" render={({ field }) => (
                       <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <Button type="submit" className="w-full mt-6" size="lg" disabled={isProcessing}>
-                      {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {isProcessing ? 'Processing...' : `Pay Now (₹${subtotal.toFixed(2)})`}
+                    <Button type="submit" className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
+                      {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : `Proceed to Pay (₹${subtotal.toFixed(2)})`}
                     </Button>
                   </form>
                 </Form>
@@ -301,7 +266,7 @@ export default function CheckoutPage() {
                   {cart?.items.map(item => (
                     <li key={item._id?.toString()} className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <img src={item.imageSnapshot} alt={item.nameSnapshot} className="w-16 h-16 rounded-md object-cover" />
+                        <Image src={item.imageSnapshot || 'https://placehold.co/100x100.png'} alt={item.nameSnapshot} width={64} height={64} className="w-16 h-16 rounded-md object-cover border" />
                         <div>
                           <p className="font-medium">{item.nameSnapshot}</p>
                           <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
