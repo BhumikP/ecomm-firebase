@@ -16,7 +16,7 @@ export const config = {
      * - favicon.ico (favicon file)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/health|sentry-test).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/health|sentry-test|api/checkout/webhook).*)',
     // Optionally include API routes if you want middleware to run on them
     // '/api/:path*',
   ],

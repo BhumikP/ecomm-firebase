@@ -31,7 +31,8 @@ interface ShippingAddress {
 // Define the main Order interface extending Mongoose Document
 export interface IOrder extends Document {
   userId: Types.ObjectId | IUser; // Reference to the User model
-  orderId: string;
+  orderId: string; // Your internal, human-readable order ID
+  razorpay_order_id?: string; // Razorpay's order_id, for webhook lookup
   items: Types.DocumentArray<OrderItem>; // Use DocumentArray for subdocuments
   total: number;
   currency: string;
@@ -40,8 +41,12 @@ export interface IOrder extends Document {
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   paymentDetails?: {
-    transactionId?: string;
+    transactionId?: string; // This will be razorpay_payment_id
     gateway?: string;
+    // Razorpay specific fields
+    razorpay_payment_id?: string;
+    razorpay_order_id?: string;
+    razorpay_signature?: string;
   };
   shippingCost?: number;
   taxAmount?: number;
@@ -60,7 +65,7 @@ const OrderItemSchema: Schema<OrderItem> = new Schema({
     name: { type: String },
     hexCode: { type: String },
   },
-}); // _id is true by default for subdocuments
+});
 
 const ShippingAddressSchema: Schema<ShippingAddress> = new Schema({
   name: { type: String, required: true },
@@ -75,7 +80,8 @@ const ShippingAddressSchema: Schema<ShippingAddress> = new Schema({
 const OrderSchema: Schema<IOrder> = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   orderId: { type: String, required: true, unique: true, index: true },
-  items: [OrderItemSchema], // Use the defined subdocument schema
+  razorpay_order_id: { type: String, index: true }, // For webhook lookup
+  items: [OrderItemSchema],
   total: { type: Number, required: true, min: 0 },
   currency: { type: String, required: true, default: 'INR' },
   status: {
@@ -97,27 +103,15 @@ const OrderSchema: Schema<IOrder> = new Schema({
   paymentDetails: {
      transactionId: { type: String },
      gateway: { type: String },
+     razorpay_payment_id: { type: String },
+     razorpay_order_id: { type: String },
+     razorpay_signature: { type: String },
   },
   shippingCost: { type: Number, default: 0 },
   taxAmount: { type: Number, default: 0 },
   notes: { type: String },
 }, { timestamps: true });
 
-
-OrderSchema.pre<IOrder>('save', async function(next) {
-    if (this.isNew && !this.orderId) {
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substring(2, 7);
-        this.orderId = `ORD-${timestamp.toUpperCase()}-${randomPart.toUpperCase()}`;
-        let existingOrder = await mongoose.models.Order.findOne({ orderId: this.orderId });
-        while (existingOrder) {
-            const newRandomPart = Math.random().toString(36).substring(2, 7);
-            this.orderId = `ORD-${timestamp.toUpperCase()}-${newRandomPart.toUpperCase()}`;
-            existingOrder = await mongoose.models.Order.findOne({ orderId: this.orderId });
-        }
-    }
-    next();
-});
 
 const Order: Model<IOrder> = mongoose.models.Order || mongoose.model<IOrder>('Order', OrderSchema);
 
