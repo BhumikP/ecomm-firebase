@@ -2,6 +2,7 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import type { IUser } from './User';
 import type { IProduct } from './Product';
+import type { ITransaction } from './Transaction'; // Import ITransaction
 
 // Define the structure for items within an order
 export interface OrderItem {
@@ -32,18 +33,17 @@ interface ShippingAddress {
 export interface IOrder extends Document {
   userId: Types.ObjectId | IUser; // Reference to the User model
   orderId: string; // Your internal, human-readable order ID
-  razorpay_order_id?: string; // Razorpay's order_id, for webhook lookup
+  transactionId: Types.ObjectId | ITransaction; // Link to the transaction
   items: Types.DocumentArray<OrderItem>; // Use DocumentArray for subdocuments
   total: number;
   currency: string;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Payment Failed';
-  paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
+  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+  paymentStatus: 'Paid' | 'Refunded';
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   paymentDetails?: {
     transactionId?: string; // This will be razorpay_payment_id
     gateway?: string;
-    // Razorpay specific fields
     razorpay_payment_id?: string;
     razorpay_order_id?: string;
     razorpay_signature?: string;
@@ -80,21 +80,21 @@ const ShippingAddressSchema: Schema<ShippingAddress> = new Schema({
 const OrderSchema: Schema<IOrder> = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   orderId: { type: String, required: true, unique: true, index: true },
-  razorpay_order_id: { type: String, index: true }, // For webhook lookup
+  transactionId: { type: Schema.Types.ObjectId, ref: 'Transaction', required: true, index: true },
   items: [OrderItemSchema],
   total: { type: Number, required: true, min: 0 },
   currency: { type: String, required: true, default: 'INR' },
   status: {
     type: String,
-    enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Payment Failed'],
-    default: 'Pending',
+    enum: ['Processing', 'Shipped', 'Delivered', 'Cancelled'],
+    default: 'Processing',
     required: true,
     index: true,
   },
   paymentStatus: {
     type: String,
-    enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
-    default: 'Pending',
+    enum: ['Paid', 'Refunded'],
+    default: 'Paid',
     required: true,
     index: true,
   },

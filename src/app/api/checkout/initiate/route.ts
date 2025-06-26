@@ -2,12 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Cart from '@/models/Cart';
-import Order from '@/models/Order';
 import Setting from '@/models/Setting';
-import Product from '@/models/Product';
+import Transaction from '@/models/Transaction'; // Import Transaction model
 import { razorpayInstance } from '@/lib/razorpay';
 import mongoose from 'mongoose';
-import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
   await connectDb();
@@ -32,7 +30,7 @@ export async function POST(req: NextRequest) {
     const shippingCharge = settings?.shippingCharge || 0;
 
     let subtotal = 0;
-    const orderItems = cart.items.map(item => {
+    const transactionItems = cart.items.map(item => {
       const product = item.product as any;
       if (!product) throw new Error(`Product with ID ${item.product} not found in cart.`);
       const price = product.discount && product.discount > 0
@@ -52,38 +50,33 @@ export async function POST(req: NextRequest) {
     const taxAmount = subtotal * (taxPercentage / 100);
     const totalAmount = subtotal + taxAmount + shippingCharge;
     
-    const newOrder = new Order({
-      userId,
-      orderId: `ORD-${uuidv4().split('-')[0].toUpperCase()}`,
-      items: orderItems,
-      total: totalAmount,
-      currency: 'INR',
-      status: 'Pending',
-      paymentStatus: 'Pending',
-      shippingAddress,
-      paymentMethod: 'Razorpay',
-      shippingCost: shippingCharge,
-      taxAmount,
-    });
-    
+    // Create Razorpay order
     const options = {
-      amount: Math.round(totalAmount * 100),
+      amount: Math.round(totalAmount * 100), // amount in smallest currency unit
       currency: 'INR',
-      receipt: newOrder.orderId,
+      receipt: `receipt_user_${userId}_${Date.now()}`,
     };
-    
     const razorpayOrder = await razorpayInstance.orders.create(options);
+
+    // Create a new Transaction document in our DB
+    const newTransaction = new Transaction({
+        userId,
+        items: transactionItems,
+        shippingAddress,
+        amount: totalAmount,
+        currency: 'INR',
+        status: 'Pending',
+        razorpay_order_id: razorpayOrder.id,
+    });
+    await newTransaction.save();
     
-    newOrder.razorpay_order_id = razorpayOrder.id;
-    await newOrder.save();
-    
-    // Remove cart after order is successfully created
+    // Clear cart after initiating transaction
     await Cart.findByIdAndDelete(cart._id);
     
     return NextResponse.json({
       success: true,
-      message: 'Order initiated',
-      order: newOrder,
+      message: 'Transaction initiated',
+      transactionId: newTransaction._id, // Send our internal transaction ID to client
       razorpayOrder,
       razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     }, { status: 200 });

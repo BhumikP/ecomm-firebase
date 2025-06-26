@@ -1,34 +1,31 @@
 // src/app/api/payments/cancel-payment/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
-import Order from '@/models/Order';
+import Transaction from '@/models/Transaction'; // Use Transaction model
 
 export async function POST(req: NextRequest) {
   await connectDb();
   try {
-    const { razorpay_order_id, order_id } = await req.json();
+    const { transactionId } = await req.json();
 
-    if (!razorpay_order_id || !order_id) {
-        return NextResponse.json({ message: 'Missing order details for cancellation.' }, { status: 400 });
+    if (!transactionId) {
+        return NextResponse.json({ message: 'Missing transaction ID for cancellation.' }, { status: 400 });
     }
 
-    const order = await Order.findOne({ orderId: order_id, razorpay_order_id: razorpay_order_id });
+    const transaction = await Transaction.findById(transactionId);
 
-    if (!order) {
-      // It's okay if the order is not found, it might have been processed already.
-      // We just log it and acknowledge the request.
-      console.warn(`Attempted to cancel an order that was not found or already processed. Order ID: ${order_id}`);
+    if (!transaction) {
+      console.warn(`Attempted to cancel a transaction that was not found. Transaction ID: ${transactionId}`);
       return NextResponse.json({ success: true, message: 'Acknowledged.' }, { status: 200 });
     }
 
     // Only cancel if it's still in the 'Pending' state
-    if (order.status === 'Pending') {
-      order.status = 'Cancelled';
-      order.paymentStatus = 'Failed'; // Or a new 'Cancelled' status if you add it to the enum
-      await order.save();
+    if (transaction.status === 'Pending') {
+      transaction.status = 'Cancelled';
+      await transaction.save();
     }
 
-    return NextResponse.json({ success: true, message: 'Order status updated for cancellation.' }, { status: 200 });
+    return NextResponse.json({ success: true, message: 'Transaction status updated to cancelled.' }, { status: 200 });
 
   } catch (error: any) {
     console.error('Error handling payment cancellation:', error);

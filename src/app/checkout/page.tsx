@@ -74,8 +74,9 @@ export default function CheckoutPage() {
       const userData = JSON.parse(userDataString);
       setUserId(userData._id);
       form.setValue('name', userData.name || '');
-      form.setValue('phone', userData.phone || ''); // Assuming user model might have phone
-      setUserEmail(userData.email || ''); // Get user email for prefill
+      // Assuming user model might have phone, if not, it will be an empty string.
+      form.setValue('phone', (userData.phone || ''));
+      setUserEmail(userData.email || '');
     } else {
       router.push('/auth/login?redirect=/checkout');
     }
@@ -120,19 +121,19 @@ export default function CheckoutPage() {
     }
 
     try {
-        // Step 1: Initiate order creation in our DB and with Razorpay
+        // Step 1: Initiate transaction creation in our DB and with Razorpay
         const initiateResponse = await fetch('/api/checkout/initiate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId, shippingAddress }),
         });
-        const orderData = await initiateResponse.json();
+        const initData = await initiateResponse.json();
 
         if (!initiateResponse.ok) {
-            throw new Error(orderData.message || "Failed to initiate order.");
+            throw new Error(initData.message || "Failed to initiate transaction.");
         }
 
-        const { order: dbOrder, razorpayOrder } = orderData;
+        const { transactionId, razorpayOrder } = initData;
 
         // Step 2: Launch Razorpay Modal
         const options = {
@@ -140,7 +141,7 @@ export default function CheckoutPage() {
             amount: razorpayOrder.amount,
             currency: razorpayOrder.currency,
             name: "eShop Simplified",
-            description: `Order #${dbOrder.orderId}`,
+            description: `Transaction for eShop`,
             order_id: razorpayOrder.id,
             handler: async function (response: any) {
                 // Step 3: Verify payment on client-side for immediate feedback
@@ -151,15 +152,16 @@ export default function CheckoutPage() {
                         razorpay_payment_id: response.razorpay_payment_id,
                         razorpay_order_id: response.razorpay_order_id,
                         razorpay_signature: response.razorpay_signature,
+                        transactionId: transactionId, // Pass our internal transaction ID
                     }),
                 });
                 const verificationResult = await verifyResponse.json();
                 if (verifyResponse.ok && verificationResult.success) {
-                    toast({ title: "Payment Successful!", description: `Order ${dbOrder.orderId} is being processed.`});
-                    router.push(`/payment/success?order_id=${dbOrder.orderId}`);
+                    toast({ title: "Payment Successful!", description: `Order ${verificationResult.orderId} is being processed.`});
+                    router.push(`/payment/success?order_id=${verificationResult.orderId}`);
                 } else {
                      toast({ title: "Payment Verification Failed", description: verificationResult.message || "Please contact support.", variant: "destructive" });
-                    router.push(`/payment/failure?order_id=${dbOrder.orderId}`);
+                    router.push(`/payment/failure?transaction_id=${transactionId}`);
                 }
             },
             prefill: {
@@ -176,7 +178,7 @@ export default function CheckoutPage() {
                         await fetch('/api/payments/cancel-payment', {
                            method: 'POST',
                            headers: { 'Content-Type': 'application/json' },
-                           body: JSON.stringify({ razorpay_order_id: razorpayOrder.id, order_id: dbOrder.orderId }),
+                           body: JSON.stringify({ transactionId: transactionId }),
                         });
                      } catch (cancelError) { console.error("Failed to report payment cancellation to backend:", cancelError); }
                     setIsProcessing(false);
