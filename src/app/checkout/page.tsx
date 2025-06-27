@@ -7,7 +7,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
@@ -287,137 +286,134 @@ export default function CheckoutPage() {
   }
 
   return (
-    <>
-      <Script id="razorpay-checkout-js" src="https://checkout.razorpay.com/v1/checkout.js" />
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-grow container mx-auto px-4 py-8">
-          <Button variant="outline" size="sm" asChild className="mb-6">
-            <Link href="/cart"><ArrowLeft className="mr-2 h-4 w-4" />Back to Cart</Link>
-          </Button>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <Button variant="outline" size="sm" asChild className="mb-6">
+          <Link href="/cart"><ArrowLeft className="mr-2 h-4 w-4" />Back to Cart</Link>
+        </Button>
 
-          <div className="grid lg:grid-cols-3 gap-8 lg:gap-12 items-start">
-            <div className="lg:col-span-2 space-y-8">
-              <Card>
-                <CardHeader><CardTitle>1. Shipping Address</CardTitle></CardHeader>
-                <CardContent>
-                  <RadioGroup value={selectedAddressId} onValueChange={setSelectedAddressId} className="space-y-4">
-                    {userData?.addresses?.map((address) => (
-                      <Label key={address._id} htmlFor={address._id} className="flex items-start gap-4 p-4 border rounded-md has-[:checked]:bg-muted has-[:checked]:border-primary transition-colors cursor-pointer">
-                        <RadioGroupItem value={address._id!} id={address._id} className="mt-1" />
-                        <div className="text-sm flex-grow">
-                          <div className="flex justify-between items-start">
-                             <p className="font-semibold">{address.name}</p>
-                             {address.isPrimary && <div className="flex items-center text-xs text-primary font-medium gap-1"><Star className="h-3 w-3 fill-current" /> Primary</div>}
-                          </div>
-                          <p>{address.street}</p>
-                          <p>{address.city}, {address.state} - {address.zip}</p>
-                          <p>{address.country}</p>
-                          <p>Phone: {address.phone}</p>
+        <div className="grid lg:grid-cols-3 gap-8 lg:gap-12 items-start">
+          <div className="lg:col-span-2 space-y-8">
+            <Card>
+              <CardHeader><CardTitle>1. Shipping Address</CardTitle></CardHeader>
+              <CardContent>
+                <RadioGroup value={selectedAddressId} onValueChange={setSelectedAddressId} className="space-y-4">
+                  {userData?.addresses?.map((address) => (
+                    <Label key={address._id} htmlFor={address._id} className="flex items-start gap-4 p-4 border rounded-md has-[:checked]:bg-muted has-[:checked]:border-primary transition-colors cursor-pointer">
+                      <RadioGroupItem value={address._id!} id={address._id} className="mt-1" />
+                      <div className="text-sm flex-grow">
+                        <div className="flex justify-between items-start">
+                           <p className="font-semibold">{address.name}</p>
+                           {address.isPrimary && <div className="flex items-center text-xs text-primary font-medium gap-1"><Star className="h-3 w-3 fill-current" /> Primary</div>}
                         </div>
-                      </Label>
-                    ))}
-                    <Label htmlFor="new-address" className="flex items-start gap-4 p-4 border rounded-md has-[:checked]:bg-muted has-[:checked]:border-primary transition-colors cursor-pointer">
-                       <RadioGroupItem value="new" id="new-address" className="mt-1" />
-                       <p className="font-semibold">Add a new address</p>
+                        <p>{address.street}</p>
+                        <p>{address.city}, {address.state} - {address.zip}</p>
+                        <p>{address.country}</p>
+                        <p>Phone: {address.phone}</p>
+                      </div>
                     </Label>
-                  </RadioGroup>
-                  
-                  {selectedAddressId === 'new' && (
-                    <div className="mt-6 pt-6 border-t">
-                      <Form {...form}>
-                        <form className="space-y-4">
-                          <FormField control={form.control} name="name" render={({ field }) => (
-                            <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  ))}
+                  <Label htmlFor="new-address" className="flex items-start gap-4 p-4 border rounded-md has-[:checked]:bg-muted has-[:checked]:border-primary transition-colors cursor-pointer">
+                     <RadioGroupItem value="new" id="new-address" className="mt-1" />
+                     <p className="font-semibold">Add a new address</p>
+                  </Label>
+                </RadioGroup>
+                
+                {selectedAddressId === 'new' && (
+                  <div className="mt-6 pt-6 border-t">
+                    <Form {...form}>
+                      <form className="space-y-4">
+                        <FormField control={form.control} name="name" render={({ field }) => (
+                          <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={form.control} name="street" render={({ field }) => (
+                          <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField control={form.control} name="city" render={({ field }) => (
+                            <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
-                          <FormField control={form.control} name="street" render={({ field }) => (
-                            <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                          <FormField control={form.control} name="state" render={({ field }) => (
+                            <FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="city" render={({ field }) => (
-                              <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                            )} />
-                            <FormField control={form.control} name="state" render={({ field }) => (
-                              <FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                            )} />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="zip" render={({ field }) => (
-                              <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                            )} />
-                            <FormField control={form.control} name="country" render={({ field }) => (
-                              <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>
-                            )} />
-                          </div>
-                          <FormField control={form.control} name="phone" render={({ field }) => (
-                            <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
-                          <div className="flex items-center space-x-2 pt-2">
-                            <Switch id="save-address-switch" checked={saveNewAddress} onCheckedChange={setSaveNewAddress} />
-                            <Label htmlFor="save-address-switch">Save this address for future use</Label>
-                          </div>
-                        </form>
-                      </Form>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                  <CardHeader><CardTitle>2. Payment</CardTitle></CardHeader>
-                  <CardContent>
-                      <p className="text-muted-foreground">You will be redirected to our secure payment partner, Razorpay, to complete your purchase.</p>
-                  </CardContent>
-              </Card>
-            </div>
-
-            <div className="lg:col-span-1 lg:sticky top-20">
-              <Card>
-                <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
-                <CardContent>
-                  <ul className="space-y-3 mb-4">
-                    {cart?.items.map(item => (
-                      <li key={item._id?.toString()} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-3">
-                          <Image src={item.imageSnapshot || 'https://placehold.co/100x100.png'} alt={item.nameSnapshot} width={48} height={48} className="w-12 h-12 rounded-md object-cover border" />
-                          <div>
-                            <p className="font-medium line-clamp-1">{item.nameSnapshot}</p>
-                            <p className="text-muted-foreground">Qty: {item.quantity}</p>
-                          </div>
                         </div>
-                        <p className="font-medium">₹{formatCurrency(item.priceSnapshot * item.quantity)}</p>
-                      </li>
-                    ))}
-                  </ul>
-                  <Separator />
-                  <div className="mt-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <p className="text-muted-foreground">Subtotal</p>
-                      <p>₹{formatCurrency(subtotal)}</p>
-                    </div>
-                    <div className="flex justify-between">
-                      <p className="text-muted-foreground">Shipping</p>
-                      <p>₹{formatCurrency(shippingCost)}</p>
-                    </div>
-                    <div className="flex justify-between">
-                      <p className="text-muted-foreground">Tax ({storeSettings?.taxPercentage || 0}%)</p>
-                      <p>₹{formatCurrency(taxAmount)}</p>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between font-bold text-lg">
-                      <p>Total</p>
-                      <p>₹{formatCurrency(grandTotal)}</p>
-                    </div>
-                   <Button onClick={handleProcessOrder} className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
-                      {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : `Proceed to Pay (₹${formatCurrency(grandTotal)})`}
-                    </Button>
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField control={form.control} name="zip" render={({ field }) => (
+                            <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="country" render={({ field }) => (
+                            <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>
+                          )} />
+                        </div>
+                        <FormField control={form.control} name="phone" render={({ field }) => (
+                          <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <div className="flex items-center space-x-2 pt-2">
+                          <Switch id="save-address-switch" checked={saveNewAddress} onCheckedChange={setSaveNewAddress} />
+                          <Label htmlFor="save-address-switch">Save this address for future use</Label>
+                        </div>
+                      </form>
+                    </Form>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader><CardTitle>2. Payment</CardTitle></CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">You will be redirected to our secure payment partner, Razorpay, to complete your purchase.</p>
                 </CardContent>
-              </Card>
-            </div>
+            </Card>
           </div>
-        </main>
-        <Footer />
-      </div>
-    </>
+
+          <div className="lg:col-span-1 lg:sticky top-20">
+            <Card>
+              <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="space-y-3 mb-4">
+                  {cart?.items.map(item => (
+                    <li key={item._id?.toString()} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-3">
+                        <Image src={item.imageSnapshot || 'https://placehold.co/100x100.png'} alt={item.nameSnapshot} width={48} height={48} className="w-12 h-12 rounded-md object-cover border" />
+                        <div>
+                          <p className="font-medium line-clamp-1">{item.nameSnapshot}</p>
+                          <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                        </div>
+                      </div>
+                      <p className="font-medium">₹{formatCurrency(item.priceSnapshot * item.quantity)}</p>
+                    </li>
+                  ))}
+                </ul>
+                <Separator />
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <p className="text-muted-foreground">Subtotal</p>
+                    <p>₹{formatCurrency(subtotal)}</p>
+                  </div>
+                  <div className="flex justify-between">
+                    <p className="text-muted-foreground">Shipping</p>
+                    <p>₹{formatCurrency(shippingCost)}</p>
+                  </div>
+                  <div className="flex justify-between">
+                    <p className="text-muted-foreground">Tax ({storeSettings?.taxPercentage || 0}%)</p>
+                    <p>₹{formatCurrency(taxAmount)}</p>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-bold text-lg">
+                    <p>Total</p>
+                    <p>₹{formatCurrency(grandTotal)}</p>
+                  </div>
+                 <Button onClick={handleProcessOrder} className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
+                    {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : `Proceed to Pay (₹${formatCurrency(grandTotal)})`}
+                  </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </div>
   );
 }
