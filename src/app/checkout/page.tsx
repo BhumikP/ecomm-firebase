@@ -19,12 +19,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ICart, ICartItem } from '@/models/Cart';
 import type { IProduct } from '@/models/Product';
-import { Loader2, ArrowLeft, Home, Edit2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Home, Edit2, Star } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import type { IShippingAddress } from '@/models/User';
 
 const addressSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -37,10 +38,6 @@ const addressSchema = z.object({
 });
 
 type AddressFormValues = z.infer<typeof addressSchema>;
-
-interface IShippingAddress extends AddressFormValues {
-  _id?: string;
-}
 
 interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
   product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl'>;
@@ -55,7 +52,7 @@ interface UserData {
   name: string;
   email: string;
   phone?: string;
-  addresses?: IShippingAddress[];
+  addresses?: (IShippingAddress & { _id: string })[];
 }
 
 interface StoreSettings {
@@ -98,11 +95,21 @@ export default function CheckoutPage() {
       try {
         const parsedData: UserData = JSON.parse(userDataString);
         setUserData(parsedData);
+        
+        // Set default selected address
+        const primaryAddress = parsedData.addresses?.find(addr => addr.isPrimary);
+        if (primaryAddress) {
+          setSelectedAddressId(primaryAddress._id);
+        } else if (parsedData.addresses && parsedData.addresses.length > 0) {
+          setSelectedAddressId(parsedData.addresses[0]._id);
+        } else {
+          setSelectedAddressId('new');
+        }
+        
+        // Pre-fill form with user's name and phone if available
         form.setValue('name', parsedData.name || '');
         form.setValue('phone', parsedData.phone || '');
-        if (parsedData.addresses && parsedData.addresses.length > 0) {
-          setSelectedAddressId(parsedData.addresses[0]._id!);
-        }
+
       } catch (e) {
         console.error("Failed to parse user data", e);
         router.push('/auth/login?redirect=/checkout');
@@ -298,8 +305,11 @@ export default function CheckoutPage() {
                     {userData?.addresses?.map((address) => (
                       <Label key={address._id} htmlFor={address._id} className="flex items-start gap-4 p-4 border rounded-md has-[:checked]:bg-muted has-[:checked]:border-primary transition-colors cursor-pointer">
                         <RadioGroupItem value={address._id!} id={address._id} className="mt-1" />
-                        <div className="text-sm">
-                          <p className="font-semibold">{address.name}</p>
+                        <div className="text-sm flex-grow">
+                          <div className="flex justify-between items-start">
+                             <p className="font-semibold">{address.name}</p>
+                             {address.isPrimary && <div className="flex items-center text-xs text-primary font-medium gap-1"><Star className="h-3 w-3 fill-current" /> Primary</div>}
+                          </div>
                           <p>{address.street}</p>
                           <p>{address.city}, {address.state} - {address.zip}</p>
                           <p>{address.country}</p>
@@ -398,7 +408,6 @@ export default function CheckoutPage() {
                       <p>Total</p>
                       <p>₹{formatCurrency(grandTotal)}</p>
                     </div>
-                  </div>
                    <Button onClick={handleProcessOrder} className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
                       {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : `Proceed to Pay (₹${formatCurrency(grandTotal)})`}
                     </Button>

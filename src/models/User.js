@@ -12,6 +12,7 @@ const ShippingAddressSchema = new Schema({
   zip: { type: String, required: true },
   country: { type: String, required: true },
   phone: { type: String },
+  isPrimary: { type: Boolean, default: false }, // Added for primary address
 });
 
 

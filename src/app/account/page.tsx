@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -9,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { Edit, Package, LogOut } from 'lucide-react'; // Import icons
+import { Edit, Package, LogOut, Home } from 'lucide-react'; // Import Home icon
 
 // Mock user data structure
 interface UserData {
@@ -59,6 +60,7 @@ export default function AccountPage() {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
      localStorage.removeItem('userEmail'); // Clear email if stored
+     localStorage.removeItem('userData'); // Clear all user data
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
     router.push('/'); // Redirect to home
   };
@@ -77,6 +79,7 @@ export default function AccountPage() {
            </CardHeader>
            <Separator />
            <CardContent className="pt-6 space-y-6">
+               <Skeleton className="h-10 w-full" />
                <Skeleton className="h-10 w-full" />
                <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-32 ml-auto" />
@@ -127,7 +130,11 @@ export default function AccountPage() {
                      <Package className="mr-2 h-4 w-4" /> View Order History
                 </Link>
            </Button>
-           {/* Add other account links like Addresses, Payment Methods etc. */}
+           <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/account/addresses">
+                     <Home className="mr-2 h-4 w-4" /> Manage Addresses
+                </Link>
+           </Button>
 
             <div className="pt-4 flex justify-end">
                 <Button variant="destructive" onClick={handleLogout}>
