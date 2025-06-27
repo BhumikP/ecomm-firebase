@@ -1,5 +1,29 @@
+
 // src/models/User.ts
-import mongoose, { Document, Model, Schema } from 'mongoose';
+import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+
+// Define the interface for a single shipping address
+export interface IShippingAddress extends Types.Subdocument {
+  name: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone?: string;
+}
+
+// Define the schema for a single shipping address
+const ShippingAddressSchema: Schema<IShippingAddress> = new Schema({
+  name: { type: String, required: true },
+  street: { type: String, required: true },
+  city: { type: String, required: true },
+  state: { type: String, required: true },
+  zip: { type: String, required: true },
+  country: { type: String, required: true },
+  phone: { type: String },
+});
+
 
 export interface IUser extends Document {
   name: string;
@@ -9,7 +33,7 @@ export interface IUser extends Document {
   joinedDate: Date;
   avatarUrl?: string;
   status: 'Active' | 'Inactive';
-  // Add other user fields as needed (e.g., addresses, phone number)
+  addresses?: Types.DocumentArray<IShippingAddress>; // Array of shipping addresses
 }
 
 const UserSchema: Schema<IUser> = new Schema({
@@ -20,6 +44,7 @@ const UserSchema: Schema<IUser> = new Schema({
   joinedDate: { type: Date, default: Date.now },
   avatarUrl: { type: String },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active', required: true },
+  addresses: { type: [ShippingAddressSchema], default: [] }, // Add addresses to the schema
 }, { timestamps: true });
 
 // Avoid recompiling the model if it already exists

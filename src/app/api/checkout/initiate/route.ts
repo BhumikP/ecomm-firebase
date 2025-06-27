@@ -5,6 +5,7 @@ import connectDb from '@/lib/mongodb';
 import Cart from '@/models/Cart';
 import Setting from '@/models/Setting';
 import Transaction from '@/models/Transaction'; // Import Transaction model
+import User from '@/models/User'; // Import User model
 import { razorpayInstance } from '@/lib/razorpay';
 import mongoose from 'mongoose';
 
@@ -12,13 +13,20 @@ export async function POST(req: NextRequest) {
   await connectDb();
 
   try {
-    const { userId, shippingAddress } = await req.json();
+    const { userId, shippingAddress, saveAddress } = await req.json();
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return NextResponse.json({ message: 'Valid userId is required.' }, { status: 400 });
     }
     if (!shippingAddress) {
       return NextResponse.json({ message: 'Shipping address is required.' }, { status: 400 });
+    }
+
+    // If the user wants to save the new address, update their profile
+    if (saveAddress) {
+      await User.findByIdAndUpdate(userId, {
+        $push: { addresses: shippingAddress },
+      });
     }
 
     const cart = await Cart.findOne({ userId }).populate('items.product');

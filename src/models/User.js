@@ -1,6 +1,19 @@
+
 // src/models/User.js - CommonJS export for the Node script
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+
+// Define the reusable ShippingAddress schema
+const ShippingAddressSchema = new Schema({
+  name: { type: String, required: true },
+  street: { type: String, required: true },
+  city: { type: String, required: true },
+  state: { type: String, required: true },
+  zip: { type: String, required: true },
+  country: { type: String, required: true },
+  phone: { type: String },
+});
+
 
 const UserSchema = new Schema({
   name: { type: String, required: true },
@@ -10,6 +23,7 @@ const UserSchema = new Schema({
   joinedDate: { type: Date, default: Date.now },
   avatarUrl: { type: String },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active', required: true },
+  addresses: { type: [ShippingAddressSchema], default: [] }, // Added addresses field
 }, { timestamps: true });
 
 // Avoid recompiling the model if it already exists
