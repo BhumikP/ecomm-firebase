@@ -408,6 +408,7 @@ export default function CheckoutPage() {
                  <Button onClick={handleProcessOrder} className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
                     {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : `Proceed to Pay (₹${formatCurrency(grandTotal)})`}
                   </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
