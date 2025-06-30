@@ -1,4 +1,4 @@
-
+// src/app/admin/orders/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -71,20 +71,13 @@ export default function AdminOrdersPage() {
         fetchOrdersData(currentPage, searchTerm, statusFilter);
     }, [currentPage, searchTerm, statusFilter, fetchOrdersData]);
 
-    const getStatusBadgeVariant = (status: IOrder['status']) => {
-        switch (status) {
-            case 'Delivered': return 'default';
-            case 'Shipped': return 'secondary';
-            case 'Processing': return 'outline';
-            case 'Cancelled': return 'destructive';
-            default: return 'outline';
-        }
-    };
-    const getStatusBadgeColor = (status: IOrder['status']) => {
+    const getStatusBadgeColor = (status: IOrder['status'] | IOrder['paymentStatus']) => {
         switch (status) {
             case 'Delivered': return 'bg-green-100 text-green-800 border-green-200';
+            case 'Paid': return 'bg-green-100 text-green-800 border-green-200';
             case 'Shipped': return 'bg-blue-100 text-blue-800 border-blue-200';
             case 'Processing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+            case 'Pending': return 'bg-orange-100 text-orange-800 border-orange-200';
             case 'Cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
             default: return '';
         }
@@ -119,7 +112,7 @@ export default function AdminOrdersPage() {
                      <div className="relative flex-grow">
                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                          <Input
-                            placeholder="Search Order ID, Txn ID..."
+                            placeholder="Search Order ID..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-10 w-full bg-background"
@@ -145,13 +138,13 @@ export default function AdminOrdersPage() {
                          <Table>
                             <TableHeader>
                                 <TableRow>
-                                    {[...Array(6)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-full bg-muted" /></TableHead>)}
+                                    {[...Array(7)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-full bg-muted" /></TableHead>)}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {[...Array(ITEMS_PER_PAGE)].map((_, i) => (
                                     <TableRow key={`skel-${i}`}>
-                                        {[...Array(6)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full bg-muted" /></TableCell>)}
+                                        {[...Array(7)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full bg-muted" /></TableCell>)}
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -170,7 +163,8 @@ export default function AdminOrdersPage() {
                                     <TableHead>Date</TableHead>
                                     <TableHead>Customer</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead>Order Status</TableHead>
+                                    <TableHead>Payment</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -182,8 +176,13 @@ export default function AdminOrdersPage() {
                                         <TableCell>{order.shippingAddress.name}</TableCell>
                                         <TableCell className="text-right font-medium">₹{formatCurrency(order.total)}</TableCell>
                                         <TableCell>
-                                            <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeColor(order.status)}>
+                                            <Badge variant="outline" className={getStatusBadgeColor(order.status)}>
                                                 {order.status}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant={order.paymentMethod === 'COD' ? 'secondary' : 'default'} className={getStatusBadgeColor(order.paymentStatus)}>
+                                                {order.paymentMethod === 'COD' ? 'COD - ' : ''}{order.paymentStatus}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">

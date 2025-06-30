@@ -33,6 +33,7 @@ const createOrderFromTransaction = async (transaction: ITransaction, session: mo
         currency: transaction.currency,
         shippingAddress: transaction.shippingAddress,
         paymentMethod: 'Razorpay',
+        paymentStatus: 'Paid', // Explicitly set as Paid for webhook-confirmed orders
         paymentDetails: {
             gateway: 'Razorpay',
             transactionId: transaction.razorpay_payment_id,

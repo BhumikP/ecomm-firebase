@@ -1,4 +1,3 @@
-
 // src/app/api/admin/orders/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
@@ -31,28 +30,27 @@ export async function GET(req: NextRequest) {
       const regex = { $regex: searchQuery, $options: 'i' };
       mongoQuery.$or = [
         { orderId: regex },
-        { 'paymentDetails.transactionId': regex },
-        // Note: Searching by customer email directly on Order model isn't possible
-        // if email is not stored there. If userId was on Order and populated,
-        // a more complex aggregation would be needed.
+        // Add more fields to search here if needed, e.g., customer name
+        { 'shippingAddress.name': regex },
+        { 'shippingAddress.phone': regex }
       ];
     }
 
     if (status && status !== 'all') {
-      // Ensure status matches one of the allowed enum values for paymentStatus
-      const validStatuses = ['Pending', 'Paid', 'Failed', 'Refunded'];
-      if (validStatuses.includes(status)) {
-        mongoQuery.paymentStatus = status as IOrder['paymentStatus'];
+      const validStatuses: IOrder['status'][] = ['Processing', 'Shipped', 'Delivered', 'Cancelled'];
+      if (validStatuses.includes(status as IOrder['status'])) {
+        mongoQuery.status = status as IOrder['status'];
       } else {
-        return NextResponse.json({ message: `Invalid payment status filter: ${status}` }, { status: 400 });
+        return NextResponse.json({ message: `Invalid status filter: ${status}` }, { status: 400 });
       }
     }
+
 
     const orders = await Order.find(mongoQuery)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .lean(); // Use .lean() for better performance if not modifying docs
+      .lean();
 
     const totalCount = await Order.countDocuments(mongoQuery);
 

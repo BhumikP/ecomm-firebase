@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
         currency: transaction.currency,
         shippingAddress: transaction.shippingAddress,
         paymentMethod: 'Razorpay',
+        paymentStatus: 'Paid', // Explicitly set payment status to Paid
         paymentDetails: {
             gateway: 'Razorpay',
             transactionId: razorpay_payment_id,

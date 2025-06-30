@@ -1,4 +1,4 @@
-
+// src/app/admin/orders/[orderId]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 interface PopulatedOrder extends Omit<IOrder, 'userId' | 'transactionId' | '_id'> {
   _id: string;
   userId: Pick<IUser, '_id' | 'name' | 'email'>;
-  transactionId: ITransaction;
+  transactionId?: ITransaction; // Transaction is optional for COD
 }
 
 const formatCurrency = (amount: number) => {
@@ -88,12 +88,14 @@ export default function AdminOrderDetailPage() {
     }
   };
 
-   const getStatusBadgeColor = (status?: IOrder['status']) => {
+   const getStatusBadgeColor = (status?: IOrder['status'] | IOrder['paymentStatus']) => {
      if (!status) return '';
      switch (status) {
        case 'Delivered': return 'bg-green-100 text-green-800 border-green-200';
+       case 'Paid': return 'bg-green-100 text-green-800 border-green-200';
        case 'Shipped': return 'bg-blue-100 text-blue-800 border-blue-200';
        case 'Processing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+       case 'Pending': return 'bg-orange-100 text-orange-800 border-orange-200';
        case 'Cancelled': return 'bg-gray-100 text-gray-800 border-gray-200';
        default: return '';
      }
@@ -125,6 +127,7 @@ export default function AdminOrderDetailPage() {
             </CardHeader>
             <CardContent className="space-y-2">
                 <p><span className="font-semibold">Customer:</span> {order.userId.name} ({order.userId.email})</p>
+                <p><span className="font-semibold">Payment Method:</span> {order.paymentMethod}</p>
             </CardContent>
             <CardFooter className="bg-muted/50 p-4 rounded-b-lg flex flex-col sm:flex-row items-center gap-4">
                 <div className="flex-grow">
@@ -186,10 +189,14 @@ export default function AdminOrderDetailPage() {
             <Card><CardHeader><CreditCard className="h-5 w-5 text-muted-foreground mb-2"/><CardTitle>Payment & Transaction</CardTitle></CardHeader>
                 <CardContent className="text-sm space-y-1">
                     <p><span className="font-semibold">Method:</span> {order.paymentMethod}</p>
-                    <p><span className="font-semibold">Status:</span> <Badge variant={order.transactionId.status === 'Success' ? 'default' : 'destructive'} className={getStatusBadgeColor(order.transactionId.status === 'Success' ? 'Delivered' : 'Cancelled')}>{order.transactionId.status}</Badge></p>
-                    <Separator className="my-2"/>
-                    <p><span className="font-semibold">Txn ID:</span> {order.transactionId.razorpay_payment_id || 'N/A'}</p>
-                    <p><span className="font-semibold">Gateway Order ID:</span> <span className="break-all">{order.transactionId.razorpay_order_id}</span></p>
+                    <p><span className="font-semibold">Status:</span> <Badge variant={order.paymentStatus === 'Paid' ? 'default' : 'outline'} className={getStatusBadgeColor(order.paymentStatus)}>{order.paymentStatus}</Badge></p>
+                    {order.transactionId && (
+                        <>
+                           <Separator className="my-2"/>
+                           <p><span className="font-semibold">Txn ID:</span> {order.transactionId.razorpay_payment_id || 'N/A'}</p>
+                           <p><span className="font-semibold">Gateway Order ID:</span> <span className="break-all">{order.transactionId.razorpay_order_id}</span></p>
+                        </>
+                    )}
                 </CardContent>
             </Card>
 
