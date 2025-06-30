@@ -94,7 +94,6 @@ const OrderSchema: Schema<IOrder> = new Schema({
   paymentStatus: {
     type: String,
     enum: ['Pending', 'Paid', 'Refunded'],
-    default: 'Pending',
     required: true,
     index: true,
   },

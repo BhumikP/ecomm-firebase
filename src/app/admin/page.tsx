@@ -2,33 +2,28 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, Package, Activity, TrendingUp, AlertCircle } from 'lucide-react';
-import { IndianRupee } from 'lucide-react'; // Corrected import
-import { useEffect, useState } from 'react'; // Added for potential data fetching
-import { Skeleton } from "@/components/ui/skeleton"; // Added Skeleton
+import { Users, Package, AlertCircle } from 'lucide-react';
+import { IndianRupee } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Mock Data Structure (replace with actual fetched data types)
 interface SummaryData {
   totalRevenue: number;
   newCustomers: number;
   ordersToday: number;
   pendingIssues: number;
-  // Add more relevant metrics as needed
-  // e.g., conversionRate: number; averageOrderValue: number;
 }
 
-// Mock Function to fetch summary data (replace with actual API call)
 const fetchSummaryData = async (): Promise<SummaryData> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 700));
-  // In a real app, fetch this from your backend: e.g., /api/admin/dashboard/summary
-  return {
-    totalRevenue: 54230.50,
-    newCustomers: 120,
-    ordersToday: 45,
-    pendingIssues: 3,
-  };
+  // Fetch from the new API endpoint
+  const response = await fetch('/api/admin/dashboard');
+  if (!response.ok) {
+    throw new Error('Failed to fetch dashboard summary data');
+  }
+  const data = await response.json();
+  return data.summary;
 };
+
 
 export default function AdminDashboardPage() {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
@@ -84,7 +79,6 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Dashboard Overview</h2>
-      {/* TODO: Implement real data fetching from backend API */}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -94,7 +88,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{summaryData.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+            <p className="text-xs text-muted-foreground">All-time successful payments</p>
           </CardContent>
         </Card>
         <Card>
@@ -104,7 +98,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{summaryData.newCustomers}</div>
-            <p className="text-xs text-muted-foreground">+15% this month</p>
+            <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
         <Card>
@@ -114,7 +108,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summaryData.ordersToday}</div>
-            <p className="text-xs text-muted-foreground">Updated just now</p>
+            <p className="text-xs text-muted-foreground">New orders placed today</p>
           </CardContent>
         </Card>
         <Card>
@@ -124,7 +118,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summaryData.pendingIssues}</div>
-            <p className="text-xs text-muted-foreground">{summaryData.pendingIssues > 0 ? 'Action required' : 'All clear'}</p>
+            <p className="text-xs text-muted-foreground">Orders awaiting processing</p>
           </CardContent>
         </Card>
       </div>
@@ -133,7 +127,6 @@ export default function AdminDashboardPage() {
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
           <CardDescription>Overview of recent orders and user signups.</CardDescription>
-          {/* TODO: Fetch and display recent orders/signups or link to respective pages */}
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
@@ -141,14 +134,12 @@ export default function AdminDashboardPage() {
             <br />
             For example, show last 5 orders or new user registrations.
           </p>
-          {/* Example: A placeholder for a more detailed activity chart or list */}
           <div className="mt-4 h-[200px] bg-muted rounded-md flex items-center justify-center text-muted-foreground">
             [Activity Chart/List Placeholder]
           </div>
         </CardContent>
       </Card>
 
-      {/* TODO: Add more relevant dashboard widgets as needed, e.g., quick links to common admin tasks */}
     </div>
   );
 }

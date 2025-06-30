@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
         total: totalAmount,
         shippingAddress,
         paymentMethod: 'COD',
+        paymentStatus: 'Pending',
         status: 'Processing',
         shippingCost: shippingCharge,
         taxAmount,
