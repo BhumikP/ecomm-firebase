@@ -18,7 +18,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, Loader2, ListOrdered, Image as ImageIcon } from 'lucide-react'; // Added ListOrdered for Categories and ImageIcon for Banners
+import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, Loader2, ListOrdered, Image as ImageIcon, ClipboardList } from 'lucide-react'; // Added ClipboardList
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminLayout({
@@ -82,6 +82,14 @@ export default function AdminLayout({
                                 <Link href="/admin">
                                     <LayoutDashboard />
                                     <span>Dashboard</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                         <SidebarMenuItem>
+                            <SidebarMenuButton asChild tooltip="Manage Orders">
+                                <Link href="/admin/orders">
+                                    <ClipboardList />
+                                    <span>Orders</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
