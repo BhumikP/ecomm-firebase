@@ -1,4 +1,3 @@
-
 // src/models/Order.ts
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import type { IUser } from './User';
@@ -34,7 +33,7 @@ interface ShippingAddress {
 export interface IOrder extends Document {
   userId: Types.ObjectId | IUser; // Reference to the User model
   orderId: string; // Your internal, human-readable order ID
-  transactionId?: Types.ObjectId | ITransaction; // Link to the transaction, optional for COD
+  transactionId: Types.ObjectId | ITransaction; // Link to the transaction - NOW REQUIRED
   items: Types.DocumentArray<OrderItem>; // Use DocumentArray for subdocuments
   total: number;
   currency: string;
@@ -81,7 +80,7 @@ const ShippingAddressSchema: Schema<ShippingAddress> = new Schema({
 const OrderSchema: Schema<IOrder> = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   orderId: { type: String, required: true, unique: true, index: true },
-  transactionId: { type: Schema.Types.ObjectId, ref: 'Transaction', index: true }, // Not required for COD
+  transactionId: { type: Schema.Types.ObjectId, ref: 'Transaction', required: true, index: true },
   items: [OrderItemSchema],
   total: { type: Number, required: true, min: 0 },
   currency: { type: String, required: true, default: 'INR' },

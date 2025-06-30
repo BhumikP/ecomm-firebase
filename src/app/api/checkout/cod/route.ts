@@ -7,6 +7,7 @@ import Cart from '@/models/Cart';
 import Product from '@/models/Product';
 import Order from '@/models/Order';
 import Setting from '@/models/Setting';
+import Transaction from '@/models/Transaction'; // Import Transaction model
 
 export async function POST(req: NextRequest) {
   await connectDb();
@@ -71,11 +72,24 @@ export async function POST(req: NextRequest) {
 
     const taxAmount = subtotal * (taxPercentage / 100);
     const totalAmount = subtotal + taxAmount + shippingCharge;
+    
+    // Step 1: Create a pending transaction record for the COD order
+    const newTransaction = new Transaction({
+        userId,
+        items: orderItems,
+        shippingAddress,
+        amount: totalAmount,
+        currency: 'INR',
+        status: 'Pending', // COD transactions start as pending
+    });
+    await newTransaction.save({ session });
 
-    // Create the order
+
+    // Step 2: Create the order and link it to the transaction
     const newOrder = new Order({
         userId,
         orderId: `ORD-${uuidv4().split('-')[0].toUpperCase()}`,
+        transactionId: newTransaction._id, // Link to the new transaction
         items: orderItems,
         total: totalAmount,
         shippingAddress,
@@ -87,7 +101,7 @@ export async function POST(req: NextRequest) {
     });
     await newOrder.save({ session });
 
-    // Decrement stock
+    // Step 3: Decrement stock
     for (const item of newOrder.items) {
         const product = await Product.findById(item.productId).session(session);
         if (!product) throw new Error(`Product with ID ${item.productId} not found during stock reduction.`);
@@ -113,7 +127,7 @@ export async function POST(req: NextRequest) {
         await product.save({ session });
     }
 
-    // Clear the cart
+    // Step 4: Clear the cart
     await Cart.deleteOne({ userId }).session(session);
 
     await session.commitTransaction();
