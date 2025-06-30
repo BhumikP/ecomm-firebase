@@ -40,12 +40,19 @@ export default function AccountPage() {
       setIsLoading(true);
       // --- Mock Data Fetch ---
       await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
-      const mockEmail = localStorage.getItem('userEmail') || 'user@example.com'; // Use stored email or default
-       const mockName = mockEmail.split('@')[0].replace('.', ' ').replace(/^\w/, c => c.toUpperCase()); // Simple name from email
+      const userDataString = localStorage.getItem('userData');
+      let parsedUserData: Partial<UserData> = {};
+      if (userDataString) {
+        try {
+          parsedUserData = JSON.parse(userDataString);
+        } catch (e) {
+          // Ignore JSON parse errors and use default email
+        }
+      }
       setUserData({
-        name: mockName,
-        email: mockEmail,
-        joinedDate: '2023-10-20', // Mock date
+        name: parsedUserData.name || '',
+        email: parsedUserData.email || '',
+        joinedDate: parsedUserData.joinedDate || '', // Mock date
         // avatarUrl: 'https://picsum.photos/100' // Optional avatar URL
       });
       // --- End Mock ---
