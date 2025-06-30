@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { IOrder, OrderItem as OrderItemType } from '@/models/Order';
 import type { ITransaction } from '@/models/Transaction';
 import type { IUser } from '@/models/User';
+import { Label } from '@/components/ui/label';
 
 interface PopulatedOrder extends Omit<IOrder, 'userId' | 'transactionId' | '_id'> {
   _id: string;
