@@ -38,11 +38,11 @@ const addressSchema = z.object({
 
 type AddressFormValues = z.infer<typeof addressSchema>;
 
-interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
+export interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
   product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl'>;
 }
 
-interface PopulatedCart extends Omit<ICart, 'items'> {
+export interface PopulatedCart extends Omit<ICart, 'items'> {
   items: PopulatedCartItem[];
 }
 
@@ -289,7 +289,11 @@ export default function CheckoutPage() {
     }
   };
 
-  const totalBargainDiscount = Object.values(bargainedAmounts).reduce((sum, amount) => sum + amount, 0);
+  const totalBargainDiscount = cart?.items.reduce((sum, item) => {
+    const itemDiscount = bargainedAmounts[item.product._id.toString()] || 0;
+    return sum + (itemDiscount * item.quantity);
+  }, 0) ?? 0;
+
   const subtotal = cart?.items.reduce((acc, item) => acc + item.priceSnapshot * item.quantity, 0) || 0;
   const subtotalAfterBargain = subtotal - totalBargainDiscount;
   const taxAmount = storeSettings ? subtotalAfterBargain * (storeSettings.taxPercentage / 100) : 0;
@@ -428,9 +432,9 @@ export default function CheckoutPage() {
                         <div>
                           <p className="font-medium line-clamp-1">{item.nameSnapshot}</p>
                            <p className="text-muted-foreground">Qty: {item.quantity}</p>
-                           {bargainedAmounts[item.product._id] > 0 && (
+                           {bargainedAmounts[item.product._id.toString()] > 0 && (
                                 <p className="text-green-600 text-xs">
-                                    Bargain: -₹{formatCurrency(bargainedAmounts[item.product._id] * item.quantity)}
+                                    Bargain: -₹{formatCurrency((bargainedAmounts[item.product._id.toString()] || 0) * item.quantity)}
                                 </p>
                            )}
                         </div>
