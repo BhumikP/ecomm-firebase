@@ -24,7 +24,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import type { IShippingAddress } from '@/models/User';
-import { BargainDrawer } from '@/components/checkout/bargain-drawer'; // Import the new component
+import { BargainDrawer } from '@/components/checkout/bargain-drawer';
+import type { BargainOutput } from '@/ai/flows/bargain-flow';
 
 const addressSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -84,6 +85,8 @@ export default function CheckoutPage() {
   
   const [isBargainDrawerOpen, setIsBargainDrawerOpen] = useState(false);
   const [bargainedAmounts, setBargainedAmounts] = useState<Record<string, number>>({});
+  const [bargainPrompt, setBargainPrompt] = useState('');
+  const [bargainAiResponse, setBargainAiResponse] = useState('');
 
 
   const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
@@ -289,6 +292,28 @@ export default function CheckoutPage() {
     }
   };
 
+  const handleBargainComplete = (result: BargainOutput) => {
+    setBargainAiResponse(result.responseMessage);
+
+    if (result.discounts && result.discounts.length > 0) {
+      const newBargainedAmounts: Record<string, number> = {};
+      result.discounts.forEach(d => {
+        newBargainedAmounts[d.productId] = d.discountAmount;
+      });
+      setBargainedAmounts(newBargainedAmounts);
+      toast({
+        title: "Offer Received!",
+        description: "Your special prices have been applied to the cart.",
+      });
+      setIsBargainDrawerOpen(false); // Close drawer on success
+    } else {
+      toast({
+        title: "No luck this time!",
+        description: "The shopkeeper didn't offer a discount. Try a different approach!"
+      });
+    }
+  };
+
   const totalBargainDiscount = cart?.items.reduce((sum, item) => {
     const itemDiscount = bargainedAmounts[item.product._id.toString()] || 0;
     return sum + (itemDiscount * item.quantity);
@@ -490,19 +515,10 @@ export default function CheckoutPage() {
             onOpenChange={setIsBargainDrawerOpen}
             cart={cart}
             userId={userData?._id}
-            onBargainSuccess={(discounts) => {
-                const newBargainedAmounts: Record<string, number> = {};
-                discounts.forEach(d => {
-                     // The discount is per item, so we store the per-item discount amount
-                    newBargainedAmounts[d.productId] = d.discountAmount;
-                });
-                setBargainedAmounts(newBargainedAmounts);
-                toast({
-                    title: "Offer Received!",
-                    description: "Your special prices have been applied to the cart.",
-                });
-                setIsBargainDrawerOpen(false);
-            }}
+            prompt={bargainPrompt}
+            setPrompt={setBargainPrompt}
+            aiResponse={bargainAiResponse}
+            onBargainComplete={handleBargainComplete}
         />
     </div>
   );

@@ -15,13 +15,23 @@ interface BargainDrawerProps {
   onOpenChange: (open: boolean) => void;
   cart: PopulatedCart | null;
   userId?: string;
-  onBargainSuccess: (discounts: BargainOutput['discounts']) => void;
+  prompt: string;
+  setPrompt: (prompt: string) => void;
+  aiResponse: string;
+  onBargainComplete: (result: BargainOutput) => void;
 }
 
-export function BargainDrawer({ isOpen, onOpenChange, cart, userId, onBargainSuccess }: BargainDrawerProps) {
-  const [prompt, setPrompt] = useState('');
+export function BargainDrawer({
+  isOpen,
+  onOpenChange,
+  cart,
+  userId,
+  prompt,
+  setPrompt,
+  aiResponse,
+  onBargainComplete
+}: BargainDrawerProps) {
   const [isBargaining, setIsBargaining] = useState(false);
-  const [aiResponse, setAiResponse] = useState('');
   const { toast } = useToast();
 
   const handleBargain = async () => {
@@ -35,7 +45,6 @@ export function BargainDrawer({ isOpen, onOpenChange, cart, userId, onBargainSuc
     }
 
     setIsBargaining(true);
-    setAiResponse('');
 
     const cartItemsForApi = cart.items.map(item => ({
         productId: item.product._id.toString(),
@@ -56,19 +65,13 @@ export function BargainDrawer({ isOpen, onOpenChange, cart, userId, onBargainSuc
       if (!response.ok) {
         throw new Error((result as any).message || 'Failed to get a response from the bargain bot.');
       }
-
-      setAiResponse(result.responseMessage);
-
-      // If a discount was offered, apply it
-      if (result.discounts && result.discounts.length > 0) {
-        onBargainSuccess(result.discounts);
-      } else {
-        toast({ title: "No luck this time!", description: "The shopkeeper didn't offer a discount. Try a different approach!"})
-      }
-
+      onBargainComplete(result);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Bargaining Error', description: error.message });
-      setAiResponse('Sorry, I seem to be having some trouble right now. Please try again in a moment.');
+      onBargainComplete({
+        responseMessage: `Sorry, an error occurred: ${error.message}`,
+        discounts: [],
+      });
     } finally {
       setIsBargaining(false);
     }
