@@ -1,4 +1,3 @@
-
 // src/app/api/checkout/initiate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
@@ -13,7 +12,7 @@ export async function POST(req: NextRequest) {
   await connectDb();
 
   try {
-    const { userId, shippingAddress, saveAddress } = await req.json();
+    const { userId, shippingAddress, saveAddress, bargainedAmounts = {} } = await req.json();
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return NextResponse.json({ message: 'Valid userId is required.' }, { status: 400 });
@@ -42,15 +41,23 @@ export async function POST(req: NextRequest) {
     const transactionItems = cart.items.map(item => {
       const product = item.product as any;
       if (!product) throw new Error(`Product with ID ${item.product} not found in cart.`);
+      
       const price = product.discount && product.discount > 0
         ? product.price * (1 - product.discount / 100)
         : product.price;
-      subtotal += price * item.quantity;
+
+      const bargainDiscountPerItem = bargainedAmounts[product._id.toString()] || 0;
+      const finalPrice = price - bargainDiscountPerItem;
+      if (finalPrice < 0) throw new Error('Invalid discount, price cannot be negative.');
+      
+      subtotal += finalPrice * item.quantity;
+
       return {
         productId: product._id,
         productName: product.title,
         quantity: item.quantity,
-        price: price,
+        price: finalPrice,
+        bargainDiscount: bargainDiscountPerItem,
         image: item.imageSnapshot,
         selectedColorSnapshot: item.selectedColorSnapshot
       };

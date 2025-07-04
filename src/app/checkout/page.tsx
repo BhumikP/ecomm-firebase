@@ -17,13 +17,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ICart, ICartItem } from '@/models/Cart';
 import type { IProduct } from '@/models/Product';
-import { Loader2, ArrowLeft, Home, Edit2, Star, CreditCard, Truck } from 'lucide-react';
+import { Loader2, ArrowLeft, Home, Edit2, Star, CreditCard, Truck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import type { IShippingAddress } from '@/models/User';
+import { BargainDrawer } from '@/components/checkout/bargain-drawer'; // Import the new component
 
 const addressSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -80,6 +81,10 @@ export default function CheckoutPage() {
   
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  
+  const [isBargainDrawerOpen, setIsBargainDrawerOpen] = useState(false);
+  const [bargainedAmounts, setBargainedAmounts] = useState<Record<string, number>>({});
+
 
   const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 
@@ -165,7 +170,11 @@ export default function CheckoutPage() {
              const response = await fetch('/api/checkout/cod', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: userData!._id, shippingAddress }),
+                body: JSON.stringify({ 
+                    userId: userData!._id, 
+                    shippingAddress,
+                    bargainedAmounts,
+                }),
             });
             const result = await response.json();
             if (!response.ok) {
@@ -191,7 +200,12 @@ export default function CheckoutPage() {
             const initiateResponse = await fetch('/api/checkout/initiate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: userData!._id, shippingAddress, saveAddress: shouldSaveAddress }),
+                body: JSON.stringify({ 
+                    userId: userData!._id, 
+                    shippingAddress, 
+                    saveAddress: shouldSaveAddress,
+                    bargainedAmounts,
+                }),
             });
             const initData = await initiateResponse.json();
             if (!initiateResponse.ok) throw new Error(initData.message || "Failed to initiate transaction.");
@@ -275,10 +289,12 @@ export default function CheckoutPage() {
     }
   };
 
+  const totalBargainDiscount = Object.values(bargainedAmounts).reduce((sum, amount) => sum + amount, 0);
   const subtotal = cart?.items.reduce((acc, item) => acc + item.priceSnapshot * item.quantity, 0) || 0;
-  const taxAmount = storeSettings ? subtotal * (storeSettings.taxPercentage / 100) : 0;
+  const subtotalAfterBargain = subtotal - totalBargainDiscount;
+  const taxAmount = storeSettings ? subtotalAfterBargain * (storeSettings.taxPercentage / 100) : 0;
   const shippingCost = storeSettings?.shippingCharge || 0;
-  const grandTotal = subtotal + taxAmount + shippingCost;
+  const grandTotal = subtotalAfterBargain + taxAmount + shippingCost;
   const formatCurrency = (amount: number) => amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
   const actionButtonText = paymentMethod === 'cod' 
@@ -411,7 +427,12 @@ export default function CheckoutPage() {
                         <Image src={item.imageSnapshot || 'https://placehold.co/100x100.png'} alt={item.nameSnapshot} width={48} height={48} className="w-12 h-12 rounded-md object-cover border" />
                         <div>
                           <p className="font-medium line-clamp-1">{item.nameSnapshot}</p>
-                          <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                           <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                           {bargainedAmounts[item.product._id] > 0 && (
+                                <p className="text-green-600 text-xs">
+                                    Bargain: -₹{formatCurrency(bargainedAmounts[item.product._id] * item.quantity)}
+                                </p>
+                           )}
                         </div>
                       </div>
                       <p className="font-medium">₹{formatCurrency(item.priceSnapshot * item.quantity)}</p>
@@ -424,6 +445,12 @@ export default function CheckoutPage() {
                     <p className="text-muted-foreground">Subtotal</p>
                     <p>₹{formatCurrency(subtotal)}</p>
                   </div>
+                   {totalBargainDiscount > 0 && (
+                        <div className="flex justify-between text-green-600 font-medium">
+                            <p>Bargain Discount</p>
+                            <p>- ₹{formatCurrency(totalBargainDiscount)}</p>
+                        </div>
+                   )}
                   <div className="flex justify-between">
                     <p className="text-muted-foreground">Shipping</p>
                     <p>₹{formatCurrency(shippingCost)}</p>
@@ -440,6 +467,13 @@ export default function CheckoutPage() {
                  <Button onClick={handleProcessOrder} className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
                     {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : actionButtonText}
                   </Button>
+                   <p 
+                        className="text-center text-sm text-primary hover:underline mt-4 cursor-pointer flex items-center justify-center gap-1"
+                        onClick={() => setIsBargainDrawerOpen(true)}
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        Want a better deal? Try bargaining!
+                    </p>
                 </div>
               </CardContent>
             </Card>
@@ -447,6 +481,25 @@ export default function CheckoutPage() {
         </div>
       </main>
       <Footer />
+       <BargainDrawer
+            isOpen={isBargainDrawerOpen}
+            onOpenChange={setIsBargainDrawerOpen}
+            cart={cart}
+            userId={userData?._id}
+            onBargainSuccess={(discounts) => {
+                const newBargainedAmounts: Record<string, number> = {};
+                discounts.forEach(d => {
+                     // The discount is per item, so we store the per-item discount amount
+                    newBargainedAmounts[d.productId] = d.discountAmount;
+                });
+                setBargainedAmounts(newBargainedAmounts);
+                toast({
+                    title: "Offer Received!",
+                    description: "Your special prices have been applied to the cart.",
+                });
+                setIsBargainDrawerOpen(false);
+            }}
+        />
     </div>
   );
 }

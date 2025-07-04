@@ -1,4 +1,4 @@
-
+// src/app/account/orders/[orderId]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -19,12 +19,14 @@ import type { IProduct } from '@/models/Product';
 interface PopulatedOrderItem extends Omit<OrderItemType, 'productId'> {
   _id?: string; // Assuming _id might exist on subdoc
   productId: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl'>; // Product is populated
+  bargainDiscount?: number;
 }
 
 interface PopulatedOrder extends Omit<IOrder, 'items' | 'userId' | '_id'> {
   _id: string;
   userId: string; // Or Populated User Type
   items: PopulatedOrderItem[];
+  totalBargainDiscount?: number;
 }
 
 
@@ -134,6 +136,7 @@ export default function OrderDetailPage() {
         return <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">Order data not available.</div>;
    }
 
+  const subtotal = order.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -190,6 +193,11 @@ export default function OrderDetailPage() {
                           {item.selectedColorSnapshot && (
                               <p className="text-xs text-muted-foreground">Color: {item.selectedColorSnapshot.name}</p>
                           )}
+                          {(item.bargainDiscount || 0) > 0 && (
+                                <p className="text-xs text-green-600">
+                                    Bargain: -₹{formatCurrency(item.bargainDiscount! * item.quantity)}
+                                </p>
+                          )}
                       </TableCell>
                       <TableCell className="text-center">{item.quantity}</TableCell>
                       <TableCell className="text-right">₹{formatCurrency(item.price)}</TableCell>
@@ -237,8 +245,14 @@ export default function OrderDetailPage() {
           <CardContent className="space-y-2 text-sm">
              <div className="flex justify-between">
                <span>Subtotal ({order.items.reduce((sum, i) => sum + i.quantity, 0)} items)</span>
-               <span>₹{formatCurrency(order.items.reduce((sum, i) => sum + (i.price * i.quantity), 0))}</span>
+               <span>₹{formatCurrency(subtotal)}</span>
              </div>
+             {(order.totalBargainDiscount || 0) > 0 && (
+                <div className="flex justify-between text-green-600">
+                    <span>Bargain Discount</span>
+                    <span>- ₹{formatCurrency(order.totalBargainDiscount!)}</span>
+                </div>
+              )}
              <div className="flex justify-between">
                 <span>Shipping</span>
                 <span>₹{formatCurrency(order.shippingCost || 0)}</span> 

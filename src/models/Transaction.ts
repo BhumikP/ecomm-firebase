@@ -7,7 +7,8 @@ interface TransactionItem {
   productId: Types.ObjectId;
   productName: string;
   quantity: number;
-  price: number; // Price per unit at time of transaction
+  price: number; // Price per unit at time of transaction (after bargain)
+  bargainDiscount?: number;
   image?: string;
   selectedColorSnapshot?: {
     name: string;
@@ -20,6 +21,7 @@ const TransactionItemSchema: Schema<TransactionItem> = new Schema({
   productName: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
   price: { type: Number, required: true, min: 0 },
+  bargainDiscount: { type: Number, default: 0 },
   image: { type: String },
   selectedColorSnapshot: {
     name: { type: String },

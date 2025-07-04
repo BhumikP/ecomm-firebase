@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   session.startTransaction();
 
   try {
-    const { userId, shippingAddress } = await req.json();
+    const { userId, shippingAddress, bargainedAmounts = {} } = await req.json();
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       await session.abortTransaction();
@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     const shippingCharge = settings?.shippingCharge || 0;
 
     let subtotal = 0;
+    let totalBargainDiscount = 0;
     const orderItems = [];
 
     // Validate stock and prepare order items
@@ -58,13 +59,21 @@ export async function POST(req: NextRequest) {
       const price = product.discount && product.discount > 0
         ? product.price * (1 - product.discount / 100)
         : product.price;
-      subtotal += price * item.quantity;
+
+      // Apply bargain discount if available
+      const bargainDiscountPerItem = bargainedAmounts[product._id.toString()] || 0;
+      const finalPrice = price - bargainDiscountPerItem;
+      if (finalPrice < 0) throw new Error('Invalid discount, price cannot be negative.');
+
+      totalBargainDiscount += bargainDiscountPerItem * item.quantity;
+      subtotal += finalPrice * item.quantity;
 
       orderItems.push({
         productId: product._id,
         productName: product.title,
         quantity: item.quantity,
-        price: price,
+        price: finalPrice, // Use final price after bargain
+        bargainDiscount: bargainDiscountPerItem,
         image: item.imageSnapshot,
         selectedColorSnapshot: item.selectedColorSnapshot
       });
@@ -92,6 +101,7 @@ export async function POST(req: NextRequest) {
         transactionId: newTransaction._id, // Link to the new transaction
         items: orderItems,
         total: totalAmount,
+        totalBargainDiscount,
         shippingAddress,
         paymentMethod: 'COD',
         paymentStatus: 'Pending',

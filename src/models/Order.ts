@@ -11,6 +11,7 @@ export interface OrderItem {
   productName: string;
   quantity: number;
   price: number; // Price *per unit* at the time of order
+  bargainDiscount?: number; // Discount per item from bargaining
   image?: string;
   selectedColorSnapshot?: {
     name: string;
@@ -36,6 +37,7 @@ export interface IOrder extends Document {
   transactionId: Types.ObjectId | ITransaction; // Link to the transaction - NOW REQUIRED
   items: Types.DocumentArray<OrderItem>; // Use DocumentArray for subdocuments
   total: number;
+  totalBargainDiscount?: number; // Total discount from bargaining
   currency: string;
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
   paymentStatus: 'Pending' | 'Paid' | 'Refunded';
@@ -60,6 +62,7 @@ const OrderItemSchema: Schema<OrderItem> = new Schema({
   productName: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
   price: { type: Number, required: true, min: 0 },
+  bargainDiscount: { type: Number, default: 0 },
   image: { type: String },
   selectedColorSnapshot: {
     name: { type: String },
@@ -83,6 +86,7 @@ const OrderSchema: Schema<IOrder> = new Schema({
   transactionId: { type: Schema.Types.ObjectId, ref: 'Transaction', required: true, index: true },
   items: [OrderItemSchema],
   total: { type: Number, required: true, min: 0 },
+  totalBargainDiscount: { type: Number, default: 0 },
   currency: { type: String, required: true, default: 'INR' },
   status: {
     type: String,

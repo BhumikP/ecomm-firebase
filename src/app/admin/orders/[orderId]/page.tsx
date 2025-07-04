@@ -111,6 +111,8 @@ export default function AdminOrderDetailPage() {
   if (error || !order) {
     return <div className="text-center py-10"><p className="text-destructive mb-4">{error || 'Order not found'}</p><Button variant="outline" asChild><Link href="/admin/orders"><ArrowLeft className="mr-2 h-4 w-4" />Back to Orders</Link></Button></div>;
   }
+  
+  const subtotal = order.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   return (
     <div className="space-y-6">
@@ -202,7 +204,13 @@ export default function AdminOrderDetailPage() {
 
             <Card><CardHeader><Package className="h-5 w-5 text-muted-foreground mb-2"/><CardTitle>Order Summary</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span>Subtotal</span><span>₹{formatCurrency(order.total - (order.taxAmount || 0) - (order.shippingCost || 0))}</span></div>
+                    <div className="flex justify-between"><span>Subtotal</span><span>₹{formatCurrency(subtotal)}</span></div>
+                    {(order.totalBargainDiscount || 0) > 0 && (
+                        <div className="flex justify-between text-green-600">
+                            <span>Bargain Discount</span>
+                            <span>- ₹{formatCurrency(order.totalBargainDiscount!)}</span>
+                        </div>
+                    )}
                     <div className="flex justify-between"><span>Shipping</span><span>₹{formatCurrency(order.shippingCost || 0)}</span></div>
                     <div className="flex justify-between"><span>Taxes</span><span>₹{formatCurrency(order.taxAmount || 0)}</span></div>
                     <Separator />

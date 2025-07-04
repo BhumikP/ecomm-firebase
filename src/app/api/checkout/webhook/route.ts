@@ -20,8 +20,13 @@ const createOrderFromTransaction = async (transaction: ITransaction, session: mo
     }
     
     const settings = await mongoose.model('Setting').findOne({ configKey: 'global_settings' }).session(session);
-    const taxAmount = transaction.items.reduce((acc, item) => acc + (item.price * item.quantity), 0) * ((settings?.taxPercentage || 0) / 100);
+    
+    const totalBargainDiscount = transaction.items.reduce((acc, item) => acc + (item.bargainDiscount || 0) * item.quantity, 0);
+    const subtotalAfterBargain = transaction.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+    const taxAmount = subtotalAfterBargain * ((settings?.taxPercentage || 0) / 100);
     const shippingCost = settings?.shippingCharge || 0;
+    const grandTotal = subtotalAfterBargain + taxAmount + shippingCost;
 
 
     const newOrder = new Order({
@@ -29,7 +34,8 @@ const createOrderFromTransaction = async (transaction: ITransaction, session: mo
         orderId: `ORD-${uuidv4().split('-')[0].toUpperCase()}`,
         transactionId: transaction._id,
         items: transaction.items,
-        total: transaction.amount,
+        total: grandTotal,
+        totalBargainDiscount: totalBargainDiscount,
         currency: transaction.currency,
         shippingAddress: transaction.shippingAddress,
         paymentMethod: 'Razorpay',
