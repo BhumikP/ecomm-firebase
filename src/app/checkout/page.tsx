@@ -41,6 +41,7 @@ const addressSchema = z.object({
 type AddressFormValues = z.infer<typeof addressSchema>;
 
 export interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
+  _id: string;
   product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl'>;
 }
 
@@ -274,9 +275,11 @@ export default function CheckoutPage() {
                     (formElement.elements.namedItem('hash') as HTMLInputElement).value = payuDetails.hash;
                     (formElement.elements.namedItem('surl') as HTMLInputElement).value = `${window.location.origin}/api/payments/payu-callback`;
                     (formElement.elements.namedItem('furl') as HTMLInputElement).value = `${window.location.origin}/api/payments/payu-callback`;
-                     (formElement.elements.namedItem('phone') as HTMLInputElement).value = shippingAddress.phone || '';
+                    (formElement.elements.namedItem('phone') as HTMLInputElement).value = shippingAddress.phone || '';
 
                     formElement.submit();
+                } else {
+                    throw new Error("PayU form not found.");
                 }
             }
         } catch (error: any) {

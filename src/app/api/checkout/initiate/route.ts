@@ -97,13 +97,18 @@ export async function POST(req: NextRequest) {
           razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         }, { status: 200 });
     } else if (activeGateway === 'payu') {
+        const user = await User.findById(userId).lean();
+        if (!user) {
+          throw new Error('User not found for PayU transaction.');
+        }
+
         const payuDetails = {
             key: process.env.PAYU_KEY!,
             txnid: newTransaction._id.toString(),
             amount: totalAmount.toFixed(2),
             productinfo: productInfoString.substring(0, 100),
             firstname: shippingAddress.name.split(' ')[0],
-            email: (await User.findById(userId).lean())?.email || 'test@example.com',
+            email: user.email,
         };
 
         const hash = generatePayuHash(payuDetails);

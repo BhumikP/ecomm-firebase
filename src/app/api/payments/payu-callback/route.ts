@@ -3,12 +3,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import { verifyPayuResponseHash } from '@/lib/payu';
-import Transaction from '@/models/Transaction';
+import Transaction, { ITransaction } from '@/models/Transaction';
 import Order from '@/models/Order';
 import Product from '@/models/Product';
 import Cart from '@/models/Cart';
 import { v4 as uuidv4 } from 'uuid';
 import mongoose from 'mongoose';
+import Setting from '@/models/Setting';
+import User from '@/models/User';
 
 export async function POST(req: NextRequest) {
   await connectDb();
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const payuResponse = Object.fromEntries(formData.entries());
 
-    const { status, txnid, hash: receivedHash, mihpayid } = payuResponse as Record<string, string>;
+    const { status, txnid, hash: receivedHash, mihpayid, amount, productinfo, firstname, email } = payuResponse as Record<string, string>;
 
     if (!txnid || !status || !receivedHash) {
       await session.abortTransaction();
@@ -39,10 +41,10 @@ export async function POST(req: NextRequest) {
     const hashVerificationDetails = {
       key: process.env.PAYU_KEY!,
       txnid: txnid,
-      amount: transaction.amount.toFixed(2),
-      productinfo: transaction.items.map(i => i.productName).join(', ').substring(0, 100),
-      firstname: transaction.shippingAddress.name.split(' ')[0],
-      email: (await mongoose.model('User').findById(transaction.userId).lean())?.email || '',
+      amount: amount,
+      productinfo: productinfo,
+      firstname: firstname,
+      email: email,
       status: status,
     };
     
@@ -65,19 +67,30 @@ export async function POST(req: NextRequest) {
         transaction.payu_txnid = txnid;
         await transaction.save({ session });
 
+        const settings = await Setting.findOne({ configKey: 'global_settings' }).session(session);
+        const taxPercentage = settings?.taxPercentage || 0;
+        const shippingCharge = settings?.shippingCharge || 0;
+        
+        const totalBargainDiscount = transaction.items.reduce((acc, item) => acc + (item.bargainDiscount || 0) * item.quantity, 0);
+        const subtotalAfterBargain = transaction.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+        const taxAmount = subtotalAfterBargain * (taxPercentage / 100);
+        const grandTotal = subtotalAfterBargain + taxAmount + shippingCharge;
+
         // Create Order from Transaction
         const newOrder = new Order({
             userId: transaction.userId,
             orderId: `ORD-${uuidv4().split('-')[0].toUpperCase()}`,
             transactionId: transaction._id,
             items: transaction.items,
-            total: transaction.amount,
+            total: grandTotal,
+            totalBargainDiscount,
             currency: transaction.currency,
             shippingAddress: transaction.shippingAddress,
             paymentMethod: 'PayU',
             paymentStatus: 'Paid',
             paymentDetails: { gateway: 'PayU', payu_mihpayid: mihpayid, payu_txnid: txnid },
-            totalBargainDiscount: transaction.items.reduce((acc, item) => acc + (item.bargainDiscount || 0) * item.quantity, 0),
+            shippingCost: shippingCharge,
+            taxAmount,
         });
         await newOrder.save({ session });
         orderIdForRedirect = newOrder.orderId;

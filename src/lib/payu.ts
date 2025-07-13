@@ -28,6 +28,7 @@ export const generatePayuHash = (details: PayUTransactionDetails): string => {
     throw new Error('PayU credentials are not configured on the server.');
   }
 
+  // The order of fields for the request hash string is critical.
   const hashString = `${details.key}|${details.txnid}|${details.amount}|${details.productinfo}|${details.firstname}|${details.email}|||||||||||${PAYU_SALT}`;
   const sha = crypto.createHash('sha512');
   sha.update(hashString);
@@ -36,15 +37,17 @@ export const generatePayuHash = (details: PayUTransactionDetails): string => {
 
 /**
  * Verifies the response hash from PayU to confirm transaction integrity.
- * @param details - The transaction details received from PayU.
+ * @param details - The transaction details received from PayU, including status.
  * @param receivedHash - The hash received in the PayU response.
  * @returns boolean indicating if the hash is valid.
  */
 export const verifyPayuResponseHash = (details: PayUTransactionDetails & { status: string }, receivedHash: string): boolean => {
     if (!PAYU_KEY || !PAYU_SALT) {
-        throw new Error('PayU credentials are not configured on the server.');
+        console.error('PayU salt or key not configured for hash verification.');
+        return false;
     }
     
+    // The order of fields for the response hash string is different and critical.
     const hashString = `${PAYU_SALT}|${details.status}|||||||||||${details.email}|${details.firstname}|${details.productinfo}|${details.amount}|${details.txnid}|${PAYU_KEY}`;
     const sha = crypto.createHash('sha512');
     sha.update(hashString);
