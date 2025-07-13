@@ -156,7 +156,6 @@ export default async function Home() {
                       className="w-full h-full object-cover bg-muted"
                       priority={index === 0}
                       data-ai-hint={banner.dataAiHint || 'promotional banner'}
-                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/1200x400.png?text=Banner+Error'; }}
                     />
                     {banner.title && (
                       <div className="absolute inset-x-0 top-0 p-4 md:p-8 bg-gradient-to-b from-black/70 via-black/50 to-transparent">
