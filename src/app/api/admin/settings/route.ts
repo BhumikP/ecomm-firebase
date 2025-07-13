@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   // if (!isAdmin) return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
 
   try {
-    let settingsDoc = await Setting.findOne({ configKey: 'global_settings' });
+    let settingsDoc = await Setting.findOne({ configKey: 'global_settings' }).lean();
     
     let responseSettings: typeof DEFAULT_SETTINGS_FROM_MODEL;
 
@@ -61,51 +61,48 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as Partial<Omit<ISetting, '_id' | 'configKey' | 'createdAt' | 'updatedAt'>>;
 
-    // Validate incoming data
-    if (body.storeName !== undefined && (typeof body.storeName !== 'string' || body.storeName.trim() === '')) {
-        return NextResponse.json({ message: 'Store name cannot be empty' }, { status: 400 });
-    }
-    if (body.supportEmail !== undefined && (typeof body.supportEmail !== 'string' || !body.supportEmail.includes('@'))) {
-        return NextResponse.json({ message: 'Invalid support email' }, { status: 400 });
-    }
-    if (body.taxPercentage !== undefined && (typeof body.taxPercentage !== 'number' || body.taxPercentage < 0 || body.taxPercentage > 100)) {
-        return NextResponse.json({ message: 'Tax percentage must be between 0 and 100' }, { status: 400 });
-    }
-     if (body.shippingCharge !== undefined && (typeof body.shippingCharge !== 'number' || body.shippingCharge < 0)) {
-        return NextResponse.json({ message: 'Shipping charge must be non-negative' }, { status: 400 });
-    }
-    // Validations for new announcement fields
-    if (body.announcementText !== undefined && typeof body.announcementText !== 'string') {
-        return NextResponse.json({ message: 'Invalid announcement text format' }, { status: 400 });
-    }
-    if (body.announcementLink !== undefined && typeof body.announcementLink !== 'string') {
-        return NextResponse.json({ message: 'Invalid announcement link format' }, { status: 400 });
-    }
-    if (body.isAnnouncementActive !== undefined && typeof body.isAnnouncementActive !== 'boolean') {
-        return NextResponse.json({ message: 'Invalid value for announcement active status' }, { status: 400 });
-    }
-    if (body.activePaymentGateway !== undefined && !['razorpay', 'payu'].includes(body.activePaymentGateway)) {
-        return NextResponse.json({ message: 'Invalid payment gateway specified.' }, { status: 400 });
-    }
-    
     const updatePayload: Partial<ISetting> = {};
-    if (body.storeName !== undefined) updatePayload.storeName = body.storeName;
-    if (body.supportEmail !== undefined) updatePayload.supportEmail = body.supportEmail;
-    if (body.taxPercentage !== undefined) updatePayload.taxPercentage = body.taxPercentage;
-    if (body.shippingCharge !== undefined) updatePayload.shippingCharge = body.shippingCharge;
     
-    // Explicitly include announcement fields in the update payload.
-    if (body.announcementText !== undefined) updatePayload.announcementText = body.announcementText;
-    if (body.announcementLink !== undefined) updatePayload.announcementLink = body.announcementLink;
-    if (body.isAnnouncementActive !== undefined) updatePayload.isAnnouncementActive = body.isAnnouncementActive;
-    if (body.activePaymentGateway !== undefined) updatePayload.activePaymentGateway = body.activePaymentGateway;
+    // Validate and build the payload
+    if (body.storeName !== undefined) {
+      if(typeof body.storeName !== 'string' || body.storeName.trim() === '') return NextResponse.json({ message: 'Store name cannot be empty' }, { status: 400 });
+      updatePayload.storeName = body.storeName;
+    }
+    if (body.supportEmail !== undefined) {
+      if(typeof body.supportEmail !== 'string' || !body.supportEmail.includes('@')) return NextResponse.json({ message: 'Invalid support email' }, { status: 400 });
+      updatePayload.supportEmail = body.supportEmail;
+    }
+    if (body.taxPercentage !== undefined) {
+       if(typeof body.taxPercentage !== 'number' || body.taxPercentage < 0 || body.taxPercentage > 100) return NextResponse.json({ message: 'Tax percentage must be between 0 and 100' }, { status: 400 });
+       updatePayload.taxPercentage = body.taxPercentage;
+    }
+     if (body.shippingCharge !== undefined) {
+       if(typeof body.shippingCharge !== 'number' || body.shippingCharge < 0) return NextResponse.json({ message: 'Shipping charge must be non-negative' }, { status: 400 });
+       updatePayload.shippingCharge = body.shippingCharge;
+    }
+    if (body.announcementText !== undefined) {
+        if(typeof body.announcementText !== 'string') return NextResponse.json({ message: 'Invalid announcement text format' }, { status: 400 });
+        updatePayload.announcementText = body.announcementText;
+    }
+    if (body.announcementLink !== undefined) {
+        if(typeof body.announcementLink !== 'string') return NextResponse.json({ message: 'Invalid announcement link format' }, { status: 400 });
+        updatePayload.announcementLink = body.announcementLink;
+    }
+    if (body.isAnnouncementActive !== undefined) {
+        if(typeof body.isAnnouncementActive !== 'boolean') return NextResponse.json({ message: 'Invalid value for announcement active status' }, { status: 400 });
+        updatePayload.isAnnouncementActive = body.isAnnouncementActive;
+    }
+    if (body.activePaymentGateway !== undefined) {
+        if(!['razorpay', 'payu'].includes(body.activePaymentGateway)) return NextResponse.json({ message: 'Invalid payment gateway specified.' }, { status: 400 });
+        updatePayload.activePaymentGateway = body.activePaymentGateway;
+    }
 
 
     const updatedSettingsDoc = await Setting.findOneAndUpdate(
       { configKey: 'global_settings' },
       { $set: updatePayload },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-    );
+    ).lean();
 
     // Construct response settings object from the updated document
     const responseSettings = {

@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Your cart is empty.' }, { status: 400 });
     }
 
-    const settings = await Setting.findOne({ configKey: 'global_settings' });
+    const settings = await Setting.findOne({ configKey: 'global_settings' }).lean();
     const taxPercentage = settings?.taxPercentage || 0;
     const shippingCharge = settings?.shippingCharge || 0;
     const activeGateway = settings?.activePaymentGateway || 'razorpay';
