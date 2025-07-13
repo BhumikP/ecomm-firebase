@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Percent, Truck, Megaphone, Link as LinkIcon } from 'lucide-react';
+import { Loader2, Percent, Truck, Megaphone, Link as LinkIcon, CreditCard } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 interface StoreSettings {
@@ -18,9 +19,10 @@ interface StoreSettings {
   supportEmail: string;
   taxPercentage: number;
   shippingCharge: number;
-  announcementText: string; // Ensure it's not optional for consistent state handling
-  announcementLink: string; // Ensure it's not optional
-  isAnnouncementActive: boolean; // Ensure it's not optional
+  announcementText: string;
+  announcementLink: string;
+  isAnnouncementActive: boolean;
+  activePaymentGateway: 'razorpay' | 'payu'; // New field for payment gateway
 }
 
 const defaultSettingsState: StoreSettings = {
@@ -31,6 +33,7 @@ const defaultSettingsState: StoreSettings = {
     announcementText: '',
     announcementLink: '',
     isAnnouncementActive: false,
+    activePaymentGateway: 'razorpay', // Default to razorpay
 };
 
 export default function AdminSettingsPage() {
@@ -60,6 +63,7 @@ export default function AdminSettingsPage() {
                     announcementText: data.settings.announcementText ?? defaultSettingsState.announcementText,
                     announcementLink: data.settings.announcementLink ?? defaultSettingsState.announcementLink,
                     isAnnouncementActive: data.settings.isAnnouncementActive ?? defaultSettingsState.isAnnouncementActive,
+                    activePaymentGateway: data.settings.activePaymentGateway ?? defaultSettingsState.activePaymentGateway,
                 });
             } else {
                 // If data.settings is null/undefined, initialize with defaults
@@ -93,6 +97,13 @@ export default function AdminSettingsPage() {
     }));
   };
 
+  const handleSelectChange = (value: 'razorpay' | 'payu') => {
+    setSettings(prev => ({
+        ...prev,
+        activePaymentGateway: value,
+    }));
+  };
+
 
   const handleSaveChanges = async () => {
     setIsLoading(true);
@@ -106,6 +117,7 @@ export default function AdminSettingsPage() {
         announcementText: settings.announcementText || '', // Send empty string if undefined/null
         announcementLink: settings.announcementLink || '', // Send empty string
         isAnnouncementActive: settings.isAnnouncementActive || false, // Send false if undefined/null
+        activePaymentGateway: settings.activePaymentGateway || 'razorpay',
       };
 
       const response = await fetch('/api/admin/settings', {
@@ -130,6 +142,7 @@ export default function AdminSettingsPage() {
             announcementText: result.settings.announcementText ?? defaultSettingsState.announcementText,
             announcementLink: result.settings.announcementLink ?? defaultSettingsState.announcementLink,
             isAnnouncementActive: result.settings.isAnnouncementActive ?? defaultSettingsState.isAnnouncementActive,
+            activePaymentGateway: result.settings.activePaymentGateway ?? defaultSettingsState.activePaymentGateway,
          });
       }
     } catch (error: any) {
@@ -206,7 +219,7 @@ export default function AdminSettingsPage() {
        <Card>
         <CardHeader>
           <CardTitle>Financial Settings</CardTitle>
-          <CardDescription>Configure tax rates and shipping costs.</CardDescription>
+          <CardDescription>Configure tax rates, shipping costs, and payment gateways.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
            <div className="space-y-2">
@@ -240,6 +253,24 @@ export default function AdminSettingsPage() {
               disabled={isLoading}
             />
             <p className="text-xs text-muted-foreground">Flat shipping rate. More complex rules may need custom logic.</p>
+          </div>
+          
+           <div className="space-y-2">
+            <Label htmlFor="activePaymentGateway" className="flex items-center"><CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />Active Payment Gateway</Label>
+            <Select
+                value={settings.activePaymentGateway}
+                onValueChange={handleSelectChange}
+                disabled={isLoading}
+            >
+                <SelectTrigger id="activePaymentGateway">
+                    <SelectValue placeholder="Select a payment gateway" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="razorpay">Razorpay</SelectItem>
+                    <SelectItem value="payu">PayU</SelectItem>
+                </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Choose the payment provider for online checkouts.</p>
           </div>
         </CardContent>
       </Card>
@@ -296,10 +327,10 @@ export default function AdminSettingsPage() {
            <Card className="mt-6">
              <CardHeader>
                 <CardTitle className="text-lg">Advanced Integrations</CardTitle>
-                <CardDescription>Configure external services and API keys.</CardDescription>
+                <CardDescription>Configure external services and API keys (e.g. for PayU/Razorpay).</CardDescription>
              </CardHeader>
              <CardContent>
-                 <p className="text-muted-foreground">[Payment Gateway Keys, Email Service API, etc. - Placeholder]</p>
+                 <p className="text-muted-foreground">Keys for payment gateways should be set in your environment variables (.env file).</p>
              </CardContent>
            </Card>
 

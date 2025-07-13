@@ -11,6 +11,7 @@ export interface ISetting extends Document {
   announcementText?: string;
   announcementLink?: string;
   isAnnouncementActive?: boolean;
+  activePaymentGateway: 'razorpay' | 'payu'; // To toggle between payment gateways
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +58,12 @@ const SettingSchema: Schema<ISetting> = new Schema({
   isAnnouncementActive: {
     type: Boolean,
     default: false,
+  },
+  activePaymentGateway: {
+    type: String,
+    enum: ['razorpay', 'payu'],
+    default: 'razorpay',
+    required: true,
   },
 }, { timestamps: true });
 

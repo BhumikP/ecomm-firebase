@@ -1,3 +1,4 @@
+
 // src/models/Order.ts
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import type { IUser } from './User';
@@ -42,13 +43,15 @@ export interface IOrder extends Document {
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
   paymentStatus: 'Pending' | 'Paid' | 'Refunded';
   shippingAddress: ShippingAddress;
-  paymentMethod: 'Razorpay' | 'COD';
+  paymentMethod: 'Razorpay' | 'COD' | 'PayU'; // Added PayU
   paymentDetails?: {
-    transactionId?: string; // This will be razorpay_payment_id
+    transactionId?: string; // This will be razorpay_payment_id or PayU ID
     gateway?: string;
     razorpay_payment_id?: string;
     razorpay_order_id?: string;
     razorpay_signature?: string;
+    payu_mihpayid?: string;
+    payu_txnid?: string;
   };
   shippingCost?: number;
   taxAmount?: number;
@@ -104,7 +107,7 @@ const OrderSchema: Schema<IOrder> = new Schema({
   shippingAddress: { type: ShippingAddressSchema, required: true },
   paymentMethod: {
     type: String,
-    enum: ['Razorpay', 'COD'],
+    enum: ['Razorpay', 'COD', 'PayU'],
     required: true,
   },
   paymentDetails: {
@@ -113,6 +116,8 @@ const OrderSchema: Schema<IOrder> = new Schema({
      razorpay_payment_id: { type: String },
      razorpay_order_id: { type: String },
      razorpay_signature: { type: String },
+     payu_mihpayid: { type: String },
+     payu_txnid: { type: String },
   },
   shippingCost: { type: Number, default: 0 },
   taxAmount: { type: Number, default: 0 },

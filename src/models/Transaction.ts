@@ -1,3 +1,4 @@
+
 // src/models/Transaction.ts
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import type { IUser } from './User';
@@ -61,6 +62,8 @@ export interface ITransaction extends Document {
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
   razorpay_signature?: string;
+  payu_mihpayid?: string; // PayU Payment ID
+  payu_txnid?: string; // Our transaction ID sent to PayU
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,6 +84,8 @@ const TransactionSchema: Schema<ITransaction> = new Schema({
   razorpay_order_id: { type: String, index: true },
   razorpay_payment_id: { type: String },
   razorpay_signature: { type: String },
+  payu_mihpayid: { type: String },
+  payu_txnid: { type: String },
 }, { timestamps: true });
 
 const Transaction: Model<ITransaction> = mongoose.models.Transaction || mongoose.model<ITransaction>('Transaction', TransactionSchema);

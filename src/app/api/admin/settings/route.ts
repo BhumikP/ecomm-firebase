@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS_FROM_MODEL: Omit<ISetting, '_id' | 'configKey' | 'created
   announcementText: '',
   announcementLink: '',
   isAnnouncementActive: false,
+  activePaymentGateway: 'razorpay',
 };
 
 // GET current store settings
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
         announcementText: settingsDoc.announcementText ?? DEFAULT_SETTINGS_FROM_MODEL.announcementText,
         announcementLink: settingsDoc.announcementLink ?? DEFAULT_SETTINGS_FROM_MODEL.announcementLink,
         isAnnouncementActive: settingsDoc.isAnnouncementActive ?? DEFAULT_SETTINGS_FROM_MODEL.isAnnouncementActive,
+        activePaymentGateway: settingsDoc.activePaymentGateway ?? DEFAULT_SETTINGS_FROM_MODEL.activePaymentGateway,
       };
     }
     return NextResponse.json({ settings: responseSettings }, { status: 200 });
@@ -82,6 +84,9 @@ export async function POST(req: NextRequest) {
     if (body.isAnnouncementActive !== undefined && typeof body.isAnnouncementActive !== 'boolean') {
         return NextResponse.json({ message: 'Invalid value for announcement active status' }, { status: 400 });
     }
+    if (body.activePaymentGateway !== undefined && !['razorpay', 'payu'].includes(body.activePaymentGateway)) {
+        return NextResponse.json({ message: 'Invalid payment gateway specified.' }, { status: 400 });
+    }
     
     const updatePayload: Partial<ISetting> = {};
     if (body.storeName !== undefined) updatePayload.storeName = body.storeName;
@@ -90,29 +95,11 @@ export async function POST(req: NextRequest) {
     if (body.shippingCharge !== undefined) updatePayload.shippingCharge = body.shippingCharge;
     
     // Explicitly include announcement fields in the update payload.
-    // If the client sends them, use those values. If client omits them (which current client setup should not),
-    // fall back to model defaults to ensure they are part of the $set operation.
     updatePayload.announcementText = (body.announcementText !== undefined) ? body.announcementText : DEFAULT_SETTINGS_FROM_MODEL.announcementText;
     updatePayload.announcementLink = (body.announcementLink !== undefined) ? body.announcementLink : DEFAULT_SETTINGS_FROM_MODEL.announcementLink;
     updatePayload.isAnnouncementActive = (body.isAnnouncementActive !== undefined) ? body.isAnnouncementActive : DEFAULT_SETTINGS_FROM_MODEL.isAnnouncementActive;
+    updatePayload.activePaymentGateway = (body.activePaymentGateway !== undefined) ? body.activePaymentGateway : DEFAULT_SETTINGS_FROM_MODEL.activePaymentGateway;
 
-
-    if (Object.keys(updatePayload).length === 0 && 
-        body.announcementText === undefined && 
-        body.announcementLink === undefined && 
-        body.isAnnouncementActive === undefined) {
-        // Check if any field was actually intended for update.
-        // The explicit setting above ensures announcement fields are always considered, so this condition might need adjustment
-        // if we *only* want to update if body explicitly sends something.
-        // However, the current goal is to ensure announcement fields *are* set.
-        // This check is now less relevant if we always set announcement fields.
-        // Let's ensure at least one *other* field was sent, or an announcement field.
-        const nonAnnouncementFieldsInBody = ['storeName', 'supportEmail', 'taxPercentage', 'shippingCharge'].some(key => body.hasOwnProperty(key));
-        const announcementFieldsInBody = ['announcementText', 'announcementLink', 'isAnnouncementActive'].some(key => body.hasOwnProperty(key));
-        if (!nonAnnouncementFieldsInBody && !announcementFieldsInBody) {
-           return NextResponse.json({ message: "No valid fields provided for update." }, { status: 400 });
-        }
-    }
 
     const updatedSettingsDoc = await Setting.findOneAndUpdate(
       { configKey: 'global_settings' },
@@ -129,6 +116,7 @@ export async function POST(req: NextRequest) {
         announcementText: updatedSettingsDoc.announcementText,
         announcementLink: updatedSettingsDoc.announcementLink,
         isAnnouncementActive: updatedSettingsDoc.isAnnouncementActive,
+        activePaymentGateway: updatedSettingsDoc.activePaymentGateway,
     };
 
     return NextResponse.json({ settings: responseSettings, message: 'Settings updated successfully' }, { status: 200 });

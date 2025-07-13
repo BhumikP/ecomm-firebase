@@ -1,11 +1,13 @@
+
 // src/app/api/checkout/initiate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Cart from '@/models/Cart';
 import Setting from '@/models/Setting';
-import Transaction from '@/models/Transaction'; // Import Transaction model
-import User from '@/models/User'; // Import User model
+import Transaction from '@/models/Transaction';
+import User from '@/models/User';
 import { razorpayInstance } from '@/lib/razorpay';
+import { generatePayuHash } from '@/lib/payu';
 import mongoose from 'mongoose';
 
 export async function POST(req: NextRequest) {
@@ -21,11 +23,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Shipping address is required.' }, { status: 400 });
     }
 
-    // If the user wants to save the new address, update their profile
     if (saveAddress) {
-      await User.findByIdAndUpdate(userId, {
-        $push: { addresses: shippingAddress },
-      });
+      await User.findByIdAndUpdate(userId, { $push: { addresses: shippingAddress } });
     }
 
     const cart = await Cart.findOne({ userId }).populate('items.product');
@@ -36,9 +35,11 @@ export async function POST(req: NextRequest) {
     const settings = await Setting.findOne({ configKey: 'global_settings' });
     const taxPercentage = settings?.taxPercentage || 0;
     const shippingCharge = settings?.shippingCharge || 0;
+    const activeGateway = settings?.activePaymentGateway || 'razorpay';
 
     let subtotal = 0;
-    const transactionItems = cart.items.map(item => {
+    let productInfoString = '';
+    const transactionItems = cart.items.map((item, index) => {
       const product = item.product as any;
       if (!product) throw new Error(`Product with ID ${item.product} not found in cart.`);
       
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
       if (finalPrice < 0) throw new Error('Invalid discount, price cannot be negative.');
       
       subtotal += finalPrice * item.quantity;
+      if (index > 0) productInfoString += ', ';
+      productInfoString += product.title;
 
       return {
         productId: product._id,
@@ -66,7 +69,6 @@ export async function POST(req: NextRequest) {
     const taxAmount = subtotal * (taxPercentage / 100);
     const totalAmount = subtotal + taxAmount + shippingCharge;
     
-    // Step 1: Create a pending transaction record in our DB first
     const newTransaction = new Transaction({
         userId,
         items: transactionItems,
@@ -74,33 +76,50 @@ export async function POST(req: NextRequest) {
         amount: totalAmount,
         currency: 'INR',
         status: 'Pending',
-        // razorpay_order_id will be added after creating the Razorpay order
     });
     await newTransaction.save();
 
-    // Step 2: Create Razorpay order using our transaction ID as the receipt
-    const options = {
-      amount: Math.round(totalAmount * 100), // amount in smallest currency unit
-      currency: 'INR',
-      receipt: newTransaction._id.toString(), // Use internal transaction ID as receipt
-    };
-    const razorpayOrder = await razorpayInstance.orders.create(options);
+    if (activeGateway === 'razorpay') {
+        const options = {
+          amount: Math.round(totalAmount * 100),
+          currency: 'INR',
+          receipt: newTransaction._id.toString(),
+        };
+        const razorpayOrder = await razorpayInstance.orders.create(options);
+        newTransaction.razorpay_order_id = razorpayOrder.id;
+        await newTransaction.save();
+        
+        return NextResponse.json({
+          success: true,
+          gateway: 'razorpay',
+          transactionId: newTransaction._id,
+          razorpayOrder,
+          razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        }, { status: 200 });
+    } else if (activeGateway === 'payu') {
+        const payuDetails = {
+            key: process.env.PAYU_KEY!,
+            txnid: newTransaction._id.toString(),
+            amount: totalAmount.toFixed(2),
+            productinfo: productInfoString.substring(0, 100),
+            firstname: shippingAddress.name.split(' ')[0],
+            email: (await User.findById(userId).lean())?.email || 'test@example.com',
+        };
 
-    // Step 3: Update our transaction record with the Razorpay order ID
-    newTransaction.razorpay_order_id = razorpayOrder.id;
-    await newTransaction.save();
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Transaction initiated',
-      transactionId: newTransaction._id, // Send our internal transaction ID to client
-      razorpayOrder,
-      razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-    }, { status: 200 });
+        const hash = generatePayuHash(payuDetails);
+
+        return NextResponse.json({
+            success: true,
+            gateway: 'payu',
+            transactionId: newTransaction._id,
+            payuDetails: { ...payuDetails, hash },
+        }, { status: 200 });
+    } else {
+        return NextResponse.json({ message: 'No active payment gateway configured.' }, { status: 500 });
+    }
 
   } catch (error: any) {
     console.error('Error initiating checkout:', error);
-    // Provide the specific Razorpay error back to the client if it exists
     if (error.statusCode === 400 && error.error) {
        return NextResponse.json({ message: `Error initiating checkout: ${error.error.description}`, error: error }, { status: 400 });
     }

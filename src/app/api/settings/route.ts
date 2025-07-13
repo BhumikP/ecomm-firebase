@@ -4,23 +4,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Setting from '@/models/Setting';
 
-// GET public settings, specifically for announcement bar
+// GET public settings, including announcement bar and active payment gateway
 export async function GET(req: NextRequest) {
   await connectDb();
 
   try {
-    const settings = await Setting.findOne({ configKey: 'global_settings' }).select('announcementText announcementLink isAnnouncementActive');
+    const settings = await Setting.findOne({ configKey: 'global_settings' }).select('announcementText announcementLink isAnnouncementActive activePaymentGateway');
     
-    if (settings && settings.isAnnouncementActive) {
+    if (settings) {
       return NextResponse.json({
         announcementText: settings.announcementText,
         announcementLink: settings.announcementLink,
         isAnnouncementActive: settings.isAnnouncementActive,
+        activePaymentGateway: settings.activePaymentGateway,
       }, { status: 200 });
     }
     
-    // If no settings or announcement is not active, return non-active status
-    return NextResponse.json({ isAnnouncementActive: false }, { status: 200 });
+    // If no settings, return defaults
+    return NextResponse.json({ 
+        isAnnouncementActive: false,
+        activePaymentGateway: 'razorpay'
+    }, { status: 200 });
 
   } catch (error) {
     console.error('Error fetching public settings:', error);
