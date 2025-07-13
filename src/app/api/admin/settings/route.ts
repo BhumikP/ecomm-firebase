@@ -95,10 +95,10 @@ export async function POST(req: NextRequest) {
     if (body.shippingCharge !== undefined) updatePayload.shippingCharge = body.shippingCharge;
     
     // Explicitly include announcement fields in the update payload.
-    updatePayload.announcementText = (body.announcementText !== undefined) ? body.announcementText : DEFAULT_SETTINGS_FROM_MODEL.announcementText;
-    updatePayload.announcementLink = (body.announcementLink !== undefined) ? body.announcementLink : DEFAULT_SETTINGS_FROM_MODEL.announcementLink;
-    updatePayload.isAnnouncementActive = (body.isAnnouncementActive !== undefined) ? body.isAnnouncementActive : DEFAULT_SETTINGS_FROM_MODEL.isAnnouncementActive;
-    updatePayload.activePaymentGateway = (body.activePaymentGateway !== undefined) ? body.activePaymentGateway : DEFAULT_SETTINGS_FROM_MODEL.activePaymentGateway;
+    if (body.announcementText !== undefined) updatePayload.announcementText = body.announcementText;
+    if (body.announcementLink !== undefined) updatePayload.announcementLink = body.announcementLink;
+    if (body.isAnnouncementActive !== undefined) updatePayload.isAnnouncementActive = body.isAnnouncementActive;
+    if (body.activePaymentGateway !== undefined) updatePayload.activePaymentGateway = body.activePaymentGateway;
 
 
     const updatedSettingsDoc = await Setting.findOneAndUpdate(

@@ -24,7 +24,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (saveAddress) {
-      await User.findByIdAndUpdate(userId, { $push: { addresses: shippingAddress } });
+      // Find user and add address if it doesn't already exist
+      const user = await User.findById(userId);
+      if (user) {
+        const addressExists = user.addresses?.some(addr => 
+            addr.street === shippingAddress.street &&
+            addr.city === shippingAddress.city &&
+            addr.zip === shippingAddress.zip
+        );
+        if (!addressExists) {
+           user.addresses?.push(shippingAddress);
+           await user.save();
+        }
+      }
     }
 
     const cart = await Cart.findOne({ userId }).populate('items.product');
