@@ -4,6 +4,30 @@ import { createClient } from '@sentry/nextjs';
 
 export async function middleware(request: NextRequest) {
   // Sentry's instrumentation will automatically handle request tracking.
+  const { pathname } = request.nextUrl;
+
+  // Protect all /account routes
+  if (pathname.startsWith('/account')) {
+    const isLoggedIn = request.cookies.get('isLoggedIn')?.value === 'true';
+    if (!isLoggedIn) {
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname); // Optional: redirect back after login
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+  
+  // Protect all /admin routes
+  if (pathname.startsWith('/admin')) {
+    const isLoggedIn = request.cookies.get('isLoggedIn')?.value === 'true';
+    const userRole = request.cookies.get('userRole')?.value;
+    if (!isLoggedIn || userRole !== 'admin') {
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+
   return NextResponse.next();
 }
 

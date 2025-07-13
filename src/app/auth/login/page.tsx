@@ -10,6 +10,16 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from 'lucide-react';
 
+function setCookie(name: string, value: string, days: number) {
+    let expires = "";
+    if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days*24*60*60*1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,13 +44,12 @@ export default function LoginPage() {
         // Login successful
         const userData = data.user;
 
-        // !! IMPORTANT SECURITY NOTE !!
-        // Storing user data (even without password) and login status in localStorage
-        // is convenient for this example but NOT secure for production applications.
-        // Use secure session management (e.g., HTTP-only cookies with server-side sessions or JWTs).
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', userData.role);
-        localStorage.setItem('userData', JSON.stringify(userData)); // Store user details
+        // Use secure, HttpOnly cookies set by the server in a real production app.
+        // For this implementation, we'll set client-side cookies for simplicity.
+        setCookie('isLoggedIn', 'true', 7);
+        setCookie('userRole', userData.role, 7);
+        // We still use localStorage for non-sensitive data needed by the client.
+        localStorage.setItem('userData', JSON.stringify(userData));
 
         toast({
           title: "Login Successful",

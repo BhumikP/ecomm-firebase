@@ -1,8 +1,6 @@
-
 'use client';
 
 import type React from 'react';
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -18,8 +16,11 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, Loader2, ListOrdered, Image as ImageIcon, ClipboardList } from 'lucide-react'; // Added ClipboardList
-import { Skeleton } from '@/components/ui/skeleton';
+import { LayoutDashboard, Package, Users, LogOut, Settings, BarChart3, CreditCard, ListOrdered, Image as ImageIcon, ClipboardList } from 'lucide-react';
+
+function deleteCookie(name: string) {
+    document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+}
 
 export default function AdminLayout({
   children,
@@ -27,43 +28,20 @@ export default function AdminLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIsClient(true);
-    const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    const role = localStorage.getItem('userRole');
-    setIsLoggedIn(loggedIn);
-    setUserRole(role);
-
-    if (!loggedIn || role !== 'admin') {
-      router.replace('/auth/login');
-    }
-  }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
+    // Clear auth state from both cookies and localStorage for full logout
+    deleteCookie('isLoggedIn');
+    deleteCookie('userRole');
+    localStorage.removeItem('isLoggedIn'); // Keep for client-side checks if any
     localStorage.removeItem('userRole');
     localStorage.removeItem('userData');
     localStorage.removeItem('userEmail');
-    setIsLoggedIn(false);
-    setUserRole(null);
     router.push('/auth/login');
   };
 
-  if (!isClient || !isLoggedIn || userRole !== 'admin') {
-    return (
-       <div className="flex h-screen items-center justify-center bg-background">
-         <div className="flex flex-col items-center gap-4">
-             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-             <p className="text-muted-foreground">Verifying access...</p>
-         </div>
-       </div>
-    );
-  }
-
+  // The middleware now handles the auth check.
+  // The layout assumes if it's rendered, the user is an authorized admin.
   return (
     <SidebarProvider defaultOpen>
         <div className="flex min-h-screen flex-col">
