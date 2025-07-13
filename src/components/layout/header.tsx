@@ -1,4 +1,5 @@
 
+
 'use client'; // Add 'use client'
 
 import Link from 'next/link';
@@ -21,12 +22,15 @@ export function Header() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [cartItemCount, setCartItemCount] = useState(0);
-  const [isCartLoading, setIsCartLoading] = useState(false);
+  const [isCartLoading, setIsCartLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    setIsClient(true);
+    setIsClient(true); // Component has mounted
+  }, []);
+
+  const updateLoginState = useCallback(() => {
     const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
     const role = localStorage.getItem('userRole');
     const userDataString = localStorage.getItem('userData');
@@ -40,21 +44,24 @@ export function Header() {
         setUserId(userData._id);
       } catch (error) {
         console.error("Error parsing user data from localStorage:", error);
-        // Handle error, e.g., clear corrupt data
-        localStorage.removeItem('userData');
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('userRole');
-        setIsLoggedIn(false);
-        setUserRole(null);
+        handleLogout(false); // Force logout if data is corrupt
       }
     } else {
-      setUserId(null); // Ensure userId is null if not logged in
+      setUserId(null);
     }
   }, []);
 
+  useEffect(() => {
+    if (isClient) {
+      updateLoginState();
+    }
+  }, [isClient, updateLoginState]);
+
+
   const fetchCartCount = useCallback(async () => {
     if (!userId || !isLoggedIn) {
-      setCartItemCount(0); // Reset count if no user or not logged in
+      setCartItemCount(0);
+      setIsCartLoading(false);
       return;
     }
     setIsCartLoading(true);
@@ -63,36 +70,30 @@ export function Header() {
       if (response.ok) {
         const data = await response.json();
         if (data.cart && data.cart.items) {
-          // Show number of distinct items/lines in cart, not sum of quantities
           const count = data.cart.items.length; 
           setCartItemCount(count);
         } else {
-          setCartItemCount(0); // No cart or no items
+          setCartItemCount(0);
         }
       } else {
-        // Handle non-OK responses, e.g., 404 if cart doesn't exist for user yet
-        console.warn(`Failed to fetch cart count, status: ${response.status}`);
         setCartItemCount(0);
       }
     } catch (error) {
       console.error("Error fetching cart count:", error);
-      setCartItemCount(0); // Reset on error
+      setCartItemCount(0);
     } finally {
       setIsCartLoading(false);
     }
   }, [userId, isLoggedIn]);
 
   useEffect(() => {
-    if (isClient && userId) { // Only fetch if client and userId is available
+    if (isClient) {
       fetchCartCount();
-    } else if (isClient && !userId) { // If client but no userId (logged out)
-      setCartItemCount(0);
     }
   }, [isClient, userId, fetchCartCount]);
 
   useEffect(() => {
     const handleCartUpdate = () => {
-      console.log('Cart updated event received, refetching count...');
       fetchCartCount();
     };
 
@@ -103,16 +104,18 @@ export function Header() {
   }, [fetchCartCount]);
 
 
-  const handleLogout = () => {
+  const handleLogout = (redirect = true) => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userData');
     localStorage.removeItem('userEmail');
     setIsLoggedIn(false);
     setUserRole(null);
-    setUserId(null); // Clear userId on logout
-    setCartItemCount(0); // Reset cart count on logout
-    router.push('/');
+    setUserId(null);
+    setCartItemCount(0);
+    if (redirect) {
+      router.push('/');
+    }
   };
 
   if (!isClient) {
@@ -200,7 +203,7 @@ export function Header() {
                                      </SheetClose>
                                 )}
                                <SheetClose asChild>
-                                   <Button variant="ghost" onClick={handleLogout} className="justify-start text-destructive hover:text-destructive">
+                                   <Button variant="ghost" onClick={() => handleLogout()} className="justify-start text-destructive hover:text-destructive">
                                         <LogOut className="mr-2 h-4 w-4" /> Logout
                                     </Button>
                                </SheetClose>
@@ -233,9 +236,9 @@ export function Header() {
              <Link href="/cart" aria-label="View Shopping Cart">
                <ShoppingCart className="mr-1 h-5 w-5" />
                Cart
-                {isLoggedIn && cartItemCount > 0 && (
+                {isLoggedIn && (
                   <Badge variant="destructive" className="absolute -top-1 -right-1 text-xs px-1 py-0 h-4 min-w-[1rem] flex items-center justify-center">
-                    {isCartLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : cartItemCount}
+                    {isCartLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : cartItemCount > 0 ? cartItemCount : null}
                   </Badge>
                 )}
              </Link>
@@ -254,7 +257,7 @@ export function Header() {
                         <Link href="/admin">Admin</Link>
                    </Button>
                 )}
-               <Button variant="ghost" onClick={handleLogout} size="sm" className="text-destructive hover:text-destructive">
+               <Button variant="ghost" onClick={() => handleLogout()} size="sm" className="text-destructive hover:text-destructive">
                  <LogOut className="mr-1 h-5 w-5" />
                  Logout
                </Button>
@@ -277,5 +280,3 @@ export function Header() {
     </header>
   );
 }
-
-    
