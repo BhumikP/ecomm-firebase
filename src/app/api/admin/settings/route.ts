@@ -92,8 +92,10 @@ export async function POST(req: NextRequest) {
         if(typeof body.isAnnouncementActive !== 'boolean') return NextResponse.json({ message: 'Invalid value for announcement active status' }, { status: 400 });
         updatePayload.isAnnouncementActive = body.isAnnouncementActive;
     }
-    if (body.activePaymentGateway !== undefined) {
-        if(!['razorpay', 'payu'].includes(body.activePaymentGateway)) return NextResponse.json({ message: 'Invalid payment gateway specified.' }, { status: 400 });
+    if (body.activePaymentGateway) {
+        if(!['razorpay', 'payu'].includes(body.activePaymentGateway)) {
+            return NextResponse.json({ message: 'Invalid payment gateway specified.' }, { status: 400 });
+        }
         updatePayload.activePaymentGateway = body.activePaymentGateway;
     }
 
