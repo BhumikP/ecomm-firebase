@@ -113,7 +113,7 @@ export default function RootLayout({
             strategy="beforeInteractive"
           />
        </head>
-      <body className="antialiased flex flex-col min-h-screen">
+      <body className="antialiased flex flex-col min-h-screen" suppressHydrationWarning>
          <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center">Loading application...</div>}>
           <Sentry.ErrorBoundary fallback={<div className="flex h-screen w-screen items-center justify-center text-center p-4">An error has occurred. We are working on it!</div>}>
             {children}
