@@ -381,6 +381,18 @@ export default function CheckoutPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
+       {isProcessing && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
+          <h2 className="text-2xl font-bold text-foreground">Finalizing your order...</h2>
+          <p className="text-lg text-muted-foreground mt-2">
+            You will be redirected to our secure payment partner shortly.
+          </p>
+          <p className="font-semibold mt-4 text-destructive">
+            Please do not refresh or close this page.
+          </p>
+        </div>
+      )}
        <form ref={payuFormRef} method="POST" action={PAYU_ACTION_URL} className="hidden">
             <input type="hidden" name="key" />
             <input type="hidden" name="txnid" />
