@@ -1,10 +1,6 @@
 @tailwind base;
-@tailwind components;
 @tailwind utilities;
-
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+@tailwind components;
 
 @layer base {
   :root {
@@ -94,6 +90,25 @@ body {
     flex-grow: 1;
   }
 }
+
+/* For browsers that don't support `has` yet, this is a fallback */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+/* If you want to use `has` where supported for a more modern approach */
+@supports selector(:has(img)) {
+    .no-scrollbar {
+        scrollbar-width: none;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+}
+
 
 /* Scrolling H1 Announcement Bar */
 .scrolling-h1-container {

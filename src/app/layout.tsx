@@ -1,21 +1,17 @@
 
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import Script from 'next/script';
 import * as Sentry from "@sentry/nextjs";
 import { Suspense } from 'react';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const inter = Inter({
   subsets: ['latin'],
+  variable: '--font-sans',
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002'), // Important for OG images
@@ -108,7 +104,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning={true}>
+    <html lang="en" className={`${inter.variable} font-sans`} suppressHydrationWarning>
        <head>
           <Script
             id="organization-schema"
@@ -117,7 +113,7 @@ export default function RootLayout({
             strategy="beforeInteractive"
           />
        </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`} suppressHydrationWarning={true}>
+      <body className="antialiased flex flex-col min-h-screen">
          <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center">Loading application...</div>}>
           <Sentry.ErrorBoundary fallback={<div className="flex h-screen w-screen items-center justify-center text-center p-4">An error has occurred. We are working on it!</div>}>
             {children}
