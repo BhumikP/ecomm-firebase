@@ -1,3 +1,4 @@
+
 // src/app/products/[id]/page.tsx
 'use client';
 
@@ -515,8 +516,10 @@ export default function ProductDetailPage() {
 
 
           <div className="flex flex-col space-y-4">
+            {/* 1. Title */}
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{product.title}</h1>
 
+            {/* 2. Tag */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                  <Badge variant="secondary" className="text-sm px-3 py-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}`: ''}</Badge>
                  <div className="flex items-center">
@@ -537,63 +540,10 @@ export default function ProductDetailPage() {
                   <span className="text-xs">ID: {product._id}</span>
             </div>
 
-            <Separator className="my-4" />
-            
-            <div 
-                className="mt-4 text-foreground/90 prose prose-sm sm:prose-base dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: product.description || "" }}
-            />
-
-
-            <div className="space-y-1">
-                <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
-                 {product.discount && product.discount > 0 && (
-                    <span className="ml-3 text-lg text-muted-foreground line-through">
-                        ₹{product.price.toFixed(2)}
-                    </span>
-                 )}
-             </div>
-
-            {product.colors && product.colors.length > 0 && (
-                <div className="pt-2">
-                    <h3 className="text-md font-semibold mb-2 flex items-center gap-2 text-foreground"><Palette className="h-5 w-5"/> Select Color: <span className="text-muted-foreground">{selectedColor?.name || 'Default'}</span></h3>
-                    <div className="flex flex-wrap gap-2">
-                        {product.colors.map((color) => (
-                            <button
-                                key={color._id?.toString() || color.name}
-                                onClick={() => handleColorSelect(color)}
-                                className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-md' : 'border-muted-foreground/30 hover:border-primary'}
-                                    ${color.stock < (product.minOrderQuantity || 1) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                style={{ backgroundColor: color.hexCode || '#ccc' }}
-                                title={`${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : `(Stock: ${color.stock})`}`}
-                                aria-label={`Select color ${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : ''}`}
-                                disabled={color.stock < (product.minOrderQuantity || 1) || isAddingToCart}
-                            >
-                               {color.stock < (product.minOrderQuantity || 1) && (
-                                     <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
+            {/* 3. Quantity */}
             <div className="pt-2">
-                 {isOutOfStock && currentStock <= 0 ? (
-                     <Badge variant="destructive" className="text-sm px-3 py-1">Out of Stock</Badge>
-                 ) : currentStock < 10 && currentStock >= minOrderQty ? (
-                      <Badge variant="outline" className="text-sm px-3 py-1 border-yellow-500 text-yellow-600">Low Stock ({currentStock} left)</Badge>
-                 ): !isOutOfStock && currentStock > 0 ? (
-                     <Badge variant="default" className="text-sm px-3 py-1 bg-green-100 text-green-800 border-green-200">In Stock</Badge>
-                 ) : (
-                     <Badge variant="destructive" className="text-sm px-3 py-1">Unavailable</Badge> 
-                 )}
-             </div>
-
-            <div className="pt-4 space-y-2">
                 <label htmlFor="quantity" className="text-md font-semibold text-foreground">Quantity:</label>
-                <div className="flex items-center gap-2 max-w-[150px]">
+                <div className="flex items-center gap-2 max-w-[150px] mt-2">
                     <Button
                         variant="outline"
                         size="icon"
@@ -633,7 +583,90 @@ export default function ProductDetailPage() {
                     </div>
                  )}
             </div>
+            
+            {/* 4. Select Color */}
+            {product.colors && product.colors.length > 0 && (
+                <div className="pt-2">
+                    <h3 className="text-md font-semibold mb-2 flex items-center gap-2 text-foreground"><Palette className="h-5 w-5"/> Select Color: <span className="text-muted-foreground">{selectedColor?.name || 'Default'}</span></h3>
+                    <div className="flex flex-wrap gap-2">
+                        {product.colors.map((color) => (
+                            <button
+                                key={color._id?.toString() || color.name}
+                                onClick={() => handleColorSelect(color)}
+                                className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
+                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-md' : 'border-muted-foreground/30 hover:border-primary'}
+                                    ${color.stock < (product.minOrderQuantity || 1) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                style={{ backgroundColor: color.hexCode || '#ccc' }}
+                                title={`${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : `(Stock: ${color.stock})`}`}
+                                aria-label={`Select color ${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : ''}`}
+                                disabled={color.stock < (product.minOrderQuantity || 1) || isAddingToCart}
+                            >
+                               {color.stock < (product.minOrderQuantity || 1) && (
+                                     <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+            
+            {/* 5. In Stock Status */}
+            <div className="pt-2">
+                 {isOutOfStock && currentStock <= 0 ? (
+                     <Badge variant="destructive" className="text-sm px-3 py-1">Out of Stock</Badge>
+                 ) : currentStock < 10 && currentStock >= minOrderQty ? (
+                      <Badge variant="outline" className="text-sm px-3 py-1 border-yellow-500 text-yellow-600">Low Stock ({currentStock} left)</Badge>
+                 ): !isOutOfStock && currentStock > 0 ? (
+                     <Badge variant="default" className="text-sm px-3 py-1 bg-green-100 text-green-800 border-green-200">In Stock</Badge>
+                 ) : (
+                     <Badge variant="destructive" className="text-sm px-3 py-1">Unavailable</Badge> 
+                 )}
+            </div>
+            
+            {/* 6. Buy Button & Price */}
+            <div className="pt-6 flex flex-wrap items-center gap-6">
+                <div className="space-y-1">
+                    <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
+                     {product.discount && product.discount > 0 && (
+                        <span className="ml-3 text-lg text-muted-foreground line-through">
+                            ₹{product.price.toFixed(2)}
+                        </span>
+                     )}
+                 </div>
+              <Button
+                size="lg"
+                className="w-full md:w-auto bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
+                onClick={handleAddToCart}
+                disabled={isOutOfStock || loading || isAddingToCart || quantity === 0}
+               >
+                 {isAddingToCart ? <Loader2 className="h-5 w-5 animate-spin"/> : <ShoppingCart className="h-5 w-5"/>}
+                 {isAddingToCart ? 'Adding...' : (isOutOfStock && currentStock === 0) ? 'Out of Stock' : 'Add to Cart'}
+              </Button>
+            </div>
+            
+            <Separator className="my-4" />
 
+            {/* 7. Description */}
+            <div 
+                className="mt-4 text-foreground/90 prose prose-sm sm:prose-base dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: product.description || "" }}
+            />
+            
+            {/* 8. Features */}
+            {product.features && product.features.length > 0 && (
+                 <div className="pt-4">
+                     <h3 className="text-xl font-semibold mb-2 text-foreground">Features</h3>
+                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                         {product.features.map((feature: string, index: number) => (
+                            <li key={index}>{feature}</li>
+                        ))}
+                     </ul>
+                 </div>
+            )}
+            
+            <Separator className="my-4" />
+            
+            {/* 9. Other Things (Rating) */}
             {isLoggedIn && userId && (
                 <div className="pt-4 space-y-2">
                     <h3 className="text-md font-semibold text-foreground">Rate this product:</h3>
@@ -663,30 +696,6 @@ export default function ProductDetailPage() {
                     )}
                 </div>
             )}
-
-
-             {product.features && product.features.length > 0 && (
-                 <div className="pt-4">
-                     <h3 className="text-xl font-semibold mb-2 text-foreground">Features</h3>
-                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                         {product.features.map((feature: string, index: number) => (
-                            <li key={index}>{feature}</li>
-                        ))}
-                     </ul>
-                 </div>
-            )}
-
-            <div className="pt-6">
-              <Button
-                size="lg"
-                className="w-full md:w-auto bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
-                onClick={handleAddToCart}
-                disabled={isOutOfStock || loading || isAddingToCart || quantity === 0}
-               >
-                 {isAddingToCart ? <Loader2 className="h-5 w-5 animate-spin"/> : <ShoppingCart className="h-5 w-5"/>}
-                 {isAddingToCart ? 'Adding...' : (isOutOfStock && currentStock === 0) ? 'Out of Stock' : 'Add to Cart'}
-              </Button>
-            </div>
           </div>
         </div>
       </main>
