@@ -18,6 +18,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useParams, useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
 
 interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
   _id: string;
@@ -516,10 +518,8 @@ export default function ProductDetailPage() {
 
 
           <div className="flex flex-col space-y-4">
-            {/* 1. Title */}
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{product.title}</h1>
 
-            {/* 2. Tag */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                  <Badge variant="secondary" className="text-sm px-3 py-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}`: ''}</Badge>
                  <div className="flex items-center">
@@ -540,7 +540,6 @@ export default function ProductDetailPage() {
                   <span className="text-xs">ID: {product._id}</span>
             </div>
 
-            {/* 3. Quantity */}
             <div className="pt-2">
                 <label htmlFor="quantity" className="text-md font-semibold text-foreground">Quantity:</label>
                 <div className="flex items-center gap-2 max-w-[150px] mt-2">
@@ -584,7 +583,6 @@ export default function ProductDetailPage() {
                  )}
             </div>
             
-            {/* 4. Select Color */}
             {product.colors && product.colors.length > 0 && (
                 <div className="pt-2">
                     <h3 className="text-md font-semibold mb-2 flex items-center gap-2 text-foreground"><Palette className="h-5 w-5"/> Select Color: <span className="text-muted-foreground">{selectedColor?.name || 'Default'}</span></h3>
@@ -610,7 +608,6 @@ export default function ProductDetailPage() {
                 </div>
             )}
             
-            {/* 5. In Stock Status */}
             <div className="pt-2">
                  {isOutOfStock && currentStock <= 0 ? (
                      <Badge variant="destructive" className="text-sm px-3 py-1">Out of Stock</Badge>
@@ -623,7 +620,6 @@ export default function ProductDetailPage() {
                  )}
             </div>
             
-            {/* 6. Buy Button & Price */}
             <div className="pt-6 flex flex-wrap items-center gap-6">
                 <div className="space-y-1">
                     <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
@@ -646,27 +642,32 @@ export default function ProductDetailPage() {
             
             <Separator className="my-4" />
 
-            {/* 7. Description */}
-            <div 
-                className="mt-4 text-foreground/90 prose prose-sm sm:prose-base dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: product.description || "" }}
-            />
-            
-            {/* 8. Features */}
-            {product.features && product.features.length > 0 && (
-                 <div className="pt-4">
-                     <h3 className="text-xl font-semibold mb-2 text-foreground">Features</h3>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1">
+                <AccordionTrigger>Description</AccordionTrigger>
+                <AccordionContent>
+                   <div 
+                      className="text-foreground/90 prose prose-sm sm:prose-base dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: product.description || "" }}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+              {product.features && product.features.length > 0 && (
+                 <AccordionItem value="item-2">
+                  <AccordionTrigger>Features</AccordionTrigger>
+                  <AccordionContent>
                      <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                          {product.features.map((feature: string, index: number) => (
                             <li key={index}>{feature}</li>
                         ))}
                      </ul>
-                 </div>
-            )}
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+            </Accordion>
             
             <Separator className="my-4" />
             
-            {/* 9. Other Things (Rating) */}
             {isLoggedIn && userId && (
                 <div className="pt-4 space-y-2">
                     <h3 className="text-md font-semibold text-foreground">Rate this product:</h3>
