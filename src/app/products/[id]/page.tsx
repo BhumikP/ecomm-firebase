@@ -539,7 +539,7 @@ export default function ProductDetailPage() {
                  </div>
                   <span className="text-xs">ID: {product._id}</span>
             </div>
-
+            
             <div className="pt-2">
                 <label htmlFor="quantity" className="text-md font-semibold text-foreground">Quantity:</label>
                 <div className="flex items-center gap-2 max-w-[150px] mt-2">
@@ -665,8 +665,6 @@ export default function ProductDetailPage() {
                 </AccordionItem>
               )}
             </Accordion>
-            
-            <Separator className="my-4" />
             
             {isLoggedIn && userId && (
                 <div className="pt-4 space-y-2">
