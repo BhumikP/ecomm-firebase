@@ -76,7 +76,7 @@ export function ProductCard({
         className
       )}>
       <CardHeader className="p-0 relative">
-        <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden rounded-t-lg bg-background">
+        <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[16/9] overflow-hidden rounded-t-lg bg-background">
           <Image
             src={displayImage}
             alt={product.title}
