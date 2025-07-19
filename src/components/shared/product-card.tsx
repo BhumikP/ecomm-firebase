@@ -72,11 +72,11 @@ export function ProductCard({
 
   return (
     <Card className={cn(
-        "overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col bg-card group border border-transparent hover:border-primary/30",
+        "overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col bg-muted/30 group border",
         className
       )}>
       <CardHeader className="p-0 relative">
-        <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden rounded-t-lg">
+        <Link href={`/products/${productIdStr}`} aria-label={`View details for ${product.title}`} className="block aspect-[4/3] overflow-hidden rounded-t-lg bg-background">
           <Image
             src={displayImage}
             alt={product.title}
@@ -171,4 +171,3 @@ export function ProductCard({
     </Card>
   );
 }
-
