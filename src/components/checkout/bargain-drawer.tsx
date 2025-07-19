@@ -1,37 +1,30 @@
-
 // src/components/checkout/bargain-drawer.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from '@/components/ui/drawer';
+import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from '@/components/ui/drawer';
 import { Loader2, Sparkles, Send } from 'lucide-react';
 import { bargainForCart } from '@/ai/flows/bargain-flow';
 import type { BargainOutput } from '@/ai/flows/bargain-flow';
 import type { PopulatedCart } from '@/app/checkout/page';
 
 interface BargainDrawerProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
   cart: PopulatedCart | null;
   userId?: string | null;
-  prompt: string;
-  setPrompt: (prompt: string) => void;
-  aiResponse: string;
-  onBargainComplete: (result: BargainOutput) => void;
+  chatHistory: { author: 'user' | 'ai'; text: string }[];
+  onBargainComplete: (prompt: string, result: BargainOutput) => void;
 }
 
 export function BargainDrawer({
-  isOpen,
-  onOpenChange,
   cart,
   userId,
-  prompt,
-  setPrompt,
-  aiResponse,
+  chatHistory,
   onBargainComplete,
 }: BargainDrawerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [prompt, setPrompt] = useState('');
   const [isBargaining, setIsBargaining] = useState(false);
 
   const handleBargain = async () => {
@@ -44,21 +37,29 @@ export function BargainDrawer({
         userId,
         customerPrompt: prompt,
       });
-      onBargainComplete(result);
+      onBargainComplete(prompt, result);
     } catch (error) {
       console.error("Bargaining failed:", error);
-      onBargainComplete({
+      onBargainComplete(prompt, {
         responseMessage: "Sorry, I encountered an error and can't bargain right now. Please try again later.",
         discounts: [],
       });
     } finally {
-      setIsBargaining(false);
       setPrompt(''); // Clear prompt after sending
+      setIsBargaining(false);
     }
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={onOpenChange}>
+    <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <DrawerTrigger asChild>
+          <p 
+              className="text-center text-sm text-primary hover:underline mt-4 cursor-pointer flex items-center justify-center gap-1"
+          >
+              <Sparkles className="h-4 w-4" />
+              Want a better deal? Try bargaining!
+          </p>
+      </DrawerTrigger>
       <DrawerContent>
         <div className="mx-auto w-full max-w-md">
           <DrawerHeader>
@@ -71,10 +72,14 @@ export function BargainDrawer({
             </DrawerDescription>
           </DrawerHeader>
           <div className="p-4 space-y-4">
-            {aiResponse && (
-                <div className="bg-muted p-3 rounded-lg text-sm">
-                    <p className="font-semibold text-foreground">Shopkeeper:</p>
-                    <p className="text-muted-foreground">{aiResponse}</p>
+             {chatHistory.length > 0 && (
+                <div className="bg-muted p-3 rounded-lg text-sm max-h-48 overflow-y-auto space-y-3">
+                    {chatHistory.map((msg, index) => (
+                        <div key={index}>
+                            <p className="font-semibold text-foreground">{msg.author === 'user' ? 'You' : 'Shopkeeper'}:</p>
+                            <p className="text-muted-foreground whitespace-pre-wrap">{msg.text}</p>
+                        </div>
+                    ))}
                 </div>
             )}
             <Textarea
@@ -91,7 +96,7 @@ export function BargainDrawer({
               {isBargaining ? 'Thinking...' : 'Send Offer'}
             </Button>
             <DrawerClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline">Close</Button>
             </DrawerClose>
           </DrawerFooter>
         </div>

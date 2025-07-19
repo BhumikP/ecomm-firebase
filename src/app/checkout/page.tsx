@@ -1,4 +1,3 @@
-
 // src/app/checkout/page.tsx
 'use client';
 
@@ -86,10 +85,8 @@ export default function CheckoutPage() {
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   
-  const [isBargainDrawerOpen, setIsBargainDrawerOpen] = useState(false);
   const [bargainedAmounts, setBargainedAmounts] = useState<Record<string, number>>({});
-  const [bargainPrompt, setBargainPrompt] = useState('');
-  const [bargainAiResponse, setBargainAiResponse] = useState('');
+  const [chatHistory, setChatHistory] = useState<{ author: 'user' | 'ai'; text: string }[]>([]);
   
   const payuFormRef = useRef<HTMLFormElement>(null);
 
@@ -321,8 +318,12 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleBargainComplete = (result: BargainOutput) => {
-    setBargainAiResponse(result.responseMessage);
+  const handleBargainComplete = (prompt: string, result: BargainOutput) => {
+    setChatHistory(prev => [
+        ...prev,
+        { author: 'user', text: prompt },
+        { author: 'ai', text: result.responseMessage },
+    ]);
 
     if (result.discounts && result.discounts.length > 0) {
       const newBargainedAmounts: Record<string, number> = {};
@@ -334,7 +335,6 @@ export default function CheckoutPage() {
         title: "Offer Received!",
         description: "Your special prices have been applied to the cart.",
       });
-      setIsBargainDrawerOpen(false); // Close drawer on success
     } else {
       toast({
         title: "No luck this time!",
@@ -342,6 +342,7 @@ export default function CheckoutPage() {
       });
     }
   };
+
 
   const totalBargainDiscount = cart?.items.reduce((sum, item) => {
     const itemDiscount = bargainedAmounts[item.product._id.toString()] || 0;
@@ -489,6 +490,12 @@ export default function CheckoutPage() {
           </div>
 
           <div className="lg:col-span-1 lg:sticky top-20">
+            <BargainDrawer
+                cart={cart}
+                userId={userData?._id}
+                onBargainComplete={handleBargainComplete}
+                chatHistory={chatHistory}
+            />
             <Card>
               <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
               <CardContent>
@@ -539,13 +546,6 @@ export default function CheckoutPage() {
                  <Button onClick={handleProcessOrder} className="w-full mt-6" size="lg" disabled={isProcessing || isLoading || !cart}>
                     {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : actionButtonText}
                   </Button>
-                   <p 
-                        className="text-center text-sm text-primary hover:underline mt-4 cursor-pointer flex items-center justify-center gap-1"
-                        onClick={() => setIsBargainDrawerOpen(true)}
-                    >
-                        <Sparkles className="h-4 w-4" />
-                        Want a better deal? Try bargaining!
-                    </p>
                 </div>
               </CardContent>
             </Card>
@@ -553,16 +553,6 @@ export default function CheckoutPage() {
         </div>
       </main>
       <Footer />
-       <BargainDrawer
-            isOpen={isBargainDrawerOpen}
-            onOpenChange={setIsBargainDrawerOpen}
-            cart={cart}
-            userId={userData?._id}
-            prompt={bargainPrompt}
-            setPrompt={setBargainPrompt}
-            aiResponse={bargainAiResponse}
-            onBargainComplete={handleBargainComplete}
-        />
     </div>
   );
 }
