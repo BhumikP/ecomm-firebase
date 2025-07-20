@@ -80,7 +80,7 @@ export default function AccountPage() {
     localStorage.removeItem('userEmail');
     
     // The redirect is the most practical way here to clear server session cookies
-    toast({ title: "Logged Out", description: "You have been successfully logged out." });
+    toast({ variant: "success", title: "Logged Out", description: "You have been successfully logged out." });
     router.push('/');
     router.refresh();
   };
@@ -105,7 +105,7 @@ export default function AccountPage() {
       setUserData(updatedUserData);
       localStorage.setItem('userData', JSON.stringify(updatedUserData));
       
-      toast({ title: 'Success', description: 'Your profile has been updated.' });
+      toast({ variant: "success", title: 'Success', description: 'Your profile has been updated.' });
       setIsDialogOpen(false);
 
     } catch (error: any) {

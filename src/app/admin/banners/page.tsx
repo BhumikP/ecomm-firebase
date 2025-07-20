@@ -99,7 +99,7 @@ export default function AdminBannersPage() {
             const response = await fetch('/api/upload', { method: 'POST', body: formData });
             const result = await response.json();
             if (response.ok && result.success) {
-                toast({ title: "Image Uploaded", description: "Banner image uploaded successfully." });
+                toast({ variant: "success", title: "Image Uploaded", description: "Banner image uploaded successfully." });
                 return result.url;
             } else {
                 toast({ variant: "destructive", title: "Upload Failed", description: result.message || "Could not upload image." });
@@ -167,7 +167,7 @@ export default function AdminBannersPage() {
             }
 
             await fetchBanners();
-            toast({ title: isEditing ? "Banner Updated" : "Banner Added" });
+            toast({ variant: "success", title: isEditing ? "Banner Updated" : "Banner Added" });
             handleCloseDialog();
         } catch (error: any) {
             toast({ variant: "destructive", title: "Save Error", description: error.message || "Could not save banner." });
@@ -182,7 +182,7 @@ export default function AdminBannersPage() {
             const response = await fetch(`/api/admin/banners/${bannerId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete banner');
             await fetchBanners();
-            toast({ title: "Banner Deleted", description: `Banner "${bannerAlt}" removed.` });
+            toast({ variant: "success", title: "Banner Deleted", description: `Banner "${bannerAlt}" removed.` });
         } catch (error: any) {
             toast({ variant: "destructive", title: "Delete Error", description: error.message });
         } finally {

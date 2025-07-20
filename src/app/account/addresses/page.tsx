@@ -69,7 +69,7 @@ export default function ManageAddressesPage() {
 
     const handleApiResponse = (response: any, successMessage: string, errorMessage: string) => {
         if (response.ok) {
-            toast({ title: "Success", description: successMessage });
+            toast({ variant: "success", title: "Success", description: successMessage });
             response.json().then((data: { user: UserWithAddresses }) => {
                 setUser(data.user);
                 localStorage.setItem('userData', JSON.stringify(data.user)); // Update localStorage

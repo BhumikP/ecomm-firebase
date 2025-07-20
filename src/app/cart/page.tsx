@@ -285,6 +285,7 @@ export default function CartPage() {
       });
       window.dispatchEvent(new CustomEvent('cartUpdated'));
       toast({
+        variant: "success",
         title: "Item Removed",
         description: `${itemTitle} has been removed from your cart.`,
       });

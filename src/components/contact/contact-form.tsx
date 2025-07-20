@@ -49,6 +49,7 @@ export function ContactForm() {
 
       if (response.ok) {
         toast({
+          variant: "success",
           title: "Message Sent!",
           description: "Thank you for contacting us. We'll get back to you soon.",
         });

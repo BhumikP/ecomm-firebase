@@ -234,6 +234,7 @@ export default function ProductDetailPage() {
         }
         window.dispatchEvent(new CustomEvent('cartUpdated')); 
         toast({
+            variant: "success",
             title: "Added to Cart",
             description: `${quantity} x ${itemToAdd} has been added to your cart.`,
         });
@@ -301,7 +302,7 @@ export default function ProductDetailPage() {
             if (!response.ok) {
                 throw new Error(data.message || "Failed to submit rating.");
             }
-            toast({ title: "Rating Submitted", description: "Thank you for your feedback!" });
+            toast({ variant: "success", title: "Rating Submitted", description: "Thank you for your feedback!" });
             if (data.updatedProduct) {
                 setAverageRatingDisplay(data.updatedProduct.rating);
                 setNumRatingsDisplay(data.updatedProduct.numRatings);
@@ -519,7 +520,6 @@ export default function ProductDetailPage() {
 
           <div className="flex flex-col space-y-4">
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{product.title}</h1>
-
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                  <Badge variant="secondary" className="text-sm px-3 py-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}`: ''}</Badge>
                  <div className="flex items-center">

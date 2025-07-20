@@ -57,16 +57,12 @@ export default function RegisterPage() {
         // Registration successful
         const userData = data.user;
 
-        // Automatically log user in
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', userData.role);
-        localStorage.setItem('userData', JSON.stringify(userData));
-
         toast({
+          variant: "success",
           title: "Registration Successful",
-          description: "Your account has been created. Welcome!",
+          description: "Your account has been created. Please log in.",
         });
-        router.push('/'); // Redirect user to homepage after registration
+        router.push('/auth/login'); 
 
       } else {
         // Registration failed - handle specific errors if available

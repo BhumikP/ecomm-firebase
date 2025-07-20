@@ -41,6 +41,7 @@ export default function LoginPage() {
         localStorage.setItem('userEmail', userData.email); // Store email for form pre-filling
 
         toast({
+          variant: "success",
           title: "Login Successful",
           description: `Welcome back, ${userData.name}!`,
         });

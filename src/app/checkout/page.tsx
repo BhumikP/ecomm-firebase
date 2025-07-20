@@ -209,7 +209,7 @@ export default function CheckoutPage() {
             if (!response.ok) {
                 throw new Error(result.message || "Failed to place Cash on Delivery order.");
             }
-             toast({ title: "Order Placed!", description: `Your order ${result.orderId} has been successfully placed.`});
+             toast({ variant: "success", title: "Order Placed!", description: `Your order ${result.orderId} has been successfully placed.`});
              router.push(`/payment/success?order_id=${result.orderId}`);
         } catch (error: any) {
              toast({ title: "Order Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
@@ -245,7 +245,7 @@ export default function CheckoutPage() {
                       });
                       const verificationResult = await verifyResponse.json();
                       if (verifyResponse.ok && verificationResult.success) {
-                          toast({ title: "Payment Successful!", description: `Order ${verificationResult.orderId} is being processed.`});
+                          toast({ variant: "success", title: "Payment Successful!", description: `Order ${verificationResult.orderId} is being processed.`});
                           router.push(`/payment/success?order_id=${verificationResult.orderId}`);
                       } else {
                           toast({ title: "Payment Verification Failed", description: verificationResult.message, variant: "destructive" });
@@ -326,16 +326,21 @@ export default function CheckoutPage() {
     ]);
     
     const newBargains: Record<string, number> = {};
+    let totalDiscountAmount = 0;
     result.discounts.forEach(d => {
         newBargains[d.productId] = d.discountAmount;
+        const cartItem = cart?.items.find(item => item.product._id.toString() === d.productId);
+        if(cartItem) {
+          totalDiscountAmount += d.discountAmount * cartItem.quantity;
+        }
     });
     setBargainedAmounts(newBargains);
 
     if (result.discounts.length > 0) {
         toast({
-            title: "Deal made!",
-            description: "Your special discounts have been applied to the order summary.",
-            className: "bg-green-100 border-green-300 text-green-800",
+            variant: "success",
+            title: "Deal Made!",
+            description: `You got a total discount of ₹${totalDiscountAmount.toFixed(2)}! It has been applied to your order.`,
         });
     } else {
         toast({
@@ -347,7 +352,7 @@ export default function CheckoutPage() {
 
   
   const subtotal = cart?.items.reduce((acc, item) => acc + (item.product.discount ? (item.product.price * (1 - item.product.discount/100)) : item.product.price) * item.quantity, 0) || 0;
-  const totalBargainDiscount = Object.values(bargainedAmounts).reduce((acc, amount) => acc + amount, 0);
+  const totalBargainDiscount = cart?.items.reduce((acc, item) => acc + (bargainedAmounts[item.product._id.toString()] || 0) * item.quantity, 0) || 0;
   const subtotalAfterBargain = subtotal - totalBargainDiscount;
   const taxAmount = storeSettings ? subtotalAfterBargain * (storeSettings.taxPercentage / 100) : 0;
   const shippingCost = storeSettings?.shippingCharge || 0;

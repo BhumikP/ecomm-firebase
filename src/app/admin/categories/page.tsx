@@ -1,3 +1,4 @@
+
 // src/app/admin/categories/page.tsx
 'use client';
 
@@ -132,7 +133,7 @@ export default function AdminCategoriesPage() {
             }
 
             await fetchCategories(); // Re-fetch to update list
-            toast({ title: isEditing ? "Category Updated" : "Category Added", description: successMessage });
+            toast({ variant: "success", title: isEditing ? "Category Updated" : "Category Added", description: successMessage });
             handleCloseDialog();
         } catch (error: any) {
             // console.error("Error saving category:", error); // Removed
@@ -151,7 +152,7 @@ export default function AdminCategoriesPage() {
                 throw new Error(errorData.message || 'Failed to delete category');
             }
             setCategories(prev => prev.filter(c => c._id !== categoryId));
-            toast({ title: "Category Deleted", description: `Category "${categoryName}" has been removed.` });
+            toast({ variant: "success", title: "Category Deleted", description: `Category "${categoryName}" has been removed.` });
         } catch (error: any) {
             // console.error("Error deleting category:", error); // Removed
             toast({ variant: "destructive", title: "Error", description: error.message || "Could not delete category." });
