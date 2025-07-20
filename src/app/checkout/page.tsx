@@ -183,13 +183,16 @@ export default function CheckoutPage() {
               form.reset(address);
           }
       } else {
-           form.setValue('name', userData?.name || '');
-           form.setValue('email', localStorage.getItem('userEmail') || userData?.email || '');
-           form.setValue('phone', userData?.phone || '');
-           form.setValue('street', '');
-           form.setValue('city', '');
-           form.setValue('state', '');
-           form.setValue('zip', '');
+           form.reset({
+              name: userData?.name || '',
+              email: localStorage.getItem('userEmail') || userData?.email || '',
+              phone: userData?.phone || '',
+              street: '',
+              city: '',
+              state: '',
+              zip: '',
+              country: 'India',
+           });
       }
   }, [selectedAddressId, userData, form]);
 
