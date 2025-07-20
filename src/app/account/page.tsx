@@ -3,6 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,7 +14,11 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { Edit, Package, LogOut, Home } from 'lucide-react';
+import { Edit, Package, LogOut, Home, Settings, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+
 
 interface UserData {
   _id: string;
@@ -21,11 +29,26 @@ interface UserData {
   role: 'user' | 'admin';
 }
 
+const profileFormSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+});
+
+type ProfileFormValues = z.infer<typeof profileFormSchema>;
+
+
 export default function AccountPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: { name: '' },
+  });
+
 
   useEffect(() => {
     // This now simply loads user data from localStorage for display purposes.
@@ -35,6 +58,7 @@ export default function AccountPage() {
       try {
         const parsedUserData: UserData = JSON.parse(userDataString);
         setUserData(parsedUserData);
+        form.reset({ name: parsedUserData.name });
       } catch (e) {
         console.error("Failed to parse user data from localStorage", e);
         // If data is corrupt, force a logout to clear state
@@ -46,23 +70,51 @@ export default function AccountPage() {
       router.replace('/auth/login');
     }
     setIsLoading(false);
-  }, [router]);
+  }, [router, form]);
 
   const handleLogout = () => {
     // Clear client-side storage
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userData');
+    localStorage.removeItem('userEmail');
     
-    // Clear server-side session cookies by making a request to a logout endpoint
-    // (This is a more robust way, but for now we'll rely on client-side redirect which will clear session cookies on next load)
-    // Or we could try to delete cookies from JS, though httpOnly makes it impossible.
-    // The redirect is the most practical way here.
-    
+    // The redirect is the most practical way here to clear server session cookies
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
     router.push('/');
-    router.refresh(); // Forces a refresh to get new server state (and clear cookies if not httpOnly)
+    router.refresh();
   };
+  
+  const onProfileSubmit = async (data: ProfileFormValues) => {
+    if (!userData) return;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/users/${userData._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: data.name }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to update profile');
+      }
+
+      // Update local state and localStorage for immediate UI feedback
+      const updatedUserData = { ...userData, name: result.user.name };
+      setUserData(updatedUserData);
+      localStorage.setItem('userData', JSON.stringify(updatedUserData));
+      
+      toast({ title: 'Success', description: 'Your profile has been updated.' });
+      setIsDialogOpen(false);
+
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   const getInitials = (name: string) => {
      if (!name) return '';
@@ -120,10 +172,44 @@ export default function AccountPage() {
                     </Link>
                </Button>
            )}
-           <Button variant="outline" className="w-full justify-start" disabled>
-               <Edit className="mr-2 h-4 w-4" /> Edit Profile
-               <span className="ml-auto text-xs text-muted-foreground">(Coming Soon)</span>
-           </Button>
+          
+           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full justify-start">
+                   <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Profile</DialogTitle>
+                </DialogHeader>
+                 <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onProfileSubmit)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Full Name</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+
+
            <Button variant="outline" className="w-full justify-start" asChild>
                 <Link href="/account/orders">
                      <Package className="mr-2 h-4 w-4" /> View Order History

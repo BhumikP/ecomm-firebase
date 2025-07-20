@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     // Use the 'cookies().set' from next/headers
     cookies().set('isLoggedIn', 'true', cookieOptions);
     cookies().set('userRole', userData.role, cookieOptions);
+    cookies().set('userId', userData._id.toString(), cookieOptions); // Store user ID as well
 
     return response;
 
