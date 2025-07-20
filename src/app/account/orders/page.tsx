@@ -138,36 +138,38 @@ export default function OrderHistoryPage() {
           ) : error ? (
              <p className="text-center py-10 text-destructive">{error}</p>
           ) : orders.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[150px]">Order ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order._id}>
-                    <TableCell className="font-medium">{order.orderId}</TableCell>
-                    <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeColor(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">₹{formatCurrency(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" asChild>
-                         <Link href={`/account/orders/${order._id}`}>View Details</Link>
-                       </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[150px]">Order ID</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((order) => (
+                    <TableRow key={order._id}>
+                      <TableCell className="font-medium">{order.orderId}</TableCell>
+                      <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeColor(order.status)}>
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">₹{formatCurrency(order.total)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" asChild>
+                           <Link href={`/account/orders/${order._id}`}>View Details</Link>
+                         </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="text-center py-10">
                 <PackageOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

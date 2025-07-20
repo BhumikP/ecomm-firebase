@@ -1,9 +1,7 @@
-
 // src/app/cart/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useRef } // Added useRef
-from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -349,9 +347,9 @@ export default function CartPage() {
                     </Card>
                  </div>
             ) : cart && cart.items.length > 0 ? (
-            <div className="grid md:grid-cols-3 gap-8 items-start">
-            <div className="md:col-span-2">
-                <Card>
+            <div className="grid lg:grid-cols-3 gap-8 items-start">
+            <div className="lg:col-span-2">
+                <Card className="hidden md:block">
                     <CardContent className="p-0">
                         <Table>
                             <TableHeader>
@@ -446,10 +444,45 @@ export default function CartPage() {
                         </Table>
                     </CardContent>
                 </Card>
+                 <div className="space-y-4 md:hidden">
+                    {cart.items.map(item => {
+                         const itemDisplayPrice = calculateItemDisplayPrice(item);
+                         const itemSubtotal = itemDisplayPrice * item.quantity;
+                         const productStock = item.selectedColorSnapshot && item.product.colors
+                                             ? item.product.colors.find(c => c.name === item.selectedColorSnapshot?.name)?.stock ?? 0
+                                             : item.product.stock;
+                         const minOrderQty = item.product.minOrderQuantity || 1;
+                        return (
+                            <Card key={item._id} className="p-4">
+                                <div className="flex gap-4">
+                                    <Image
+                                        src={item.imageSnapshot || 'https://placehold.co/100x100.png'}
+                                        alt={item.nameSnapshot} width={80} height={80}
+                                        className="w-20 h-20 object-cover rounded-md border flex-shrink-0"
+                                    />
+                                    <div className="flex-grow space-y-1">
+                                        <Link href={`/products/${item.product._id}`} className="font-medium leading-tight hover:text-primary">{item.nameSnapshot}</Link>
+                                        {item.selectedColorSnapshot && <p className="text-xs text-muted-foreground">Color: {item.selectedColorSnapshot.name}</p>}
+                                        <p className="text-sm font-medium">₹{formatCurrency(itemDisplayPrice)}</p>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive self-start" onClick={() => handleRemoveItem(item._id, item.nameSnapshot)} disabled={isUpdating === item._id}>
+                                         {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                                <div className="flex justify-between items-center mt-3 pt-3 border-t">
+                                     <div className="flex items-center justify-center gap-1 sm:gap-2">
+                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityButtonClick(item._id, item, -1)} disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) <= minOrderQty)}><Minus className="h-4 w-4" /></Button>
+                                        <Input type="text" inputMode="numeric" value={itemInputValues[item._id] ?? ''} onChange={(e) => handleItemInputChange(item._id, e.target.value)} className="w-12 h-8 text-center px-1" disabled={isUpdating === item._id} />
+                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityButtonClick(item._id, item, 1)} disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) >= productStock)}><Plus className="h-4 w-4" /></Button>
+                                    </div>
+                                    <p className="font-semibold text-base">₹{formatCurrency(itemSubtotal)}</p>
+                                </div>
+                            </Card>
+                        )
+                    })}
+                </div>
             </div>
-
-
-            <Card className="md:col-span-1 sticky top-20">
+            <Card className="lg:col-span-1 sticky top-20">
                 <CardHeader> <CardTitle>Order Summary</CardTitle> </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="flex justify-between">

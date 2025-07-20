@@ -3,7 +3,7 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
-import { Filter, Search, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, ChevronRight, Zap } from 'lucide-react';
+import { Search, Tv, Shirt, HomeIcon as HomeGoodsIcon, Footprints, Blocks, Percent, ChevronRight, Zap } from 'lucide-react';
 import {
   Carousel,
   CarouselContent,
@@ -12,7 +12,6 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
 import type { IBanner } from '@/models/Banner';
 import { ScrollingH1AnnouncementBar } from '@/components/layout/scrolling-h1-announcement-bar';
