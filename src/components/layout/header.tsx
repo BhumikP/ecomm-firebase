@@ -1,5 +1,4 @@
 
-
 'use client'; // Add 'use client'
 
 import Link from 'next/link';

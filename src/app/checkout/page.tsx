@@ -1,7 +1,8 @@
+
 // src/app/checkout/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -17,15 +18,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ICart, ICartItem } from '@/models/Cart';
 import type { IProduct } from '@/models/Product';
-import { Loader2, ArrowLeft, Home, Edit2, Star, CreditCard, Truck, Sparkles } from 'lucide-react';
+import { Loader2, ArrowLeft, Home, Edit2, Star, CreditCard, Truck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import type { IShippingAddress } from '@/models/User';
-import { BargainDrawer } from '@/components/checkout/bargain-drawer';
-import type { BargainOutput } from '@/ai/flows/bargain-flow';
 
 const addressSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -39,12 +38,12 @@ const addressSchema = z.object({
 
 type AddressFormValues = z.infer<typeof addressSchema>;
 
-export interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
+interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
   _id: string;
   product: Pick<IProduct, '_id' | 'title' | 'thumbnailUrl'>;
 }
 
-export interface PopulatedCart extends Omit<ICart, 'items'> {
+interface PopulatedCart extends Omit<ICart, 'items'> {
   items: PopulatedCartItem[];
 }
 
@@ -59,7 +58,6 @@ interface UserData {
 interface StoreSettings {
   taxPercentage: number;
   shippingCharge: number;
-  activePaymentGateway: 'razorpay' | 'payu';
 }
 
 type PaymentMethod = 'online' | 'cod';
@@ -85,11 +83,6 @@ export default function CheckoutPage() {
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   
-  const [bargainedAmounts, setBargainedAmounts] = useState<Record<string, number>>({});
-  const [chatHistory, setChatHistory] = useState<{ author: 'user' | 'ai'; text: string }[]>([]);
-  
-  const payuFormRef = useRef<HTMLFormElement>(null);
-
   const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 
   const form = useForm<AddressFormValues>({
@@ -155,16 +148,16 @@ export default function CheckoutPage() {
     const fetchStoreSettings = async () => {
       setIsSettingsLoading(true);
       try {
-        const response = await fetch('/api/settings'); // Use public settings endpoint
+        const response = await fetch('/api/admin/settings');
         if (!response.ok) throw new Error('Failed to fetch store settings');
         const data = await response.json();
-        setStoreSettings({
-            taxPercentage: data.taxPercentage || 0,
-            shippingCharge: data.shippingCharge || 0,
-            activePaymentGateway: data.activePaymentGateway || 'razorpay'
-        });
+        if (data.settings) {
+            setStoreSettings(data.settings);
+        } else {
+            setStoreSettings({ taxPercentage: 0, shippingCharge: 0 });
+        }
       } catch (error) {
-        setStoreSettings({ taxPercentage: 0, shippingCharge: 0, activePaymentGateway: 'razorpay' });
+        setStoreSettings({ taxPercentage: 0, shippingCharge: 0 });
       } finally {
         setIsSettingsLoading(false);
       }
@@ -178,11 +171,7 @@ export default function CheckoutPage() {
              const response = await fetch('/api/checkout/cod', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    userId: userData!._id, 
-                    shippingAddress,
-                    bargainedAmounts,
-                }),
+                body: JSON.stringify({ userId: userData!._id, shippingAddress }),
             });
             const result = await response.json();
             if (!response.ok) {
@@ -197,94 +186,78 @@ export default function CheckoutPage() {
         }
     };
 
-    const handleProcessOnlineOrder = async (shippingAddress: IShippingAddress, shouldSaveAddress: boolean) => {
-        setIsProcessing(true);
-        
-        try {
-            const initiateResponse = await fetch('/api/checkout/initiate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    userId: userData!._id, 
-                    shippingAddress, 
-                    saveAddress: shouldSaveAddress,
-                    bargainedAmounts,
-                }),
-            });
-            const initData = await initiateResponse.json();
-            if (!initiateResponse.ok) throw new Error(initData.message || "Failed to initiate transaction.");
+  const handleProcessOnlineOrder = async (shippingAddress: IShippingAddress, shouldSaveAddress: boolean) => {
+      setIsProcessing(true);
+      
+      try {
+          const initiateResponse = await fetch('/api/payments/initiate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: userData!._id, shippingAddress, saveAddress: shouldSaveAddress }),
+          });
+          const initData = await initiateResponse.json();
+          if (!initiateResponse.ok) {
+              throw new Error(initData.message || "Failed to initiate transaction.");
+          }
 
-            if (initData.gateway === 'razorpay') {
-                if (!RAZORPAY_KEY_ID) {
-                    toast({ title: "Configuration Error", description: "Razorpay is not configured.", variant: "destructive" });
-                    setIsProcessing(false); return;
-                }
-                const { transactionId, razorpayOrder } = initData;
-                const options = {
-                    key: RAZORPAY_KEY_ID, amount: razorpayOrder.amount, currency: razorpayOrder.currency,
-                    name: "eShop Simplified", description: `Transaction for eShop`, order_id: razorpayOrder.id,
-                    handler: async function (response: any) {
-                        const verifyResponse = await fetch('/api/payments/verify-payment', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_signature: response.razorpay_signature,
-                                transactionId: transactionId,
-                            }),
-                        });
-                        const verificationResult = await verifyResponse.json();
-                        if (verifyResponse.ok && verificationResult.success) {
-                            toast({ title: "Payment Successful!", description: `Order ${verificationResult.orderId} is being processed.`});
-                            router.push(`/payment/success?order_id=${verificationResult.orderId}`);
-                        } else {
-                             toast({ title: "Payment Verification Failed", description: verificationResult.message, variant: "destructive" });
-                            router.push(`/payment/failure?transaction_id=${transactionId}`);
-                        }
-                    },
-                    prefill: { name: shippingAddress.name, email: userData!.email, contact: shippingAddress.phone, },
-                    theme: { color: "#008080" },
-                    modal: {
-                        ondismiss: async function() {
-                             toast({ title: "Payment Cancelled", variant: "default" });
-                             try {
-                                await fetch('/api/payments/cancel-payment', {
-                                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                   body: JSON.stringify({ transactionId: transactionId }),
-                                });
-                             } catch (cancelError) { console.error("Failed to report cancellation:", cancelError); }
-                            setIsProcessing(false);
-                        }
-                    }
-                };
-                const rzp = new window.Razorpay(options);
-                rzp.open();
-            } else if (initData.gateway === 'payu') {
-                const { payuDetails } = initData;
-                const formElement = payuFormRef.current;
-                if(formElement){
-                    (formElement.elements.namedItem('key') as HTMLInputElement).value = payuDetails.key;
-                    (formElement.elements.namedItem('txnid') as HTMLInputElement).value = payuDetails.txnid;
-                    (formElement.elements.namedItem('amount') as HTMLInputElement).value = payuDetails.amount;
-                    (formElement.elements.namedItem('productinfo') as HTMLInputElement).value = payuDetails.productinfo;
-                    (formElement.elements.namedItem('firstname') as HTMLInputElement).value = payuDetails.firstname;
-                    (formElement.elements.namedItem('email') as HTMLInputElement).value = payuDetails.email;
-                    (formElement.elements.namedItem('hash') as HTMLInputElement).value = payuDetails.hash;
-                    (formElement.elements.namedItem('surl') as HTMLInputElement).value = `${window.location.origin}/api/payments/payu-callback`;
-                    (formElement.elements.namedItem('furl') as HTMLInputElement).value = `${window.location.origin}/api/payments/payu-callback`;
-                    (formElement.elements.namedItem('phone') as HTMLInputElement).value = shippingAddress.phone || '';
+          if (!RAZORPAY_KEY_ID) {
+              toast({ title: "Configuration Error", description: "Razorpay is not configured.", variant: "destructive" });
+              setIsProcessing(false);
+              return;
+          }
 
-                    formElement.submit();
-                } else {
-                    throw new Error("PayU form not found.");
-                }
-            }
-        } catch (error: any) {
-            toast({ title: "Order Error", description: error.message, variant: "destructive" });
-            setIsProcessing(false);
-        }
-    };
+          const { orderId, amount, currency, transactionId } = initData;
 
+          const options = {
+              key: RAZORPAY_KEY_ID, amount, currency, name: "eShop Simplified",
+              description: `Transaction for order ${orderId}`, order_id: orderId,
+              handler: async function (response: any) {
+                  const verifyResponse = await fetch('/api/payments/verify-payment', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          razorpay_payment_id: response.razorpay_payment_id,
+                          razorpay_order_id: response.razorpay_order_id,
+                          razorpay_signature: response.razorpay_signature,
+                          transactionId: transactionId,
+                      }),
+                  });
+                  const verificationResult = await verifyResponse.json();
+                  if (verifyResponse.ok && verificationResult.success) {
+                      toast({ title: "Payment Successful!", description: `Order ${verificationResult.orderId} is being processed.`});
+                      router.push(`/payment/success?order_id=${verificationResult.orderId}`);
+                  } else {
+                       toast({ title: "Payment Verification Failed", description: verificationResult.message, variant: "destructive" });
+                      router.push(`/payment/failure?order_id=${orderId}`);
+                  }
+              },
+              prefill: { name: shippingAddress.name, email: userData!.email, contact: shippingAddress.phone, },
+              theme: { color: "#008080" },
+              modal: {
+                  ondismiss: async function() {
+                       toast({ title: "Payment Cancelled", variant: "default" });
+                       try {
+                          await fetch('/api/payments/cancel-payment', {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({ transactionId: transactionId }),
+                          });
+                       } catch (cancelError) {
+                          console.error("Failed to report cancellation:", cancelError);
+                       }
+                      setIsProcessing(false);
+                  }
+              }
+          };
+
+          const rzp = new window.Razorpay(options);
+          rzp.open();
+          
+      } catch (error: any) {
+          toast({ title: "Order Error", description: error.message, variant: "destructive" });
+          setIsProcessing(false);
+      }
+  };
 
   const handleProcessOrder = async () => {
     let shippingAddress: IShippingAddress | undefined;
@@ -317,43 +290,11 @@ export default function CheckoutPage() {
         handleProcessOnlineOrder(shippingAddress, shouldSaveAddress);
     }
   };
-
-  const handleBargainComplete = (prompt: string, result: BargainOutput) => {
-    setChatHistory(prev => [
-        ...prev,
-        { author: 'user', text: prompt },
-        { author: 'ai', text: result.responseMessage },
-    ]);
-
-    if (result.discounts && result.discounts.length > 0) {
-      const newBargainedAmounts: Record<string, number> = {};
-      result.discounts.forEach(d => {
-        newBargainedAmounts[d.productId] = d.discountAmount;
-      });
-      setBargainedAmounts(newBargainedAmounts);
-      toast({
-        title: "Offer Received!",
-        description: "Your special prices have been applied to the cart.",
-      });
-    } else {
-      toast({
-        title: "No luck this time!",
-        description: "The shopkeeper didn't offer a discount. Try a different approach!"
-      });
-    }
-  };
-
-
-  const totalBargainDiscount = cart?.items.reduce((sum, item) => {
-    const itemDiscount = bargainedAmounts[item.product._id.toString()] || 0;
-    return sum + (itemDiscount * item.quantity);
-  }, 0) ?? 0;
-
+  
   const subtotal = cart?.items.reduce((acc, item) => acc + item.priceSnapshot * item.quantity, 0) || 0;
-  const subtotalAfterBargain = subtotal - totalBargainDiscount;
-  const taxAmount = storeSettings ? subtotalAfterBargain * (storeSettings.taxPercentage / 100) : 0;
+  const taxAmount = storeSettings ? subtotal * (storeSettings.taxPercentage / 100) : 0;
   const shippingCost = storeSettings?.shippingCharge || 0;
-  const grandTotal = subtotalAfterBargain + taxAmount + shippingCost;
+  const grandTotal = subtotal + taxAmount + shippingCost;
   const formatCurrency = (amount: number) => amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
   const actionButtonText = paymentMethod === 'cod' 
@@ -376,35 +317,9 @@ export default function CheckoutPage() {
       </div>
     );
   }
-  
-  const PAYU_ACTION_URL = process.env.NEXT_PUBLIC_PAYU_URL || 'https://sandboxsecure.payu.in/_payment';
 
   return (
     <div className="flex flex-col min-h-screen">
-       {isProcessing && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
-          <h2 className="text-2xl font-bold text-foreground">Finalizing your order...</h2>
-          <p className="text-lg text-muted-foreground mt-2">
-            You will be redirected to our secure payment partner shortly.
-          </p>
-          <p className="font-semibold mt-4 text-destructive">
-            Please do not refresh or close this page.
-          </p>
-        </div>
-      )}
-       <form ref={payuFormRef} method="POST" action={PAYU_ACTION_URL} className="hidden">
-            <input type="hidden" name="key" />
-            <input type="hidden" name="txnid" />
-            <input type="hidden" name="amount" />
-            <input type="hidden" name="productinfo" />
-            <input type="hidden" name="firstname" />
-            <input type="hidden" name="email" />
-            <input type="hidden" name="phone" />
-            <input type="hidden" name="surl" />
-            <input type="hidden" name="furl" />
-            <input type="hidden" name="hash" />
-        </form>
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
         <Button variant="outline" size="sm" asChild className="mb-6">
@@ -502,28 +417,17 @@ export default function CheckoutPage() {
           </div>
 
           <div className="lg:col-span-1 lg:sticky top-20">
-            <BargainDrawer
-                cart={cart}
-                userId={userData?._id}
-                onBargainComplete={handleBargainComplete}
-                chatHistory={chatHistory}
-            />
             <Card>
               <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
               <CardContent>
                 <ul className="space-y-3 mb-4">
                   {cart?.items.map(item => (
-                    <li key={item._id?.toString()} className="flex items-center justify-between text-sm">
+                    <li key={item._id.toString()} className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-3">
                         <Image src={item.imageSnapshot || 'https://placehold.co/100x100.png'} alt={item.nameSnapshot} width={48} height={48} className="w-12 h-12 rounded-md object-cover border" />
                         <div>
                           <p className="font-medium line-clamp-1">{item.nameSnapshot}</p>
-                           <p className="text-muted-foreground">Qty: {item.quantity}</p>
-                           {bargainedAmounts[item.product._id.toString()] > 0 && (
-                                <p className="text-green-600 text-xs">
-                                    Bargain: -₹{formatCurrency((bargainedAmounts[item.product._id.toString()] || 0) * item.quantity)}
-                                </p>
-                           )}
+                          <p className="text-muted-foreground">Qty: {item.quantity}</p>
                         </div>
                       </div>
                       <p className="font-medium">₹{formatCurrency(item.priceSnapshot * item.quantity)}</p>
@@ -536,12 +440,6 @@ export default function CheckoutPage() {
                     <p className="text-muted-foreground">Subtotal</p>
                     <p>₹{formatCurrency(subtotal)}</p>
                   </div>
-                   {totalBargainDiscount > 0 && (
-                        <div className="flex justify-between text-green-600 font-medium">
-                            <p>Bargain Discount</p>
-                            <p>- ₹{formatCurrency(totalBargainDiscount)}</p>
-                        </div>
-                   )}
                   <div className="flex justify-between">
                     <p className="text-muted-foreground">Shipping</p>
                     <p>₹{formatCurrency(shippingCost)}</p>

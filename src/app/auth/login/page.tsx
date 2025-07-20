@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -9,16 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from 'lucide-react';
-
-function setCookie(name: string, value: string, days: number) {
-    let expires = "";
-    if (days) {
-        const date = new Date();
-        date.setTime(date.getTime() + (days*24*60*60*1000));
-        expires = "; expires=" + date.toUTCString();
-    }
-    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
-}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -43,13 +34,9 @@ export default function LoginPage() {
       if (response.ok) {
         // Login successful
         const userData = data.user;
-
-        // Use secure, HttpOnly cookies set by the server in a real production app.
-        // For this implementation, we'll set client-side cookies for simplicity.
-        setCookie('isLoggedIn', 'true', 7);
-        setCookie('userRole', userData.role, 7);
-        // We still use localStorage for non-sensitive data needed by the client.
-        localStorage.setItem('userData', JSON.stringify(userData));
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userRole', userData.role);
+        localStorage.setItem('userData', JSON.stringify(userData)); // Store full user data
 
         toast({
           title: "Login Successful",

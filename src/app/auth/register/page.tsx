@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -9,16 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from 'lucide-react';
-
-function setCookie(name: string, value: string, days: number) {
-    let expires = "";
-    if (days) {
-        const date = new Date();
-        date.setTime(date.getTime() + (days*24*60*60*1000));
-        expires = "; expires=" + date.toUTCString();
-    }
-    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
-}
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
@@ -66,9 +57,9 @@ export default function RegisterPage() {
         // Registration successful
         const userData = data.user;
 
-        // Automatically log user in by setting cookies and local storage
-        setCookie('isLoggedIn', 'true', 7);
-        setCookie('userRole', userData.role, 7);
+        // Automatically log user in
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userRole', userData.role);
         localStorage.setItem('userData', JSON.stringify(userData));
 
         toast({
