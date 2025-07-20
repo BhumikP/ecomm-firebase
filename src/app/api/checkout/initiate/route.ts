@@ -91,10 +91,17 @@ export async function POST(req: NextRequest) {
     await newTransaction.save();
 
     if (activeGateway === 'razorpay') {
+        if (!razorpayInstance) {
+          return NextResponse.json({
+            success: false,
+            error: 'Razorpay is not configured. Please check environment variables.',
+          }, { status: 500 });
+        }
+        
         const options = {
           amount: Math.round(totalAmount * 100),
           currency: 'INR',
-          receipt: newTransaction._id.toString(),
+          receipt: (newTransaction._id as string).toString(),
         };
         const razorpayOrder = await razorpayInstance.orders.create(options);
         newTransaction.razorpay_order_id = razorpayOrder.id;
@@ -115,7 +122,7 @@ export async function POST(req: NextRequest) {
 
         const payuDetails = {
             key: process.env.PAYU_KEY!,
-            txnid: newTransaction._id.toString(),
+            txnid: (newTransaction._id as string).toString(),
             amount: totalAmount.toFixed(2),
             productinfo: productInfoString.substring(0, 100),
             firstname: shippingAddress.name.split(' ')[0],

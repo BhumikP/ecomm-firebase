@@ -5,9 +5,8 @@ import crypto from 'crypto';
 const PAYU_KEY = process.env.PAYU_KEY;
 const PAYU_SALT = process.env.PAYU_SALT;
 
-if (!PAYU_KEY || !PAYU_SALT) {
-  console.warn('PayU Key or Salt is not configured in environment variables. PayU payments will fail.');
-}
+// Only warn about PayU configuration when actually trying to use PayU
+// This prevents unnecessary warnings during development/build
 
 interface PayUTransactionDetails {
   key: string;

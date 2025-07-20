@@ -353,10 +353,10 @@ export default function CheckoutPage() {
   
   const subtotal = cart?.items.reduce((acc, item) => acc + (item.product.discount ? (item.product.price * (1 - item.product.discount/100)) : item.product.price) * item.quantity, 0) || 0;
   const totalBargainDiscount = cart?.items.reduce((acc, item) => acc + (bargainedAmounts[item.product._id.toString()] || 0) * item.quantity, 0) || 0;
-  const subtotalAfterBargain = subtotal - totalBargainDiscount;
-  const taxAmount = storeSettings ? subtotalAfterBargain * (storeSettings.taxPercentage / 100) : 0;
+  // const subtotalAfterBargain = subtotal - totalBargainDiscount;
+  const taxAmount = storeSettings ? subtotal * (storeSettings.taxPercentage  / 100) : 0;
   const shippingCost = storeSettings?.shippingCharge || 0;
-  const grandTotal = subtotalAfterBargain + taxAmount + shippingCost;
+  const grandTotal = storeSettings?.taxPercentage? (subtotal + taxAmount + shippingCost) : (subtotal + shippingCost);
   const formatCurrency = (amount: number) => amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
   const actionButtonText = paymentMethod === 'cod' 
@@ -524,10 +524,10 @@ export default function CheckoutPage() {
                         <p className="text-muted-foreground">Shipping</p>
                         <p>₹{formatCurrency(shippingCost)}</p>
                     </div>
-                    <div className="flex justify-between">
+                   {taxAmount > 0 && <div className="flex justify-between">
                         <p className="text-muted-foreground">Tax ({storeSettings?.taxPercentage || 0}%)</p>
                         <p>₹{formatCurrency(taxAmount)}</p>
-                    </div>
+                    </div>}
                     <Separator />
                     <div className="flex justify-between font-bold text-lg">
                         <p>Total</p>

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   await connectDb();
 
   try {
-    const settings = await Setting.findOne({ configKey: 'global_settings' }).select('announcementText announcementLink isAnnouncementActive activePaymentGateway').lean();
+    const settings = await Setting.findOne({ configKey: 'global_settings' }).select('announcementText announcementLink isAnnouncementActive activePaymentGateway taxPercentage shippingCharge').lean();
     
     if (settings) {
       return NextResponse.json({
@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
         announcementLink: settings.announcementLink,
         isAnnouncementActive: settings.isAnnouncementActive,
         activePaymentGateway: settings.activePaymentGateway || 'razorpay',
+        taxPercentage: settings.taxPercentage,
+        shippingCharge: settings.shippingCharge,
       }, { status: 200 });
     }
     
@@ -25,7 +27,9 @@ export async function GET(req: NextRequest) {
         announcementText: '',
         announcementLink: '',
         isAnnouncementActive: false,
-        activePaymentGateway: 'razorpay'
+        activePaymentGateway: 'razorpay',
+        taxPercentage: 0,
+        shippingCharge: 0,
     }, { status: 200 });
 
   } catch (error) {

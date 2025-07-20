@@ -5,14 +5,13 @@ import crypto from 'crypto';
 const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
-if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-  throw new Error('Razorpay Key ID or Key Secret is not configured in environment variables.');
-}
-
-export const razorpayInstance = new Razorpay({
-  key_id: RAZORPAY_KEY_ID,
-  key_secret: RAZORPAY_KEY_SECRET,
-});
+// Create Razorpay instance only if credentials are available
+export const razorpayInstance = (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) 
+  ? new Razorpay({
+      key_id: RAZORPAY_KEY_ID,
+      key_secret: RAZORPAY_KEY_SECRET,
+    })
+  : null;
 
 /**
  * Verifies the signature of a Razorpay webhook.

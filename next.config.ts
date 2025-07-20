@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  webpack: (config, { isServer }) => {
+    config.module.rules.push({
+      test: /\.hbs$/,
+      loader: 'handlebars-loader',
+    });
+    return config;
+  },
   images: {
     remotePatterns: [
       {
