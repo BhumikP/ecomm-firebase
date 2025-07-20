@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from 'uuid';
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
-const S3_REGION = process.env.AWS_S3_REGION;
-const AWS_ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
-const AWS_SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const BUCKET_NAME = process.env.NEXT_S3_BUCKET_NAME;
+const S3_REGION = process.env.NEXT_S3_REGION;
+const AWS_ACCESS_KEY = process.env.NEXT_ACCESS_KEY_ID;
+const AWS_SECRET_KEY = process.env.NEXT_SECRET_ACCESS_KEY;
 
 if (!BUCKET_NAME || !S3_REGION || !AWS_ACCESS_KEY || !AWS_SECRET_KEY) {
   // console.error("AWS S3 configuration is missing in environment variables."); // Removed
