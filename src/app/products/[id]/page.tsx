@@ -642,7 +642,7 @@ export default function ProductDetailPage() {
             
             <Separator className="my-4" />
 
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion type="single" collapsible className="w-full" defaultValue="item-1">
               <AccordionItem value="item-1">
                 <AccordionTrigger>Description</AccordionTrigger>
                 <AccordionContent>

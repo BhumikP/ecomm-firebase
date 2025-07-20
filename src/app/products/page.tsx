@@ -24,9 +24,9 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-import type { IProductColor } from '@/models/Product'; // IProduct removed as FetchedProduct includes it
+import type { IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
-import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card'; // Import ProductCard
+import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
 
 interface FilterState {
   categories: { [key: string]: boolean }; 
@@ -287,7 +287,7 @@ function ProductsPageContent() {
 
     router.push(`${currentPath}?${query.toString()}`);
     document.getElementById('close-filter-sheet-products')?.click();
-    toast({ title: "Filters Applied" });
+    toast({ variant: "success", title: "Filters Applied" });
   };
 
   const handleClearFilters = () => {
@@ -361,7 +361,7 @@ function ProductsPageContent() {
             throw new Error(result.message || 'Failed to add item to cart');
         }
         window.dispatchEvent(new CustomEvent('cartUpdated'));
-        toast({ title: "Added to Cart", description: `${itemToAdd} (Qty: ${quantity}) has been added.` });
+        toast({ variant: "success", title: "Added to Cart", description: `${itemToAdd} (Qty: ${quantity}) has been added.` });
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message || "Could not add item to cart." });
     } finally {

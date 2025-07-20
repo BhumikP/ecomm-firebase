@@ -46,7 +46,7 @@ export default function CartPage() {
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [itemInputValues, setItemInputValues] = useState<Record<string, string>>({});
-  const debounceButtonTimers = useRef<Record<string, NodeJS.Timeout | undefined>>({});
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
 
   useEffect(() => {
@@ -125,145 +125,102 @@ export default function CartPage() {
   }, [userId, fetchCart, fetchStoreSettings]);
 
   useEffect(() => {
+    // Cleanup all timers on component unmount
     return () => {
-        Object.values(debounceButtonTimers.current).forEach(timerId => {
+        Object.values(debounceTimers.current).forEach(timerId => {
             if (timerId) clearTimeout(timerId);
         });
     };
   }, []);
 
+  const updateItemQuantity = useCallback(async (itemId: string, newQuantity: number) => {
+    if (!userId) return;
+    setIsUpdating(itemId);
+    try {
+        const response = await fetch(`/api/cart/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, newQuantity }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to update quantity');
+        setCart(data.cart as PopulatedCart);
+        
+        // Ensure local input state matches server state
+        const updatedItem = data.cart.items.find((i: PopulatedCartItem) => i._id === itemId);
+        if (updatedItem) {
+          setItemInputValues(prev => ({ ...prev, [itemId]: String(updatedItem.quantity) }));
+        }
+
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Update Failed", description: error.message });
+        const currentCartItem = cart?.items.find(i => i._id === itemId);
+        if (currentCartItem) {
+          setItemInputValues(prev => ({ ...prev, [itemId]: String(currentCartItem.quantity) }));
+        }
+    } finally {
+        setIsUpdating(null);
+    }
+  }, [userId, toast, cart]);
+
 
   const handleItemInputChange = (itemId: string, rawValue: string) => {
     setItemInputValues(prev => ({ ...prev, [itemId]: rawValue }));
+
+    // Clear any existing timer for this item
+    if (debounceTimers.current[itemId]) {
+        clearTimeout(debounceTimers.current[itemId]);
+    }
+    
+    // Set a new timer to validate and update
+    debounceTimers.current[itemId] = setTimeout(() => {
+        const cartItem = cart?.items.find(ci => ci._id === itemId);
+        if (!cartItem) return;
+
+        const minOrderQty = cartItem.product.minOrderQuantity || 1;
+        const productStock = cartItem.selectedColorSnapshot && cartItem.product.colors
+            ? cartItem.product.colors.find(c => c.name === cartItem.selectedColorSnapshot?.name)?.stock ?? 0
+            : cartItem.product.stock;
+        
+        let numValue = parseInt(rawValue, 10);
+        if (isNaN(numValue)) numValue = minOrderQty; // Revert to min if invalid
+        
+        let validatedQty = Math.max(minOrderQty, Math.min(numValue, productStock));
+
+        if (validatedQty !== cartItem.quantity) {
+            updateItemQuantity(itemId, validatedQty);
+        } else if(String(validatedQty) !== rawValue) {
+            // Correct the input field if it was invalid but resulted in no change
+            setItemInputValues(prev => ({ ...prev, [itemId]: String(validatedQty) }));
+        }
+
+    }, 750); // 750ms debounce delay
   };
 
-  useEffect(() => {
-      if (!cart?.items || Object.keys(itemInputValues).length === 0 || !userId) return;
-
-      const itemIdsToProcess = Object.keys(itemInputValues).filter(itemId => {
-          const cartItem = cart.items.find(ci => ci._id === itemId);
-          return cartItem && String(cartItem.quantity) !== itemInputValues[itemId];
-      });
-
-      if (itemIdsToProcess.length === 0) return;
-
-      const processItem = async (itemId: string) => {
-          const rawValue = itemInputValues[itemId];
-          const cartItem = cart.items.find(ci => ci._id === itemId);
-
-          if (!cartItem) return;
-
-          const minOrderQty = cartItem.product.minOrderQuantity || 1;
-          const productStock = cartItem.selectedColorSnapshot && cartItem.product.colors
-              ? cartItem.product.colors.find(c => c.name === cartItem.selectedColorSnapshot?.name)?.stock ?? 0
-              : cartItem.product.stock;
-
-          let numValue = parseInt(rawValue, 10);
-
-          if (isNaN(numValue)) {
-              setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) }));
-              return;
-          }
-
-          let validatedQty = numValue;
-          if (validatedQty < minOrderQty) validatedQty = minOrderQty;
-          if (validatedQty > productStock) validatedQty = productStock;
-
-          if (validatedQty !== cartItem.quantity) {
-              setIsUpdating(itemId);
-              try {
-                  const response = await fetch(`/api/cart/${itemId}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId, newQuantity: validatedQty }),
-                  });
-                  const data = await response.json();
-                  if (!response.ok) throw new Error(data.message || 'Failed to update quantity');
-
-                  setCart(data.cart as PopulatedCart);
-                  setItemInputValues(prev => ({ ...prev, [itemId]: String(data.cart.items.find((i: PopulatedCartItem) => i._id === itemId)?.quantity || validatedQty) }));
-                  window.dispatchEvent(new CustomEvent('cartUpdated'));
-              } catch (error: any) {
-                  toast({ variant: "destructive", title: "Update Failed", description: error.message });
-                  setItemInputValues(prev => ({ ...prev, [itemId]: String(cartItem.quantity) }));
-              } finally {
-                  setIsUpdating(null);
-              }
-          } else if (rawValue !== String(validatedQty)) {
-              setItemInputValues(prev => ({ ...prev, [itemId]: String(validatedQty) }));
-          }
-      };
-
-      const timer = setTimeout(() => {
-          itemIdsToProcess.forEach(processItem);
-      }, 750);
-
-      return () => clearTimeout(timer);
-
-  }, [itemInputValues, cart, userId, toast, setCart]);
-
-
   const handleQuantityButtonClick = (itemId: string, item: PopulatedCartItem, change: number) => {
-    if (!userId) return;
-
+    // Clear any pending input-based timer for this item
+    if (debounceTimers.current[itemId]) {
+        clearTimeout(debounceTimers.current[itemId]);
+    }
+    
     const minOrderQty = item.product.minOrderQuantity || 1;
     const productStock = item.selectedColorSnapshot && item.product.colors
         ? item.product.colors.find(c => c.name === item.selectedColorSnapshot?.name)?.stock ?? 0
         : item.product.stock;
 
     let currentDisplayQuantity = parseInt(itemInputValues[itemId], 10);
-    if (isNaN(currentDisplayQuantity)) {
-        currentDisplayQuantity = item.quantity;
-    }
+    if (isNaN(currentDisplayQuantity)) currentDisplayQuantity = item.quantity;
 
-    let newQuantity = currentDisplayQuantity + change;
+    let newQuantity = Math.max(minOrderQty, Math.min(currentDisplayQuantity + change, productStock));
 
-    if (newQuantity < minOrderQty) newQuantity = minOrderQty;
-    if (newQuantity > productStock) newQuantity = productStock;
-
+    // Update the input field immediately for responsiveness
     setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) }));
-    setIsUpdating(itemId);
-
-    if (debounceButtonTimers.current[itemId]) {
-        clearTimeout(debounceButtonTimers.current[itemId]);
+    
+    if (newQuantity !== item.quantity) {
+        updateItemQuantity(itemId, newQuantity);
     }
-
-    debounceButtonTimers.current[itemId] = setTimeout(async () => {
-        const upToDateCartItem = cart?.items.find(ci => ci._id === itemId);
-        if (upToDateCartItem && upToDateCartItem.quantity === newQuantity) {
-            setIsUpdating(null);
-             if (itemInputValues[itemId] !== String(newQuantity)) {
-                setItemInputValues(prev => ({ ...prev, [itemId]: String(newQuantity) }));
-            }
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/cart/${itemId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, newQuantity }),
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to update quantity');
-            }
-            setCart(data.cart as PopulatedCart);
-            window.dispatchEvent(new CustomEvent('cartUpdated'));
-            const updatedItemFromServer = data.cart.items.find((i: PopulatedCartItem) => i._id === itemId);
-            setItemInputValues(prev => ({ ...prev, [itemId]: String(updatedItemFromServer?.quantity || newQuantity) }));
-
-        } catch (error: any) {
-            toast({ variant: "destructive", title: "Update Failed", description: error.message });
-            const currentCartItem = cart?.items.find(i => i._id === itemId);
-            if (currentCartItem) {
-                setItemInputValues(prev => ({ ...prev, [itemId]: String(currentCartItem.quantity) }));
-            }
-        } finally {
-            setIsUpdating(null);
-        }
-    }, 750);
-};
+  };
 
 
   const handleRemoveItem = async (cartItemId: string, itemTitle: string) => {
@@ -445,7 +402,7 @@ export default function CartPage() {
                                                         disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) <= minOrderQty)}
                                                         aria-label="Decrease quantity"
                                                     >
-                                                        {isUpdating === item._id && (itemInputValues[item._id] === String(parseInt(itemInputValues[item._id] || "0") -1) )? <Loader2 className="h-4 w-4 animate-spin"/> : <Minus className="h-4 w-4" />}
+                                                        {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Minus className="h-4 w-4" />}
                                                     </Button>
                                                     <Input
                                                         type="text"
@@ -465,7 +422,7 @@ export default function CartPage() {
                                                         disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) >= productStock)}
                                                         aria-label="Increase quantity"
                                                     >
-                                                        {isUpdating === item._id && (itemInputValues[item._id] === String(parseInt(itemInputValues[item._id] || "0") + 1) )? <Loader2 className="h-4 w-4 animate-spin"/> : <Plus className="h-4 w-4" />}
+                                                        {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Plus className="h-4 w-4" />}
                                                     </Button>
                                                 </div>
                                             </TableCell>
@@ -479,7 +436,7 @@ export default function CartPage() {
                                                     disabled={isUpdating === item._id}
                                                     aria-label={`Remove ${item.nameSnapshot} from cart`}
                                                 >
-                                                    {isUpdating === item._id && !debounceButtonTimers.current[item._id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                                                    {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

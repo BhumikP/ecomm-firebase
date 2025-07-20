@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 // ReactQuill and its CSS import removed
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
@@ -129,7 +128,6 @@ export default function AdminProductsPage() {
       setAvailableCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
 
     } catch (error: any) {
-      // console.error('Error fetching data:', error); // Removed
       toast({ variant: "destructive", title: "Error", description: error.message || "Could not load data." });
     } finally {
       setIsLoading(false);
@@ -203,8 +201,6 @@ export default function AdminProductsPage() {
         }
     }
   };
-
-  // handleDescriptionChange removed as ReactQuill is removed. handleInputChange will handle Textarea.
 
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -375,14 +371,12 @@ export default function AdminProductsPage() {
 
         if (!response.ok) {
             const errorData = await response.json();
-            // console.error("Error saving product:", errorData); // Removed
             throw new Error(errorData.message || 'Failed to save product');
         }
         await fetchProductsAndCategories();
-        toast({ title: isEditing ? "Product Updated" : "Product Added" });
+        toast({ variant: "success", title: isEditing ? "Product Updated" : "Product Added" });
         handleCloseDialog();
     } catch (error: any) {
-        // console.error("Error in handleSaveProduct:", error); // Removed
         toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
         setIsDialogLoading(false);
@@ -395,7 +389,7 @@ export default function AdminProductsPage() {
         const response = await fetch(`/api/products/${productId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error( (await response.json()).message || 'Failed to delete product');
         setProducts(prev => prev.filter(p => p._id !== productId));
-        toast({ title: "Product Deleted", description: `"${productTitle}" removed.` });
+        toast({ variant: "success", title: "Product Deleted", description: `"${productTitle}" removed.` });
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
@@ -416,7 +410,7 @@ export default function AdminProductsPage() {
                 throw new Error(errorData.message || `Failed to update ${statusType} status`);
             }
             await fetchProductsAndCategories();
-            toast({ title: "Success", description: `Product ${!currentValue ? 'marked as' : 'removed from'} ${statusType === 'isTopBuy' ? 'Top Buy' : 'Newly Launched'}.` });
+            toast({ variant: "success", title: "Success", description: `Product ${!currentValue ? 'marked as' : 'removed from'} ${statusType === 'isTopBuy' ? 'Top Buy' : 'Newly Launched'}.` });
         } catch (error: any) {
             toast({ variant: "destructive", title: "Error", description: error.message });
         } finally {
@@ -428,8 +422,6 @@ export default function AdminProductsPage() {
    const featuresToString = (features: string[] | undefined | null): string => Array.isArray(features) ? features.join(', ') : '';
    const currentSubcategories = useMemo(() => availableCategories.find(c => c._id === selectedCategoryId)?.subcategories || [], [selectedCategoryId, availableCategories]);
    const calculateTotalStock = (product: FetchedProduct): number => product.colors?.length > 0 ? product.colors.reduce((sum, color) => sum + (color.stock || 0), 0) : (product.stock || 0);
-
-  // quillModules removed
 
   return (
     <div className="space-y-6">
