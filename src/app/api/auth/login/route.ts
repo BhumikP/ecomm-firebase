@@ -1,3 +1,4 @@
+
 // src/app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
@@ -43,9 +44,9 @@ export async function POST(req: NextRequest) {
       path: '/',
     };
     
+    // Use the 'cookies().set' from next/headers
     cookies().set('isLoggedIn', 'true', cookieOptions);
     cookies().set('userRole', userData.role, cookieOptions);
-
 
     return response;
 

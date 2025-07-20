@@ -5,6 +5,7 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 // Define the interface for a single shipping address
 export interface IShippingAddress extends Types.Subdocument {
   name: string;
+  email: string; // Added email field
   street: string;
   city: string;
   state: string;
@@ -17,6 +18,7 @@ export interface IShippingAddress extends Types.Subdocument {
 // Define the schema for a single shipping address
 const ShippingAddressSchema: Schema<IShippingAddress> = new Schema({
   name: { type: String, required: true },
+  email: { type: String, required: true }, // Added email field
   street: { type: String, required: true },
   city: { type: String, required: true },
   state: { type: String, required: true },

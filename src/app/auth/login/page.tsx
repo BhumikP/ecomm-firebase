@@ -38,6 +38,7 @@ export default function LoginPage() {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('userData', JSON.stringify(userData)); // Store full user data
+        localStorage.setItem('userEmail', userData.email); // Store email for form pre-filling
 
         toast({
           title: "Login Successful",
@@ -50,6 +51,7 @@ export default function LoginPage() {
         } else {
           router.push('/'); // Redirect regular user to homepage
         }
+        router.refresh(); // Force a refresh to update server-side state like the header
       } else {
         // Login failed
         toast({
@@ -131,7 +133,7 @@ export default function LoginPage() {
             </p>
            {/* Remove mock login hints if desired
            <p className="text-sm text-muted-foreground">
-                Admin login? Use admin@example.com / password
+                Admin login? use admin@example.com / password
             </p>
             */}
         </CardFooter>

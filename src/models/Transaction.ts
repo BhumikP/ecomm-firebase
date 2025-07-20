@@ -33,6 +33,7 @@ const TransactionItemSchema: Schema<TransactionItem> = new Schema({
 // Shipping address snapshot
 interface ShippingAddress {
   name: string;
+  email: string;
   street: string;
   city: string;
   state: string;
@@ -43,6 +44,7 @@ interface ShippingAddress {
 
 const ShippingAddressSchema: Schema<ShippingAddress> = new Schema({
   name: { type: String, required: true },
+  email: { type: String, required: true },
   street: { type: String, required: true },
   city: { type: String, required: true },
   state: { type: String, required: true },

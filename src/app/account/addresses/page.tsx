@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ type UserWithAddresses = Omit<IUser, 'passwordHash'> & {
 
 const addressFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  email: z.string().email({ message: "A valid email is required." }),
   street: z.string().min(5, { message: "Street address is required." }),
   city: z.string().min(2, { message: "City is required." }),
   state: z.string().min(2, { message: "State is required." }),
@@ -37,7 +38,7 @@ const addressFormSchema = z.object({
 
 type AddressFormValues = z.infer<typeof addressFormSchema>;
 
-const emptyAddress: AddressFormValues = { name: '', street: '', city: '', state: '', zip: '', country: 'India', phone: '', isPrimary: false };
+const emptyAddress: AddressFormValues = { name: '', email: '', street: '', city: '', state: '', zip: '', country: 'India', phone: '', isPrimary: false };
 
 export default function ManageAddressesPage() {
     const { toast } = useToast();
@@ -144,7 +145,9 @@ export default function ManageAddressesPage() {
 
     const openAddDialog = () => {
         setEditingAddress(null);
-        form.reset(emptyAddress);
+        const userEmail = localStorage.getItem('userEmail');
+        const userName = user?.name;
+        form.reset({...emptyAddress, email: userEmail || '', name: userName || ''});
         setIsDialogOpen(true);
     };
 
@@ -180,6 +183,7 @@ export default function ManageAddressesPage() {
                                 <Form {...form}>
                                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                                         <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <FormField control={form.control} name="street" render={({ field }) => (<FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <div className="grid grid-cols-2 gap-4">
                                             <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -215,6 +219,7 @@ export default function ManageAddressesPage() {
                                         {address.isPrimary && <div className="flex items-center gap-1 text-xs text-primary font-semibold"><Star className="h-4 w-4 fill-primary" /> Primary</div>}
                                     </CardHeader>
                                     <CardContent className="text-sm text-muted-foreground space-y-1 pb-4">
+                                        <p>{address.email}</p>
                                         <p>{address.street}</p>
                                         <p>{address.city}, {address.state} {address.zip}</p>
                                         <p>{address.country}</p>

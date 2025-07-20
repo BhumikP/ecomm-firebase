@@ -23,6 +23,7 @@ export interface OrderItem {
 // Define the structure for the shipping address
 interface ShippingAddress {
   name: string;
+  email: string;
   street: string;
   city: string;
   state: string;
@@ -75,6 +76,7 @@ const OrderItemSchema: Schema<OrderItem> = new Schema({
 
 const ShippingAddressSchema: Schema<ShippingAddress> = new Schema({
   name: { type: String, required: true },
+  email: { type: String, required: true },
   street: { type: String, required: true },
   city: { type: String, required: true },
   state: { type: String, required: true },

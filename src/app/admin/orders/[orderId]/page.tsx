@@ -1,3 +1,4 @@
+
 // src/app/admin/orders/[orderId]/page.tsx
 'use client';
 
@@ -181,6 +182,7 @@ export default function AdminOrderDetailPage() {
             <Card><CardHeader><Home className="h-5 w-5 text-muted-foreground mb-2"/><CardTitle>Shipping Address</CardTitle></CardHeader>
                 <CardContent className="text-sm space-y-1">
                     <p className="font-medium">{order.shippingAddress.name}</p>
+                    <p className="font-medium">{order.shippingAddress.email}</p>
                     <p>{order.shippingAddress.street}</p>
                     <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}</p>
                     <p>{order.shippingAddress.country}</p>
@@ -195,8 +197,8 @@ export default function AdminOrderDetailPage() {
                     {order.transactionId && (
                         <>
                            <Separator className="my-2"/>
-                           <p><span className="font-semibold">Txn ID:</span> {order.transactionId.razorpay_payment_id || 'N/A'}</p>
-                           <p><span className="font-semibold">Gateway Order ID:</span> <span className="break-all">{order.transactionId.razorpay_order_id}</span></p>
+                           <p><span className="font-semibold">Txn ID:</span> {order.transactionId.razorpay_payment_id || order.transactionId.payu_mihpayid || 'N/A'}</p>
+                           <p><span className="font-semibold">Gateway Order ID:</span> <span className="break-all">{order.transactionId.razorpay_order_id || 'N/A'}</span></p>
                         </>
                     )}
                 </CardContent>
