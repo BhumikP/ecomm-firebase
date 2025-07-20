@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcrypt';
+import { cookies } from 'next/headers';
 
 export async function POST(req: NextRequest) {
   await connectDb();
@@ -26,21 +27,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Passwords match, login successful
     // Omit passwordHash from the returned user data
     const { passwordHash, ...userData } = user.toObject();
 
-    // In a real application, you would typically generate a JWT or session token here
-    // and return it to the client. For this example, we just return user data.
-    // The client-side will use localStorage which is NOT secure for production.
-
-    return NextResponse.json({
+    // Set cookies for middleware authentication
+    const response = NextResponse.json({
         message: 'Login successful',
         user: userData
     }, { status: 200 });
 
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      path: '/',
+    };
+    
+    cookies().set('isLoggedIn', 'true', cookieOptions);
+    cookies().set('userRole', userData.role, cookieOptions);
+
+
+    return response;
+
   } catch (error) {
-    // console.error('Login error:', error); // Removed
+    console.error('Login error:', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

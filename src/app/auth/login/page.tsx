@@ -34,6 +34,7 @@ export default function LoginPage() {
       if (response.ok) {
         // Login successful
         const userData = data.user;
+        // The API now sets httpOnly cookies. We still set localStorage for client-side UI updates.
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('userData', JSON.stringify(userData)); // Store full user data
