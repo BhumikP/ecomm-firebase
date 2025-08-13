@@ -1,21 +1,19 @@
 // src/app/cart/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, Loader2 } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from '@/components/ui/skeleton';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
 import type { ICart, ICartItem } from '@/models/Cart';
 import type { IProduct } from '@/models/Product';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Loader2, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 
 interface PopulatedCartItem extends Omit<ICartItem, 'product'> {
@@ -272,7 +270,6 @@ export default function CartPage() {
   if (!userId && !isLoading && !isSettingsLoading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center justify-center text-center">
           <ShoppingCart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
           <p className="text-xl font-semibold mb-2">Your Cart Awaits</p>
@@ -281,14 +278,12 @@ export default function CartPage() {
             <Link href="/auth/login">Login</Link>
           </Button>
         </main>
-        <Footer />
       </div>
     );
   }
 
   return (
-     <div className="flex flex-col min-h-screen">
-        <Header />
+     <div className="flex flex-col min-h-screen px-10">
         <main className="flex-grow container mx-auto px-4 py-8">
             <Button variant="outline" size="sm" asChild className="mb-6">
                 <Link href="/">
@@ -539,7 +534,6 @@ export default function CartPage() {
             </div>
         )}
       </main>
-        <Footer />
     </div>
   );
 }

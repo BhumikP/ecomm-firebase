@@ -1,11 +1,9 @@
 
 // src/app/contact/page.tsx
-import type { Metadata } from 'next';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Phone, MapPin } from 'lucide-react';
 import { ContactForm } from '@/components/contact/contact-form';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Mail, MapPin, Phone } from 'lucide-react';
+import type { Metadata } from 'next';
 
 // Metadata for SEO
 export const metadata: Metadata = {
@@ -28,7 +26,6 @@ export const metadata: Metadata = {
 export default function ContactUsPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
            <section className="text-center mb-12">
@@ -100,7 +97,6 @@ export default function ContactUsPage() {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

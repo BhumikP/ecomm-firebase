@@ -4,6 +4,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 
 export interface ICategory extends Document {
   name: string;
+  image: string;
   subcategories: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -16,6 +17,17 @@ const CategorySchema: Schema<ICategory> = new Schema({
     unique: true,
     trim: true,
     index: true,
+  },
+  image: {
+    type: String,
+    required: true,
+    trim: true,
+    validate: {
+      validator: (v: string) => {
+        return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/.test(v);
+      },
+      message: props => `${props.value} is not a valid image URL!`
+    }
   },
   subcategories: [{
     type: String,

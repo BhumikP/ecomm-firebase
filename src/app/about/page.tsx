@@ -12,11 +12,9 @@ import type { Metadata } from 'next';
 // UPDATE: With App Router, even if child components are client, the page itself can be server component.
 // The issue is that `Header` and `Footer` are likely marked 'use client' themselves.
 // So, for now, we will keep this as a Server Component and let Next.js handle the boundaries.
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Target, Lightbulb } from 'lucide-react';
+import { Lightbulb, Target, Users } from 'lucide-react';
+import Image from 'next/image';
 
 export const metadata: Metadata = {
   title: 'About Us',
@@ -38,7 +36,6 @@ export const metadata: Metadata = {
 export default function AboutUsPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
           <section className="text-center mb-12">
@@ -125,7 +122,6 @@ export default function AboutUsPage() {
 
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

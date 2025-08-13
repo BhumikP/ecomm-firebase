@@ -29,9 +29,28 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
+    const folder = formData.get('folder') as string || 'uploads';
 
     if (!file) {
       return NextResponse.json({ success: false, message: 'No file provided.' }, { status: 400 });
+    }
+
+    // Validate file type (only images)
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.' 
+      }, { status: 400 });
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'File too large. Maximum size is 10MB.' 
+      }, { status: 400 });
     }
 
     const fileExtension = file.name.split('.').pop();
@@ -40,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     const params = {
       Bucket: BUCKET_NAME,
-      Key: `products/${uniqueFileName}`, // Store files in a 'products' folder within the bucket
+      Key: `${folder}/${uniqueFileName}`, // Store files in the specified folder
       Body: buffer,
       ContentType: file.type,
       // ACL: 'public-read', // Consider if images need to be publicly accessible via direct S3 URL.

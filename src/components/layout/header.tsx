@@ -1,20 +1,19 @@
 
 'use client'; // Add 'use client'
 
-import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { ShoppingCart, User, Search, Menu, LogIn, LogOut, UserPlus, Settings, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge'; // Import Badge
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetTrigger,
-  SheetClose,
 } from "@/components/ui/sheet";
-import type { ICartItem } from '@/models/Cart'; // For cart item type if needed for count calculation
+import { Loader2, LogIn, LogOut, Menu, Search, Settings, ShoppingCart, User, UserPlus } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 
 export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -143,6 +142,11 @@ export function Header() {
              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
              <Input placeholder="Search for products..." className="pl-10 w-64 lg:w-96" />
           </div>
+          <div>
+            <Link href="/products" className="text-sm text-muted-foreground hover:text-muted">
+              Shop
+            </Link>
+          </div>
         </div>
 
          <div className="md:hidden flex items-center gap-1">
@@ -235,7 +239,7 @@ export function Header() {
              <Link href="/cart" aria-label="View Shopping Cart">
                <ShoppingCart className="mr-1 h-5 w-5" />
                Cart
-                {isLoggedIn && (
+                {isLoggedIn && cartItemCount > 0 && (
                   <Badge variant="destructive" className="absolute -top-1 -right-1 text-xs px-1 py-0 h-4 min-w-[1rem] flex items-center justify-center">
                     {isCartLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : cartItemCount > 0 ? cartItemCount : null}
                   </Badge>

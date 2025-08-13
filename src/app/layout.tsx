@@ -1,11 +1,13 @@
 
+import { Footer } from '@/components/layout/footer';
+import { Header } from '@/components/layout/header';
+import { Toaster } from '@/components/ui/toaster';
+import * as Sentry from "@sentry/nextjs";
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
-import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
 import Script from 'next/script';
-import * as Sentry from "@sentry/nextjs";
 import { Suspense } from 'react';
+import './globals.css';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -114,11 +116,13 @@ export default function RootLayout({
           />
        </head>
       <body className="antialiased flex flex-col min-h-screen" suppressHydrationWarning>
+        <Header />
          <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center">Loading application...</div>}>
           <Sentry.ErrorBoundary fallback={<div className="flex h-screen w-screen items-center justify-center text-center p-4">An error has occurred. We are working on it!</div>}>
             {children}
           </Sentry.ErrorBoundary>
-        </Suspense>
+         </Suspense>
+        <Footer />
         <Toaster />
       </body>
     </html>

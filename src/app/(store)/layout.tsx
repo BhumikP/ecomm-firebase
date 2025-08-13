@@ -1,10 +1,8 @@
 
 // src/app/(store)/layout.tsx
 'use client';
-import type React from 'react';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
+import type React from 'react';
 
 
 export default function StoreLayout({
@@ -17,11 +15,9 @@ export default function StoreLayout({
   return (
     <div className="flex flex-col min-h-screen">
       <AnnouncementBar />
-      <Header />
-      <main className="flex-grow">
+      <main className="flex-grow px-4">
         {children}
       </main>
-      <Footer />
     </div>
   );
 }

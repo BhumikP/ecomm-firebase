@@ -2,45 +2,64 @@
 // src/app/admin/categories/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
-import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Loader2, Tag, ListChecks } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { ICategory } from '@/models/Category';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from '@/components/ui/badge';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { useCategoryImage } from "@/hooks/use-category-image";
+import { useToast } from "@/hooks/use-toast";
+import type { ICategory } from '@/models/Category';
+import { Edit, Loader2, PlusCircle, Tag, Trash2, Upload } from 'lucide-react';
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
 
 type CategoryData = ICategory & { _id: string };
 
-const emptyCategory: Omit<CategoryData, '_id' | 'createdAt' | 'updatedAt'> = {
+interface CategoryFormData {
+    name: string;
+    image: string;
+    subcategories: string[];
+}
+
+const emptyCategory: CategoryFormData = {
     name: '',
+    image: '',
     subcategories: [],
 };
 
 export default function AdminCategoriesPage() {
     const [categories, setCategories] = useState<CategoryData[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [currentCategory, setCurrentCategory] = useState<Omit<CategoryData, '_id' | 'createdAt' | 'updatedAt'> | CategoryData>(emptyCategory);
+    const [currentCategory, setCurrentCategory] = useState<CategoryFormData | CategoryData>(emptyCategory);
     const [subcategoriesInput, setSubcategoriesInput] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isDialogLoading, setIsDialogLoading] = useState(false);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
     const { toast } = useToast();
+    
+    // Use the custom hook for image management
+    const { 
+        isUploading, 
+        fileName: uploadingFileName,
+        uploadImage, 
+        deleteImage,
+        validateFile 
+    } = useCategoryImage();
 
     const fetchCategories = async () => {
         setIsLoading(true);
         try {
             const response = await fetch('/api/categories');
             if (!response.ok) {
-                const errorText = await response.text();
+                const _errorText = await response.text();
                 // console.error("Failed to fetch categories. Status:", response.status, "Response:", errorText); // Removed
                 throw new Error(`Failed to fetch categories. Status: ${response.status}`);
             }
@@ -85,6 +104,72 @@ export default function AdminCategoriesPage() {
         setCurrentCategory(prev => ({ ...prev, name: e.target.value }));
     };
 
+    // Handle file upload using the custom hook
+    const handleImageUpload = async (file: File): Promise<string | null> => {
+        const categoryId = isEditing && '_id' in currentCategory ? currentCategory._id : undefined;
+        const result = await uploadImage(file, categoryId);
+        return result.success ? result.url || null : null;
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            
+            // Validate file using the hook
+            const validation = validateFile(file);
+            if (!validation.valid) {
+                return; // Hook will show toast
+            }
+
+            const uploadedUrl = await handleImageUpload(file);
+            if (uploadedUrl) {
+                setCurrentCategory(prev => ({ ...prev, image: uploadedUrl }));
+            }
+        }
+    };
+
+    const handleRemoveImage = async () => {
+        if (isEditing && '_id' in currentCategory && currentCategory.image) {
+            const success = await deleteImage(currentCategory._id, currentCategory.image);
+            if (success) {
+                setCurrentCategory(prev => ({ ...prev, image: '' }));
+            }
+        } else {
+            // For new categories, just remove from state
+            setCurrentCategory(prev => ({ ...prev, image: '' }));
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        
+        const files = e.dataTransfer.files;
+        if (files && files[0]) {
+            const file = files[0];
+            
+            // Validate file using the hook
+            const validation = validateFile(file);
+            if (!validation.valid) {
+                return; // Hook will show toast
+            }
+
+            const uploadedUrl = await handleImageUpload(file);
+            if (uploadedUrl) {
+                setCurrentCategory(prev => ({ ...prev, image: uploadedUrl }));
+            }
+        }
+    };
     const handleSubcategoriesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setSubcategoriesInput(e.target.value);
     };
@@ -115,14 +200,22 @@ export default function AdminCategoriesPage() {
                 response = await fetch(`/api/categories/${(categoryDataToSave as CategoryData)._id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: categoryDataToSave.name, subcategories: categoryDataToSave.subcategories }),
+                    body: JSON.stringify({ 
+                        name: categoryDataToSave.name, 
+                        image: categoryDataToSave.image,
+                        subcategories: categoryDataToSave.subcategories 
+                    }),
                 });
                 successMessage = `Category "${categoryDataToSave.name}" has been updated.`;
             } else {
                 response = await fetch('/api/categories', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: categoryDataToSave.name, subcategories: categoryDataToSave.subcategories }),
+                    body: JSON.stringify({ 
+                        name: categoryDataToSave.name, 
+                        image: categoryDataToSave.image,
+                        subcategories: categoryDataToSave.subcategories 
+                    }),
                 });
                 successMessage = `Category "${categoryDataToSave.name}" has been added.`;
             }
@@ -146,13 +239,29 @@ export default function AdminCategoriesPage() {
     const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
         setIsDeleting(categoryId);
         try {
+            // Find the category to check if it has an image
+            const categoryToDelete = categories.find(c => c._id === categoryId);
+            const hasImage = categoryToDelete?.image && categoryToDelete.image.trim() !== '';
+
             const response = await fetch(`/api/categories/${categoryId}`, { method: 'DELETE' });
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to delete category');
             }
+
+            const result = await response.json();
             setCategories(prev => prev.filter(c => c._id !== categoryId));
-            toast({ variant: "success", title: "Category Deleted", description: `Category "${categoryName}" has been removed.` });
+            
+            // Show appropriate success message
+            const message = hasImage && result.imageDeleted 
+                ? `Category "${categoryName}" and its image have been removed.`
+                : `Category "${categoryName}" has been removed.`;
+                
+            toast({ 
+                variant: "default", 
+                title: "Category Deleted", 
+                description: message 
+            });
         } catch (error: any) {
             // console.error("Error deleting category:", error); // Removed
             toast({ variant: "destructive", title: "Error", description: error.message || "Could not delete category." });
@@ -182,7 +291,113 @@ export default function AdminCategoriesPage() {
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Name</Label>
-                                <Input id="name" value={currentCategory.name} onChange={handleNameChange} className="w-full" disabled={isDialogLoading}/>
+                                <Input id="name" value={currentCategory.name} onChange={handleNameChange} className="w-full" disabled={isDialogLoading || isUploading}/>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="image">Category Image</Label>
+                                <div className="space-y-3">
+                                    {!currentCategory.image || currentCategory.image.trim() === '' ? (
+                                        <div 
+                                            className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
+                                                isDragOver 
+                                                    ? 'border-primary bg-primary/5' 
+                                                    : 'border-gray-300 hover:border-gray-400'
+                                            }`}
+                                            onDragOver={handleDragOver}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={handleDrop}
+                                        >
+                                            <div className="flex flex-col items-center justify-center text-center">
+                                                <Upload className="h-10 w-10 text-gray-400 mb-3" />
+                                                <div className="space-y-2">
+                                                    <label
+                                                        htmlFor="imageFile"
+                                                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {isUploading ? (
+                                                            <>
+                                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                Uploading {uploadingFileName ? `"${uploadingFileName}"` : '...'}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Upload className="h-4 w-4 mr-2" />
+                                                                Choose Image
+                                                            </>
+                                                        )}
+                                                        <Input
+                                                            type="file"
+                                                            id="imageFile"
+                                                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                                            onChange={handleFileChange}
+                                                            className="sr-only"
+                                                            disabled={isDialogLoading || isUploading}
+                                                        />
+                                                    </label>
+                                                    <p className="text-sm text-gray-500">
+                                                        or drag and drop your image here
+                                                    </p>
+                                                </div>
+                                                <p className="text-xs text-gray-400 mt-2">
+                                                    PNG, JPG, GIF, WebP up to 10MB
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <div className="relative inline-block">
+                                                <div className="relative w-32 h-24 overflow-hidden rounded-lg border-2 border-gray-200 shadow-sm">
+                                                    {currentCategory.image && currentCategory.image.trim() !== '' ? (
+                                                        <Image
+                                                            src={currentCategory.image}
+                                                            alt="Category preview"
+                                                            fill
+                                                            className="object-cover"
+                                                            sizes="128px"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                                                            <Upload className="h-8 w-8" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={handleRemoveImage}
+                                                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                                                    disabled={isDialogLoading || isUploading}
+                                                >
+                                                    <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                            <div>
+                                                <label
+                                                    htmlFor="imageFileReplace"
+                                                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary cursor-pointer"
+                                                >
+                                                    {isUploading ? (
+                                                        <>
+                                                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                            Uploading...
+                                                        </>
+                                                    ) : (
+                                                        'Change Image'
+                                                    )}
+                                                    <Input
+                                                        type="file"
+                                                        id="imageFileReplace"
+                                                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                                        onChange={handleFileChange}
+                                                        className="sr-only"
+                                                        disabled={isDialogLoading || isUploading}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="subcategories">Subcategories (Comma-separated)</Label>
@@ -192,7 +407,7 @@ export default function AdminCategoriesPage() {
                                     onChange={handleSubcategoriesChange}
                                     className="w-full min-h-[80px]"
                                     placeholder="e.g., Shirts, Pants, Dresses"
-                                    disabled={isDialogLoading}
+                                    disabled={isDialogLoading || isUploading}
                                 />
                                  <p className="text-xs text-muted-foreground">
                                     Enter subcategories separated by commas. Duplicates and empty entries will be ignored.
@@ -201,11 +416,11 @@ export default function AdminCategoriesPage() {
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isDialogLoading}>Cancel</Button>
+                                <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isDialogLoading || isUploading}>Cancel</Button>
                             </DialogClose>
-                            <Button type="button" onClick={handleSaveCategory} disabled={isDialogLoading}>
-                                {isDialogLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {isEditing ? 'Save Changes' : 'Add Category'}
+                            <Button type="button" onClick={handleSaveCategory} disabled={isDialogLoading || isUploading}>
+                                {(isDialogLoading || isUploading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {isUploading ? 'Uploading...' : isEditing ? 'Save Changes' : 'Add Category'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -222,6 +437,7 @@ export default function AdminCategoriesPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Name</TableHead>
+                                <TableHead>Image</TableHead>
                                 <TableHead>Subcategories</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
@@ -231,6 +447,7 @@ export default function AdminCategoriesPage() {
                                 [...Array(3)].map((_, i) => (
                                     <TableRow key={`skel-cat-${i}`}>
                                         <TableCell><Skeleton className="h-5 w-32 bg-muted" /></TableCell>
+                                        <TableCell><Skeleton className="h-10 w-16 bg-muted" /></TableCell>
                                         <TableCell><Skeleton className="h-5 w-full bg-muted" /></TableCell>
                                         <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto bg-muted" /></TableCell>
                                     </TableRow>
@@ -241,6 +458,22 @@ export default function AdminCategoriesPage() {
                                         <TableCell className="font-medium flex items-center gap-2">
                                             <Tag className="h-4 w-4 text-muted-foreground"/>
                                             {category.name}
+                                        </TableCell>
+                                        
+                                        <TableCell>
+                                            {category.image && category.image.trim() !== '' ? (
+                                                <div className="relative w-16 h-10 overflow-hidden rounded border">
+                                                    <Image
+                                                        src={category.image}
+                                                        alt={category.name}
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="64px"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">No image</span>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {category.subcategories && category.subcategories.length > 0 ? (
@@ -293,7 +526,7 @@ export default function AdminCategoriesPage() {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                                         No categories found. Start by adding one.
                                     </TableCell>
                                 </TableRow>

@@ -1,19 +1,29 @@
 
 // src/app/api/payments/verify-payment/route.ts
 // This route is now SPECIFIC to Razorpay verification.
-import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
-import Order from '@/models/Order';
-import Transaction from '@/models/Transaction';
 import { verifyPaymentSignature } from '@/lib/razorpay';
-import { v4 as uuidv4 } from 'uuid';
-import mongoose from 'mongoose';
-import Setting from '@/models/Setting';
 import Cart from '@/models/Cart';
+import Order from '@/models/Order';
 import Product from '@/models/Product'; // Needed for stock reduction
+import Setting from '@/models/Setting';
+import Transaction from '@/models/Transaction';
+import mongoose from 'mongoose';
+import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
-  await connectDb();
+ 
+  try {
+    await connectDb();
+  } catch (dbError) {
+    console.error("❌ Database connection failed:", dbError);
+    return NextResponse.json({ 
+      success: false, 
+      message: 'Database connection failed during payment verification' 
+    }, { status: 500 });
+  }
+  
   const session = await mongoose.startSession();
   session.startTransaction();
 

@@ -1,13 +1,11 @@
 // src/app/payment/success/page.tsx
 'use client';
 
-import { Suspense } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 function SuccessContent() {
     const searchParams = useSearchParams();
@@ -38,13 +36,11 @@ function SuccessContent() {
 export default function PaymentSuccessPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow container mx-auto px-4 py-12 flex items-center justify-center">
         <Suspense fallback={<div>Loading confirmation...</div>}>
             <SuccessContent />
         </Suspense>
       </main>
-      <Footer />
     </div>
   );
 }

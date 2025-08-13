@@ -2,22 +2,21 @@
 // src/app/admin/banners/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch'; // For isActive toggle
-import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Loader2, UploadCloud, Link as LinkIcon, Eye, EyeOff, Baseline } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { IBanner } from '@/models/Banner';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from '@/components/ui/badge';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch'; // For isActive toggle
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import type { IBanner } from '@/models/Banner';
+import { Edit, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
 
 type BannerData = IBanner & { _id: string };
 

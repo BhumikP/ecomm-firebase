@@ -1,16 +1,26 @@
 // src/app/api/checkout/initiate/route.ts
-import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
+import { generatePayuHash } from '@/lib/payu';
+import { razorpayInstance } from '@/lib/razorpay';
 import Cart from '@/models/Cart';
 import Setting from '@/models/Setting';
 import Transaction from '@/models/Transaction';
 import User from '@/models/User';
-import { razorpayInstance } from '@/lib/razorpay';
-import { generatePayuHash } from '@/lib/payu';
 import mongoose from 'mongoose';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  await connectDb();
+  
+  try {
+    await connectDb();
+  } catch (dbError) {
+    console.error("❌ Database connection failed:", dbError);
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Database connection failed', 
+      details: 'Unable to connect to MongoDB'
+    }, { status: 500 });
+  }
 
   try {
     const { userId, shippingAddress, saveAddress, bargainedAmounts = {} } = await req.json();
@@ -80,10 +90,24 @@ export async function POST(req: NextRequest) {
     const taxAmount = subtotal * (taxPercentage / 100);
     const totalAmount = subtotal + taxAmount + shippingCharge;
     
+    // Ensure shipping address has email field
+    let finalShippingAddress = { ...shippingAddress };
+    if (!finalShippingAddress.email) {
+      const user = await User.findById(userId).lean();
+      if (!user || !user.email) {
+        return NextResponse.json({ 
+          success: false,
+          message: 'Email is required for checkout. Please provide email in shipping address or ensure user has email.',
+          error: 'Missing email' 
+        }, { status: 400 });
+      }
+      finalShippingAddress.email = user.email;
+    }
+    
     const newTransaction = new Transaction({
         userId,
         items: transactionItems,
-        shippingAddress,
+        shippingAddress: finalShippingAddress,
         amount: totalAmount,
         currency: 'INR',
         status: 'Pending',
@@ -94,39 +118,57 @@ export async function POST(req: NextRequest) {
         if (!razorpayInstance) {
           return NextResponse.json({
             success: false,
-            error: 'Razorpay is not configured. Please check environment variables.',
+            error: 'Razorpay is not configured properly. Please check environment variables.',
+            details: 'RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing'
           }, { status: 500 });
         }
         
-        const options = {
-          amount: Math.round(totalAmount * 100),
-          currency: 'INR',
-          receipt: (newTransaction._id as string).toString(),
-        };
-        const razorpayOrder = await razorpayInstance.orders.create(options);
-        newTransaction.razorpay_order_id = razorpayOrder.id;
-        await newTransaction.save();
-        
-        return NextResponse.json({
-          success: true,
-          gateway: 'razorpay',
-          transactionId: newTransaction._id,
-          razorpayOrder,
-          razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        }, { status: 200 });
-    } else if (activeGateway === 'payu') {
-        const user = await User.findById(userId).lean();
-        if (!user) {
-          throw new Error('User not found for PayU transaction.');
+        try {
+          const options = {
+            amount: Math.round(totalAmount * 100), // Convert to paise
+            currency: 'INR',
+            receipt: (newTransaction._id as string).toString(),
+          };
+          const razorpayOrder = await razorpayInstance.orders.create(options);          
+          newTransaction.razorpay_order_id = razorpayOrder.id;
+          await newTransaction.save();
+          
+          return NextResponse.json({
+            success: true,
+            gateway: 'razorpay',
+            transactionId: newTransaction._id,
+            razorpayOrder,
+            razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          }, { status: 200 });
+        } catch (razorpayError: any) {
+          
+          // Delete the transaction since order creation failed
+          await Transaction.findByIdAndDelete(newTransaction._id);
+          
+          // Return specific error message based on Razorpay error
+          let errorMessage = 'Failed to create payment order';
+          if (razorpayError.statusCode === 400) {
+            errorMessage = 'Invalid payment details';
+          } else if (razorpayError.statusCode === 401) {
+            errorMessage = 'Payment gateway authentication failed';
+          } else if (razorpayError.statusCode === 500) {
+            errorMessage = 'Payment gateway temporarily unavailable';
+          }
+          
+          return NextResponse.json({
+            success: false,
+            error: errorMessage,
+            details: razorpayError.message
+          }, { status: 500 });
         }
-
+    } else if (activeGateway === 'payu') {
         const payuDetails = {
             key: process.env.PAYU_KEY!,
             txnid: (newTransaction._id as string).toString(),
             amount: totalAmount.toFixed(2),
             productinfo: productInfoString.substring(0, 100),
-            firstname: shippingAddress.name.split(' ')[0],
-            email: user.email,
+            firstname: finalShippingAddress.name.split(' ')[0],
+            email: finalShippingAddress.email,
         };
 
         const hash = generatePayuHash(payuDetails);
@@ -143,9 +185,38 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error initiating checkout:', error);
-    if (error.statusCode === 400 && error.error) {
-       return NextResponse.json({ message: `Error initiating checkout: ${error.error.description}`, error: error }, { status: 400 });
+    // Provide more specific error messages
+    if (error.name === 'ValidationError') {
+      return NextResponse.json({ 
+        success: false,
+        message: 'Validation failed', 
+        error: error.message,
+        details: error.errors 
+      }, { status: 400 });
     }
-    return NextResponse.json({ message: 'Internal server error.', error: error.message }, { status: 500 });
+    
+    if (error.statusCode === 400 && error.error) {
+       return NextResponse.json({ 
+         success: false,
+         message: `Payment gateway error: ${error.error.description}`, 
+         error: error.message 
+       }, { status: 400 });
+    }
+    
+    if (error.message?.includes('not found')) {
+      return NextResponse.json({ 
+        success: false,
+        message: 'Resource not found', 
+        error: error.message 
+      }, { status: 404 });
+    }
+    
+    // Generic server error
+    return NextResponse.json({ 
+      success: false,
+      message: 'Internal server error during checkout', 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }

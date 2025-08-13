@@ -2,35 +2,33 @@
 // src/app/checkout/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useRouter } from 'next/navigation';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import type { BargainOutput } from '@/ai/flows/bargain-flow';
+import { BargainDrawer } from '@/components/checkout/bargain-drawer';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { ICart, ICartItem } from '@/models/Cart';
-import type { IProduct } from '@/models/Product';
-import { Loader2, ArrowLeft, Home, Edit2, Star, CreditCard, Truck, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
-import Image from 'next/image';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
+import type { ICart, ICartItem } from '@/models/Cart';
+import type { IProduct } from '@/models/Product';
 import type { IShippingAddress } from '@/models/User';
-import { BargainDrawer } from '@/components/checkout/bargain-drawer';
-import type { BargainOutput } from '@/ai/flows/bargain-flow';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowLeft, CreditCard, Loader2, ShieldCheck, Star, Truck } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
 const addressSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  email: z.string().email({ message: "A valid email is required for order updates." }),
+  email: z.string().email({ message: "Please enter a valid email address." }).optional().or(z.literal('')),
   street: z.string().min(5, { message: "Street address is required." }),
   city: z.string().min(2, { message: "City is required." }),
   state: z.string().min(2, { message: "State is required." }),
@@ -367,7 +365,6 @@ export default function CheckoutPage() {
   if (isLoading || isSettingsLoading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow container mx-auto px-4 py-8">
           <Skeleton className="h-8 w-40 mb-6" />
           <div className="grid md:grid-cols-2 gap-8">
@@ -375,7 +372,6 @@ export default function CheckoutPage() {
             <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-56 w-full" /></CardContent></Card>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -390,7 +386,6 @@ export default function CheckoutPage() {
             </div>
         )}
         <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow container mx-auto px-4 py-8">
             <Button variant="outline" size="sm" asChild className="mb-6">
             <Link href="/cart"><ArrowLeft className="mr-2 h-4 w-4" />Back to Cart</Link>
@@ -548,7 +543,6 @@ export default function CheckoutPage() {
             </div>
             </div>
         </main>
-        <Footer />
         <form id="payu_form" method="post" action={process.env.NEXT_PUBLIC_PAYU_URL} className="hidden"></form>
         </div>
     </>

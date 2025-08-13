@@ -2,23 +2,21 @@
 // src/app/products/[id]/page.tsx
 'use client';
 
-import Image from 'next/image';
-import Script from 'next/script';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Star, Loader2, Palette, X, Plus, Minus, ShoppingCart, Info, ThumbsUp } from 'lucide-react';
-import Link from 'next/link';
-import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState, useCallback } from 'react';
-import type { IProduct, IProductColor } from '@/models/Product';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useParams, useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/input';
-import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog'; 
+import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from '@/components/ui/input';
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from "@/hooks/use-toast";
+import type { IProduct, IProductColor } from '@/models/Product';
+import { Info, Loader2, Minus, Palette, Plus, ShoppingCart, Star, ThumbsUp, X } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import Script from 'next/script';
+import { useEffect, useState } from 'react';
 
 
 interface ProductDetail extends Omit<IProduct, 'category' | 'colors' | '_id'> {
@@ -370,7 +368,6 @@ export default function ProductDetailPage() {
    if (loading) {
       return (
         <div className="flex flex-col min-h-screen">
-            <Header />
             <main className="flex-grow container mx-auto px-4 py-8">
                 <div className="grid md:grid-cols-2 gap-8 lg:gap-12 w-full max-w-5xl mx-auto">
                     <div className="flex flex-col gap-4">
@@ -410,7 +407,6 @@ export default function ProductDetailPage() {
                     </div>
                  </div>
             </main>
-            <Footer />
         </div>
      );
    }
@@ -418,7 +414,6 @@ export default function ProductDetailPage() {
   if (error || !product) {
     return (
        <div className="flex flex-col min-h-screen">
-            <Header />
             <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center text-center">
                 <div>
                     <h1 className="text-2xl font-semibold mb-4 text-destructive">{error || "Product Not Found"}</h1>
@@ -428,7 +423,6 @@ export default function ProductDetailPage() {
                     </Button>
                 </div>
             </main>
-            <Footer />
         </div>
     );
   }
@@ -450,10 +444,9 @@ export default function ProductDetailPage() {
                  strategy="afterInteractive"
              />
        )}
-      <Header />
       <LoginPromptDialog isOpen={isLoginPromptOpen} onOpenChange={setIsLoginPromptOpen} />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start max-w-7xl mx-auto">
           <div className="flex flex-col gap-4">
              <div className="relative aspect-square md:aspect-[4/3] bg-muted rounded-lg overflow-hidden shadow-md">
                 <Image
@@ -521,7 +514,14 @@ export default function ProductDetailPage() {
           <div className="flex flex-col space-y-4">
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{product.title}</h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                 <Badge variant="secondary" className="text-sm px-3 py-1">{product.category.name}{product.subcategory ? ` > ${product.subcategory}`: ''}</Badge>
+                 <Link 
+                   href={`/products?category=${product.category._id}&categoryName=${encodeURIComponent(product.category.name)}${product.subcategory ? `&subcategoryName=${encodeURIComponent(product.subcategory)}` : ''}`}
+                   className="hover:scale-105 transition-transform"
+                 >
+                   <Badge variant="secondary" className="text-sm px-3 py-1 cursor-pointer hover:bg-primary/10">
+                     {product.category.name}{product.subcategory ? ` > ${product.subcategory}`: ''}
+                   </Badge>
+                 </Link>
                  <div className="flex items-center">
                       {[...Array(5)].map((_, i) => (
                          <Star
@@ -620,7 +620,7 @@ export default function ProductDetailPage() {
                  )}
             </div>
             
-            <div className="pt-6 flex flex-wrap items-center gap-6">
+            <div className="pt-6 flex flex-col gap-6">
                 <div className="space-y-1">
                     <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
                      {product.discount && product.discount > 0 && (
@@ -631,7 +631,7 @@ export default function ProductDetailPage() {
                  </div>
               <Button
                 size="lg"
-                className="w-full md:w-auto bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
+                className="md:w-1/2 w-full bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
                 onClick={handleAddToCart}
                 disabled={isOutOfStock || loading || isAddingToCart || quantity === 0}
                >
@@ -698,7 +698,6 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }
