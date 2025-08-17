@@ -511,7 +511,7 @@ export default function ProductDetailPage() {
           </div>
 
 
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-2">
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{product.title}</h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                  <Link 
@@ -522,11 +522,13 @@ export default function ProductDetailPage() {
                      {product.category.name}{product.subcategory ? ` > ${product.subcategory}`: ''}
                    </Badge>
                  </Link>
-                 <div className="flex items-center">
+               
+            </div>
+            <div className="flex items-center text-sm">
                       {[...Array(5)].map((_, i) => (
                          <Star
                             key={i}
-                             className={`h-5 w-5 ${
+                             className={`h-4 w-4 ${
                                  i < Math.round(averageRatingDisplay || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
                              }`}
                              aria-hidden="true"
@@ -537,10 +539,55 @@ export default function ProductDetailPage() {
                         ({(averageRatingDisplay || 0).toFixed(1)} from {numRatingsDisplay || 0} ratings)
                      </span>
                  </div>
-                  <span className="text-xs">ID: {product._id}</span>
-            </div>
+           
+            
+            {product.colors && product.colors.length > 0 && (
+                <div className="pt-2">
+                    <h3 className="text-md font-semibold mb-2 flex items-center gap-2 text-foreground"><Palette className="h-5 w-5"/> Select Color: <span className="text-muted-foreground">{selectedColor?.name || 'Default'}</span></h3>
+                    <div className="flex flex-wrap gap-2">
+                        {product.colors.map((color) => (
+                            <button
+                                key={color._id?.toString() || color.name}
+                                onClick={() => handleColorSelect(color)}
+                                className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
+                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-md' : 'border-muted-foreground/30 hover:border-primary'}
+                                    ${color.stock < (product.minOrderQuantity || 1) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                style={{ backgroundColor: color.hexCode || '#ccc' }}
+                                title={`${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : `(Stock: ${color.stock})`}`}
+                                aria-label={`Select color ${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : ''}`}
+                                disabled={color.stock < (product.minOrderQuantity || 1) || isAddingToCart}
+                            >
+                               {color.stock < (product.minOrderQuantity || 1) && (
+                                     <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
             
             <div className="pt-2">
+                 {isOutOfStock && currentStock <= 0 ? (
+                     <Badge variant="destructive" className="text-sm px-3 py-1">Out of Stock</Badge>
+                 ) : currentStock < 10 && currentStock >= minOrderQty ? (
+                      <Badge variant="outline" className="text-sm px-3 py-1 border-yellow-500 text-yellow-600 hover:border-yellow-600">Low Stock ({currentStock} left)</Badge>
+                 ): !isOutOfStock && currentStock > 0 ? (
+                     <Badge variant="default" className="text-sm px-3 py-1 bg-green-100 text-green-800 border-green-200">In Stock</Badge>
+                 ) : (
+                     <Badge variant="destructive" className="text-sm px-3 py-1">Unavailable</Badge> 
+                 )}
+            </div>
+            
+            <div className="pt-4 flex flex-col gap-4">
+                <div className="space-y-1">
+                    <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
+                     {product.discount && product.discount > 0 && (
+                        <span className="ml-3 text-lg text-muted-foreground line-through">
+                            ₹{product.price.toFixed(2)}
+                        </span>
+                     )}
+                 </div>
+                 <div className="pt-2">
                 <label htmlFor="quantity" className="text-md font-semibold text-foreground">Quantity:</label>
                 <div className="flex items-center gap-2 max-w-[150px] mt-2">
                     <Button
@@ -582,56 +629,9 @@ export default function ProductDetailPage() {
                     </div>
                  )}
             </div>
-            
-            {product.colors && product.colors.length > 0 && (
-                <div className="pt-2">
-                    <h3 className="text-md font-semibold mb-2 flex items-center gap-2 text-foreground"><Palette className="h-5 w-5"/> Select Color: <span className="text-muted-foreground">{selectedColor?.name || 'Default'}</span></h3>
-                    <div className="flex flex-wrap gap-2">
-                        {product.colors.map((color) => (
-                            <button
-                                key={color._id?.toString() || color.name}
-                                onClick={() => handleColorSelect(color)}
-                                className={`relative h-8 w-8 rounded-full border-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                                    ${selectedColor?.name === color.name ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-md' : 'border-muted-foreground/30 hover:border-primary'}
-                                    ${color.stock < (product.minOrderQuantity || 1) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                style={{ backgroundColor: color.hexCode || '#ccc' }}
-                                title={`${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : `(Stock: ${color.stock})`}`}
-                                aria-label={`Select color ${color.name} ${color.stock < (product.minOrderQuantity || 1) ? '(Not enough stock)' : ''}`}
-                                disabled={color.stock < (product.minOrderQuantity || 1) || isAddingToCart}
-                            >
-                               {color.stock < (product.minOrderQuantity || 1) && (
-                                     <X className="h-4 w-4 text-destructive-foreground absolute inset-0 m-auto opacity-70" />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-            
-            <div className="pt-2">
-                 {isOutOfStock && currentStock <= 0 ? (
-                     <Badge variant="destructive" className="text-sm px-3 py-1">Out of Stock</Badge>
-                 ) : currentStock < 10 && currentStock >= minOrderQty ? (
-                      <Badge variant="outline" className="text-sm px-3 py-1 border-yellow-500 text-yellow-600">Low Stock ({currentStock} left)</Badge>
-                 ): !isOutOfStock && currentStock > 0 ? (
-                     <Badge variant="default" className="text-sm px-3 py-1 bg-green-100 text-green-800 border-green-200">In Stock</Badge>
-                 ) : (
-                     <Badge variant="destructive" className="text-sm px-3 py-1">Unavailable</Badge> 
-                 )}
-            </div>
-            
-            <div className="pt-6 flex flex-col gap-6">
-                <div className="space-y-1">
-                    <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
-                     {product.discount && product.discount > 0 && (
-                        <span className="ml-3 text-lg text-muted-foreground line-through">
-                            ₹{product.price.toFixed(2)}
-                        </span>
-                     )}
-                 </div>
               <Button
                 size="lg"
-                className="md:w-1/2 w-full bg-primary hover:bg-primary/90 text-lg px-8 py-3 flex items-center gap-2"
+                className="md:w-1/2 w-full bg-black hover:bg-black/90 text-lg px-8 py-3 flex items-center gap-2"
                 onClick={handleAddToCart}
                 disabled={isOutOfStock || loading || isAddingToCart || quantity === 0}
                >

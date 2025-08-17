@@ -92,12 +92,12 @@ export function ProductCard({
           />
         </Link>
         {product.isNewlyLaunched && !product.discount && (
-          <Badge variant="default" className="absolute top-3 left-3 shadow-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 font-medium text-xs px-2 py-1 rounded-full">
+          <Badge variant="default" className="absolute top-3 left-3 shadow-lg bg-black from-blue-500 to-purple-600 text-white border-0 font-medium text-xs px-2 py-1 rounded-full">
             ✨ New
           </Badge>
         )}
          {product.discount && product.discount > 0 && (
-          <Badge variant="destructive" className={`absolute top-3 ${product.isNewlyLaunched ? 'right-3' : 'left-3'} shadow-lg bg-gradient-to-r from-red-500 to-pink-600 text-white border-0 font-bold text-xs px-2 py-1 rounded-full`}>
+          <Badge variant="destructive" className={`absolute top-3 ${product.isNewlyLaunched ? 'right-3' : 'left-3'} shadow-lg bg-black from-red-500 to-pink-600 text-white border-0 font-bold text-xs px-2 py-1 rounded-full`}>
             -{product.discount}%
           </Badge>
         )}
@@ -132,7 +132,7 @@ export function ProductCard({
           </div>
         )} */}
         
-        <div className="flex items-center gap-1 mb-4">
+        {/* <div className="flex items-center gap-1 mb-4">
           <div className="flex items-center">
             {[...Array(5)].map((_, i) => (
               <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating || 0) ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
@@ -146,7 +146,7 @@ export function ProductCard({
               ({(product.numRatings || 0)} {(product.numRatings || 0) === 1 ? 'review' : 'reviews'})
             </span>
           </div>
-        </div>
+        </div> */}
 
         {product.colors && product.colors.length > 0 && (
           <div className="flex gap-3">
@@ -197,22 +197,23 @@ export function ProductCard({
       <CardFooter className="px-4 pb-4 md:px-6 md:pb-6 flex flex-col gap-3 items-start mt-auto bg-white border-t border-gray-100">
         <div className="flex flex-col">
           <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold text-gray-900">
+            <span className="text-lg font-bold text-gray-900">
               ₹{formatCurrency(product.discount && product.discount > 0
                 ? (product.price * (1 - product.discount / 100))
                 : product.price)}
             </span>
             {product.discount && product.discount > 0 && (
-              <span className="text-sm text-gray-500 line-through font-medium">
+              <span className="text-xs text-gray-500 line-through font-medium">
                 ₹{formatCurrency(product.price)}
               </span>
             )}
-          </div>
-          {product.discount && product.discount > 0 && (
-            <span className="text-sm text-green-600 font-semibold">
+            {product.discount && product.discount > 0 && (
+            <span className="text-xs text-green-600 font-semibold">
               Save ₹{formatCurrency(product.price * (product.discount / 100))}
             </span>
           )}
+          </div>
+          
         </div>
         <Button
           size="lg"
@@ -221,7 +222,7 @@ export function ProductCard({
             "transition-all w-full duration-300 font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105",
             isOutOfStock
               ? "border-2 border-red-200 text-red-600 bg-red-50 hover:bg-red-100 cursor-not-allowed"
-              : "bg-gradient-to-r from-primary to-primary/90 text-white hover:from-primary/90 hover:to-primary border-0 shadow-primary/25"
+              : "bg-black from-primary to-primary/90 text-white hover:from-primary/90 hover:to-primary border-0 shadow-primary/25"
           )}
           onClick={handleAddToCartButtonClick}
           aria-label={`Add ${product.title} to cart`}

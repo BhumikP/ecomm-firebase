@@ -143,16 +143,7 @@ export default async function Home() {
           </div>
         )}
       </section>
-      {/* Top Buys Section */}
-      <Suspense fallback={<ProductSectionSkeleton title="Top Buys" />}>
-        <FeaturedProductSection
-          title="Top Buys"
-          query={{ isTopBuy: true }}
-          viewAllLink="/products?isTopBuy=true"
-          sectionId="top-buy-products"
-        />
-      </Suspense>
-
+    
       {/* Category-based Product Sections */}
       <section aria-label="Shop by Category" className="container mx-auto lg:px-10 mb-12">
         <div className="text-center mb-10">
@@ -175,6 +166,16 @@ export default async function Home() {
           </Link>
         </div>
       </section>
+
+  {/* Top Buys Section */}
+      <Suspense fallback={<ProductSectionSkeleton title="Top Buys" />}>
+        <FeaturedProductSection
+          title="Top Buys"
+          query={{ isTopBuy: true }}
+          viewAllLink="/products?isTopBuy=true"
+          sectionId="top-buy-products"
+        />
+      </Suspense>
 
       {/* Newly Launched Section */}
       <Suspense fallback={<ProductSectionSkeleton title="Newly Launched" />}>

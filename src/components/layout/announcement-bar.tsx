@@ -98,7 +98,7 @@ export function AnnouncementBar() {
   return (
     <div
       className={cn(
-        "bg-primary text-primary-foreground px-4 py-2.5 flex items-center justify-center relative transition-all duration-300 ease-in-out",
+        "bg-black text-primary-foreground px-4 py-2.5 flex items-center justify-center relative transition-all duration-300 ease-in-out",
         isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full h-0 py-0 overflow-hidden"
       )}
       role="alert"
