@@ -1,4 +1,3 @@
-
 // src/app/checkout/page.tsx
 'use client';
 
@@ -215,6 +214,22 @@ export default function CheckoutPage() {
         }
     };
 
+    // Dynamically load Razorpay script
+useEffect(() => {
+  if (typeof window !== 'undefined' && !window.Razorpay) {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => {
+      // Razorpay script loaded
+    };
+    script.onerror = () => {
+      toast({ title: 'Payment Error', description: 'Failed to load Razorpay. Please try again later.', variant: 'destructive' });
+    };
+    document.body.appendChild(script);
+  }
+}, [toast]);
+
     const handleProcessOnlineOrder = async (shippingAddress: AddressFormValues, shouldSaveAddress: boolean) => {
       setIsProcessing(true);
       
@@ -231,6 +246,11 @@ export default function CheckoutPage() {
 
           if (initData.gateway === 'razorpay') {
              if (!RAZORPAY_KEY_ID) throw new Error("Razorpay is not configured.");
+             if (typeof window === 'undefined' || !window.Razorpay) {
+                toast({ title: 'Payment Error', description: 'Razorpay is not loaded. Please try again in a few seconds.', variant: 'destructive' });
+                setIsProcessing(false);
+                return;
+              }
               const { razorpayOrder, transactionId } = initData;
               const options = {
                   key: RAZORPAY_KEY_ID, amount: razorpayOrder.amount, currency: razorpayOrder.currency, name: "eShop Simplified",
@@ -252,14 +272,16 @@ export default function CheckoutPage() {
                   },
                   prefill: { name: shippingAddress.name, email: shippingAddress.email, contact: shippingAddress.phone, },
                   theme: { color: "#008080" },
-                  modal: { ondismiss: () => {
-                    fetch('/api/payments/cancel-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionId }) });
-                    setIsProcessing(false);
-                  }}
+                  modal: {
+                    ondismiss: () => {
+                      fetch('/api/payments/cancel-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionId }) });
+                      setIsProcessing(false);
+                    }
+                  }
               };
               const rzp = new window.Razorpay(options);
               rzp.open();
-          } else if (initData.gateway === 'payu') {
+            } else if (initData.gateway === 'payu') {
               const { payuDetails } = initData;
               const payuForm = document.getElementById('payu_form') as HTMLFormElement;
               if (payuForm) {
@@ -274,7 +296,7 @@ export default function CheckoutPage() {
               } else {
                   throw new Error("PayU form not found.");
               }
-          }
+            }
           
       } catch (error: any) {
           toast({ title: "Order Error", description: error.message, variant: "destructive" });
