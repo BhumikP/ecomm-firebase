@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import type { ICart, ICartItem } from '@/models/Cart';
 import type { IProduct } from '@/models/Product';
-import { ArrowLeft, Loader2, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -395,7 +395,7 @@ export default function CartPage() {
                                                         disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) <= minOrderQty)}
                                                         aria-label="Decrease quantity"
                                                     >
-                                                        {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Minus className="h-4 w-4" />}
+                                                        <Minus className="h-4 w-4" />
                                                     </Button>
                                                     <Input
                                                         type="text"
@@ -415,7 +415,7 @@ export default function CartPage() {
                                                         disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) >= productStock)}
                                                         aria-label="Increase quantity"
                                                     >
-                                                        {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Plus className="h-4 w-4" />}
+                                                        <Plus className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             </TableCell>
@@ -429,7 +429,7 @@ export default function CartPage() {
                                                     disabled={isUpdating === item._id}
                                                     aria-label={`Remove ${item.nameSnapshot} from cart`}
                                                 >
-                                                    {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                                                    <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -461,14 +461,40 @@ export default function CartPage() {
                                         <p className="text-sm font-medium">₹{formatCurrency(itemDisplayPrice)}</p>
                                     </div>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive self-start" onClick={() => handleRemoveItem(item._id, item.nameSnapshot)} disabled={isUpdating === item._id}>
-                                         {isUpdating === item._id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                                 <div className="flex justify-between items-center mt-3 pt-3 border-t">
                                      <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityButtonClick(item._id, item, -1)} disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) <= minOrderQty)}><Minus className="h-4 w-4" /></Button>
-                                        <Input type="text" inputMode="numeric" value={itemInputValues[item._id] ?? ''} onChange={(e) => handleItemInputChange(item._id, e.target.value)} className="w-12 h-8 text-center px-1" disabled={isUpdating === item._id} />
-                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityButtonClick(item._id, item, 1)} disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) >= productStock)}><Plus className="h-4 w-4" /></Button>
+                                        <Button 
+                                            variant="outline" 
+                                            size="icon" 
+                                            className="h-8 w-8" 
+                                            onClick={() => handleQuantityButtonClick(item._id, item, -1)} 
+                                            disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) <= minOrderQty)}
+                                            aria-label="Decrease quantity"
+                                        >
+                                            <Minus className="h-4 w-4" />
+                                        </Button>
+                                        <Input 
+                                            type="text" 
+                                            inputMode="numeric" 
+                                            value={itemInputValues[item._id] ?? ''} 
+                                            onChange={(e) => handleItemInputChange(item._id, e.target.value)} 
+                                            className="w-12 h-8 text-center px-1" 
+                                            disabled={isUpdating === item._id}
+                                            aria-label={`Quantity for ${item.nameSnapshot}`}
+                                        />
+                                        <Button 
+                                            variant="outline" 
+                                            size="icon" 
+                                            className="h-8 w-8" 
+                                            onClick={() => handleQuantityButtonClick(item._id, item, 1)} 
+                                            disabled={isUpdating === item._id || (parseInt(itemInputValues[item._id] || String(item.quantity), 10) >= productStock)}
+                                            aria-label="Increase quantity"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
                                     </div>
                                     <p className="font-semibold text-base">₹{formatCurrency(itemSubtotal)}</p>
                                 </div>
@@ -517,7 +543,7 @@ export default function CartPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button asChild className="w-full" size="lg" disabled={isLoading || isSettingsLoading || isUpdating !== null || (cart?.items.length ?? 0) === 0}>
+                    <Button asChild className="w-full" size="lg" disabled={isLoading || isSettingsLoading || (cart?.items.length ?? 0) === 0}>
                         <Link href="/checkout">Proceed to Checkout</Link>
                     </Button>
                 </CardFooter>

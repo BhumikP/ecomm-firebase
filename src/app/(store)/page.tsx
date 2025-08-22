@@ -23,14 +23,13 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 
 // Constants
-const MAX_HOMEPAGE_CATEGORIES = 4;
 const MAX_PRODUCTS_PER_CATEGORY_HOMEPAGE = 4;
 const MAX_FEATURED_PRODUCTS_HOMEPAGE = 4;
 
 // Server-side data fetching functions
 async function getHomepageCategories() {
   await connectDb();
-  const categories = await Category.find({}).limit(MAX_HOMEPAGE_CATEGORIES).lean();
+  const categories = await Category.find({}).lean();
   return JSON.parse(JSON.stringify(categories)) as ICategory[];
 }
 
@@ -156,14 +155,6 @@ export default async function Home() {
               <CategorizedProductSection category={category} />
             </Suspense>
           ))}
-        </div>
-        <div className="text-center mt-8">
-          <Link href="/products">
-            <Button variant="outline" size="lg" className="px-8 py-3">
-              View All Products
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
         </div>
       </section>
 

@@ -1,4 +1,3 @@
-
 // src/app/products/[id]/page.tsx
 'use client';
 
@@ -11,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import type { IProduct, IProductColor } from '@/models/Product';
+import '@tailwindcss/typography';
 import { Info, Loader2, Minus, Palette, Plus, ShoppingCart, Star, ThumbsUp, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -647,7 +647,7 @@ export default function ProductDetailPage() {
                 <AccordionTrigger>Description</AccordionTrigger>
                 <AccordionContent>
                    <div 
-                      className="text-foreground/90 prose prose-sm sm:prose-base dark:prose-invert max-w-none"
+                      className="prose prose-sm sm:prose-base dark:prose-invert max-w-none"
                       dangerouslySetInnerHTML={{ __html: product.description || "" }}
                   />
                 </AccordionContent>

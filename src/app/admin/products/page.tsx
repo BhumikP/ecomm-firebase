@@ -1,29 +1,33 @@
-
 // src/app/admin/products/page.tsx
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 // ReactQuill and its CSS import removed
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
-import { Textarea } from "@/components/ui/textarea"; // Textarea imported
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Search, Loader2, Star, Palette, X, UploadCloud, Image as LucideImage, Zap } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { IProduct, IProductColor } from '@/models/Product';
-import type { ICategory } from '@/models/Category';
-import Image from 'next/image';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from "@/components/ui/input";
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import type { ICategory } from '@/models/Category';
+import type { IProduct, IProductColor } from '@/models/Product';
+import { Edit, Loader2, PlusCircle, Search, Star, Trash2, X, Zap } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
+const RichTextEditor = dynamic(() => import('@/components/richTextEditor/richTextEditor'), { 
+  ssr: false 
+});
 
-// ReactQuill dynamic import removed
+type RichTextEditorHandle = {
+  getContent: () => string;
+};
 
 interface ProductColorFormData {
     _id?: string;
@@ -85,9 +89,9 @@ export default function AdminProductsPage() {
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [uploadingColorImages, setUploadingColorImages] = useState<Record<string, boolean>>({});
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
-
-
   const { toast } = useToast();
+  const editorRef = useRef<RichTextEditorHandle>(null);
+  const [description, setDescription] = useState<string>('');
 
     const handleImageUpload = async (file: File): Promise<string | null> => {
         const formData = new FormData();
@@ -161,10 +165,12 @@ export default function AdminProductsPage() {
       });
       setSelectedCategoryId(categoryId);
       setIsEditing(true);
+      setDescription(product.description || '');
     } else {
       setCurrentProduct({ ...emptyProduct, features: [], colors: [], minOrderQuantity: 1, thumbnailUrl: '', isTopBuy: false, isNewlyLaunched: false });
       setSelectedCategoryId('');
       setIsEditing(false);
+      setDescription('');
     }
     setIsDialogOpen(true);
   };
@@ -177,6 +183,7 @@ export default function AdminProductsPage() {
       setIsEditing(false);
       setIsUploadingThumbnail(false);
       setUploadingColorImages({});
+      setDescription('');
     }, 150);
   };
 
@@ -289,7 +296,11 @@ export default function AdminProductsPage() {
     setIsDialogLoading(true);
     const productData = currentProduct as ProductFormData;
 
-    if (!productData.title || !productData.category || !productData.description || productData.price == null || productData.price < 0) {
+    // Get latest description from RichTextEditor
+    const editorContent = editorRef.current?.getContent?.() || '';
+    setDescription(editorContent);
+
+    if (!productData.title || !productData.category || !editorContent || productData.price == null || productData.price < 0) {
         toast({ variant: "destructive", title: "Validation Error", description: "Title, Category, Description, and Price (>=0) are required." });
         setIsDialogLoading(false); return;
     }
@@ -342,6 +353,7 @@ export default function AdminProductsPage() {
 
     const productToSave = {
         ...productData,
+        description: editorContent,
         colors: finalColors,
         category: selectedCategoryId,
         thumbnailUrl: productData.thumbnailUrl.trim(),
@@ -466,15 +478,11 @@ export default function AdminProductsPage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
-                        <Textarea
-                            id="description"
-                            name="description"
-                            value={currentProduct.description}
-                            onChange={handleInputChange}
-                            placeholder="Enter product description..."
-                            className="min-h-[200px]"
-                            disabled={isDialogLoading}
-                        />
+                        <div className="p-4">
+                            <div>
+                                <RichTextEditor ref={editorRef} initialContent={description} />
+                            </div>
+                        </div>
                     </div>
                     <div className="space-y-2"><Label htmlFor="features">Features (Comma-separated)</Label><Input id="features" name="features" value={featuresToString(currentProduct.features)} onChange={handleInputChange} placeholder="Feature 1, Feature 2" disabled={isDialogLoading}/></div>
 

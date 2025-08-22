@@ -20,7 +20,6 @@ const CategorySchema: Schema<ICategory> = new Schema({
   },
   image: {
     type: String,
-    required: true,
     trim: true,
     validate: {
       validator: (v: string) => {

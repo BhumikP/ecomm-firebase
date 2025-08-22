@@ -1,8 +1,17 @@
 
 'use client'; // Add 'use client'
 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge'; // Import Badge
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Sheet,
@@ -19,10 +28,29 @@ export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('');
   const [cartItemCount, setCartItemCount] = useState(0);
   const [isCartLoading, setIsCartLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
+
+  const getUserInitials = (name: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getUserEmail = () => {
+    try {
+      return localStorage.getItem('userEmail') || 'Signed in';
+    } catch {
+      return 'Signed in';
+    }
+  };
 
   useEffect(() => {
     setIsClient(true); // Component has mounted
@@ -40,12 +68,14 @@ export function Header() {
       try {
         const userData = JSON.parse(userDataString);
         setUserId(userData._id);
+        setUserName(userData.name || userData.email || 'User');
       } catch (error) {
         console.error("Error parsing user data from localStorage:", error);
         handleLogout(false); // Force logout if data is corrupt
       }
     } else {
       setUserId(null);
+      setUserName('');
     }
   }, []);
 
@@ -95,11 +125,18 @@ export function Header() {
       fetchCartCount();
     };
 
+    const handleLoginStateUpdate = () => {
+      updateLoginState();
+    };
+
     window.addEventListener('cartUpdated', handleCartUpdate);
+    window.addEventListener('loginStateChanged', handleLoginStateUpdate);
+    
     return () => {
       window.removeEventListener('cartUpdated', handleCartUpdate);
+      window.removeEventListener('loginStateChanged', handleLoginStateUpdate);
     };
-  }, [fetchCartCount]);
+  }, [fetchCartCount, updateLoginState]);
 
 
   const handleLogout = (redirect = true) => {
@@ -110,7 +147,12 @@ export function Header() {
     setIsLoggedIn(false);
     setUserRole(null);
     setUserId(null);
+    setUserName('');
     setCartItemCount(0);
+    
+    // Dispatch custom event to update any other components listening for login state changes
+    window.dispatchEvent(new CustomEvent('loginStateChanged'));
+    
     if (redirect) {
       router.push('/');
     }
@@ -143,8 +185,8 @@ export function Header() {
              <Input placeholder="Search for products..." className="pl-10 w-64 lg:w-96" />
           </div>
           <div>
-            <Link href="/products" className="text-sm text-muted-foreground hover:text-muted">
-              Shop
+            <Link href="/products" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              All Products
             </Link>
           </div>
         </div>
@@ -189,13 +231,30 @@ export function Header() {
 
                         {isLoggedIn ? (
                            <>
+                               <div className="px-3 py-2 border-b">
+                                 <div className="flex items-center gap-3">
+                                   <Avatar className="h-10 w-10 border-2 border-primary/20 shadow-sm">
+                                     <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
+                                       {getUserInitials(userName)}
+                                     </AvatarFallback>
+                                   </Avatar>
+                                   <div className="flex flex-col">
+                                     <span className="font-medium text-base">{userName}</span>
+                                     <span className="text-xs text-muted-foreground">
+                                       {getUserEmail()}
+                                     </span>
+                                   </div>
+                                 </div>
+                               </div>
+                               
                                <SheetClose asChild>
                                    <Button variant="ghost" asChild className="justify-start">
                                         <Link href="/account">
-                                            <User className="mr-2 h-4 w-4" /> My Account
+                                            <User className="mr-2 h-4 w-4" /> Profile Settings
                                         </Link>
                                     </Button>
                                </SheetClose>
+                               
                                 {userRole === 'admin' && (
                                     <SheetClose asChild>
                                         <Button variant="ghost" asChild className="justify-start">
@@ -205,11 +264,14 @@ export function Header() {
                                         </Button>
                                      </SheetClose>
                                 )}
-                               <SheetClose asChild>
-                                   <Button variant="ghost" onClick={() => handleLogout()} className="justify-start text-destructive hover:text-destructive">
-                                        <LogOut className="mr-2 h-4 w-4" /> Logout
-                                    </Button>
-                               </SheetClose>
+                                
+                               <div className="border-t pt-2">
+                                 <SheetClose asChild>
+                                     <Button variant="ghost" onClick={() => handleLogout()} className="justify-start text-destructive hover:text-destructive w-full">
+                                          <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                                      </Button>
+                                 </SheetClose>
+                               </div>
                             </>
                         ) : (
                            <>
@@ -249,21 +311,55 @@ export function Header() {
 
            {isLoggedIn ? (
              <>
-               <Button variant="ghost" asChild size="sm">
-                 <Link href="/account" aria-label="Access User Account">
-                   <User className="mr-1 h-5 w-5" />
-                   Account
-                 </Link>
-               </Button>
-                {userRole === 'admin' && (
-                   <Button variant="outline" asChild size="sm">
-                        <Link href="/admin">Admin</Link>
+               <DropdownMenu>
+                 <DropdownMenuTrigger asChild>
+                   <Button 
+                     variant="ghost" 
+                     size="sm" 
+                     className="gap-2 hover:bg-primary/10 transition-all duration-200 focus-visible:ring-0 focus-visible:ring-offset-0"
+                   >
+                     <Avatar className="h-9 w-9 border-2 border-primary/20 transition-all duration-200">
+                       <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
+                         {getUserInitials(userName)}
+                       </AvatarFallback>
+                     </Avatar>
+                     <span className="hidden lg:inline font-medium">{userName.split(' ')[0] || 'Account'}</span>
                    </Button>
-                )}
-               <Button variant="ghost" onClick={() => handleLogout()} size="sm" className="text-destructive hover:text-destructive">
-                 <LogOut className="mr-1 h-5 w-5" />
-                 Logout
-               </Button>
+                 </DropdownMenuTrigger>
+                 <DropdownMenuContent align="end" className="w-56">
+                   <DropdownMenuLabel>
+                     <div className="flex flex-col space-y-1">
+                       <p className="text-sm font-medium leading-none">{userName}</p>
+                       <p className="text-xs leading-none text-muted-foreground">
+                         {getUserEmail()}
+                       </p>
+                     </div>
+                   </DropdownMenuLabel>
+                   <DropdownMenuSeparator />
+                   <DropdownMenuItem asChild>
+                     <Link href="/account" className="cursor-pointer">
+                       <User className="mr-2 h-4 w-4" />
+                       Profile Settings
+                     </Link>
+                   </DropdownMenuItem>
+                   {userRole === 'admin' && (
+                     <DropdownMenuItem asChild>
+                       <Link href="/admin" className="cursor-pointer">
+                         <Settings className="mr-2 h-4 w-4" />
+                         Admin Panel
+                       </Link>
+                     </DropdownMenuItem>
+                   )}
+                   <DropdownMenuSeparator />
+                   <DropdownMenuItem 
+                     onClick={() => handleLogout()} 
+                     className="text-destructive focus:text-destructive cursor-pointer"
+                   >
+                     <LogOut className="mr-2 h-4 w-4" />
+                     Sign Out
+                   </DropdownMenuItem>
+                 </DropdownMenuContent>
+               </DropdownMenu>
              </>
            ) : (
              <>

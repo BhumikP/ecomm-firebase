@@ -424,7 +424,8 @@ function ProductsPageContent() {
                                             })}
                                         </>
                                     ) : (
-                                        <div key={mainCatId} className="flex items-center space-x-2">
+                                        <div key={mainCatId} className="items-center space-x-2">
+                                            <p className="font-medium text-xs pt-2 text-muted-foreground mb-2">{cat.name}</p>
                                             <Checkbox
                                                 id={`filter-${mainCatId}`}
                                                 checked={filters.categories[mainCatId] || false}
