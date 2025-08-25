@@ -433,7 +433,6 @@ export default function ProductDetailPage() {
 
    const isOutOfStock = currentStock <= 0 || quantity > currentStock || currentStock < minOrderQty || (currentStock === 0 && quantity > 0) ;
 
-
   return (
     <div className="flex flex-col min-h-screen bg-background">
        {productSchemaJson && (
@@ -459,7 +458,7 @@ export default function ProductDetailPage() {
                   data-ai-hint="detailed product photo e-commerce professional"
                   onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/600x400.png'; }}
                 />
-                 {product.discount && product.discount > 0 && (
+                 {product.discount !== null && product.discount > 0 && (
                     <Badge variant="destructive" className="absolute top-4 left-4 text-sm md:text-base px-3 py-1 shadow-md">{product.discount}% OFF</Badge>
                  )}
              </div>
@@ -581,7 +580,7 @@ export default function ProductDetailPage() {
             <div className="pt-4 flex flex-col gap-4">
                 <div className="space-y-1">
                     <span className="text-3xl font-bold text-foreground">₹{discountedPrice}</span>
-                     {product.discount && product.discount > 0 && (
+                     {product.discount !== null && product.discount > 0 && (
                         <span className="ml-3 text-lg text-muted-foreground line-through">
                             ₹{product.price.toFixed(2)}
                         </span>
