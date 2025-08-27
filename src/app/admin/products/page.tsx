@@ -645,7 +645,7 @@ export default function AdminProductsPage() {
                          {product.colors && product.colors.length > 0 && (<span className="text-xs text-muted-foreground block"> (from variants)</span>)}
                       </TableCell>
                       <TableCell>
-                          <Badge variant={isInStock ? 'default' : 'destructive'} className={isInStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                          <Badge variant={isInStock ? 'default' : 'destructive'} className={isInStock ? 'bg-green-100 text-green-800 text-center' : 'bg-red-100 text-red-800 text-center'}>
                               {isInStock ? 'In Stock' : 'Out of Stock'}
                           </Badge>
                       </TableCell>

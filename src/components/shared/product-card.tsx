@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { cn } from '@/lib/utils';
 import type { ICategory } from '@/models/Category';
 import type { IProductColor } from '@/models/Product';
-import { Loader2, Palette, ShoppingCart, Star, X } from 'lucide-react';
+import { Loader2, Palette, ShoppingCart, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -96,11 +96,11 @@ export function ProductCard({
             ✨ New
           </Badge>
         )}
-         {product.discount && product.discount > 0 && (
+         {product.discount && product.discount > 0 ? (
           <Badge variant="destructive" className={`absolute top-3 ${product.isNewlyLaunched ? 'right-3' : 'left-3'} shadow-lg bg-black from-red-500 to-pink-600 text-white border-0 font-bold text-xs px-2 py-1 rounded-full`}>
             -{product.discount}%
           </Badge>
-        )}
+        ) : null}
       </CardHeader>
       <CardContent className="px-4 pt-4 md:px-6 md:pt-6 flex-grow bg-white">
         <Link href={`/products/${productIdStr}`}>
@@ -202,16 +202,16 @@ export function ProductCard({
                 ? (product.price * (1 - product.discount / 100))
                 : product.price)}
             </span>
-            {product.discount && product.discount > 0 && (
+            {product.discount && product.discount > 0 ? (
               <span className="text-xs text-gray-500 line-through font-medium">
                 ₹{formatCurrency(product.price)}
               </span>
-            )}
-            {product.discount && product.discount > 0 && (
+            ) : null}
+            {product.discount && product.discount > 0 ? (
             <span className="text-xs text-green-600 font-semibold">
               Save ₹{formatCurrency(product.price * (product.discount / 100))}
             </span>
-          )}
+          ) : null}
           </div>
           
         </div>
