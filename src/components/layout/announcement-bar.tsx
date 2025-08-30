@@ -1,10 +1,9 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { X } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 interface AnnouncementData {
   announcementText?: string;
@@ -83,8 +82,11 @@ export function AnnouncementBar() {
 
   const BarContent = () => (
     <>
-      {/* Added px-8 to give text space from absolute positioned close button */}
-      <span className="text-sm text-center flex-grow px-8">{announcement.announcementText}</span>
+      <div className="marquee-container flex-grow px-8 relative">
+        <span className="marquee text-sm w-full ">
+          {announcement.announcementText}
+        </span>
+      </div>
       <button
         onClick={handleDismiss}
         aria-label="Dismiss announcement"
@@ -98,7 +100,7 @@ export function AnnouncementBar() {
   return (
     <div
       className={cn(
-        "bg-primary text-primary-foreground px-4 py-2.5 flex items-center justify-center relative transition-all duration-300 ease-in-out",
+        "bg-black text-primary-foreground px-4 py-2.5 flex items-center justify-center relative transition-all duration-300 ease-in-out",
         isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full h-0 py-0 overflow-hidden"
       )}
       role="alert"

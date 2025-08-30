@@ -1,13 +1,11 @@
 // src/app/payment/failure/page.tsx
 'use client';
 
-import { Suspense } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { XCircle } from 'lucide-react';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 
 function FailureContent() {
@@ -46,13 +44,11 @@ function FailureContent() {
 export default function PaymentFailurePage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow container mx-auto px-4 py-12 flex items-center justify-center">
          <Suspense fallback={<div>Loading status...</div>}>
             <FailureContent />
         </Suspense>
       </main>
-      <Footer />
     </div>
   );
 }

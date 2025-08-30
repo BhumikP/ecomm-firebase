@@ -68,8 +68,9 @@ export async function GET(req: NextRequest, { params }: Params) {
 // PUT (update) a product by ID (Admin only)
 export async function PUT(req: NextRequest, { params }: Params) {
   await connectDb();
-  const { id } = params;
+  const { id } = await params;
   // TODO: Implement admin check
+
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ message: 'Invalid product ID format' }, { status: 400 });
@@ -146,7 +147,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 
     let finalStock = 0;
-    if (body.colors && Array.isArray(body.colors)) {
+    if (body.colors && body.colors?.length>0) {
         const parsedColorsForUpdate: any[] = [];
         for (const clientColor of body.colors) {
             if (!clientColor.name || typeof clientColor.name !== 'string' || clientColor.name.trim() === '') {
@@ -186,15 +187,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
              updateDataForDB.stock = body.stock;
         } else { 
             const existingProduct = await Product.findById(id);
-            if (existingProduct) updateDataForDB.stock = existingProduct.stock; 
+            if (existingProduct) updateDataForDB.stock = body.stock; 
         }
     } else if (body.hasOwnProperty('stock') && body.colors === undefined) { 
+     
          if (body.stock === undefined || typeof body.stock !== 'number' || body.stock < 0) {
              return NextResponse.json({ message: 'Stock cannot be negative' }, { status: 400 });
          }
          updateDataForDB.stock = body.stock;
     }
-
+    else {
+      updateDataForDB.stock = body.stock;
+    }
 
     if (Object.keys(updateDataForDB).length === 0) {
       return NextResponse.json({ message: 'No valid fields to update' }, { status: 400 });

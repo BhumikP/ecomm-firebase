@@ -2,31 +2,28 @@
 // src/app/products/page.tsx
 'use client';
 
-import React, { Suspense } from 'react';
-import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
 import { Button } from "@/components/ui/button";
-import { Input } from '@/components/ui/input';
-import { Filter, Search, Loader2, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetClose
-} from "@/components/ui/sheet";
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Sheet,
+    SheetClose,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger
+} from "@/components/ui/sheet";
+import { Skeleton } from '@/components/ui/skeleton';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from '@/components/ui/skeleton';
-import type { IProductColor } from '@/models/Product';
 import type { ICategory } from '@/models/Category';
-import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
+import type { IProductColor } from '@/models/Product';
+import { ChevronLeft, ChevronRight, Filter, Search } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import React, { Suspense, useEffect, useState } from 'react';
 
 interface FilterState {
   categories: { [key: string]: boolean }; 
@@ -374,8 +371,7 @@ function ProductsPageContent() {
 
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <Header />
+    <div className="flex flex-col px-10 min-h-screen bg-background">
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">{pageTitle}</h1>
@@ -428,7 +424,8 @@ function ProductsPageContent() {
                                             })}
                                         </>
                                     ) : (
-                                        <div key={mainCatId} className="flex items-center space-x-2">
+                                        <div key={mainCatId} className="items-center space-x-2">
+                                            <p className="font-medium text-xs pt-2 text-muted-foreground mb-2">{cat.name}</p>
                                             <Checkbox
                                                 id={`filter-${mainCatId}`}
                                                 checked={filters.categories[mainCatId] || false}
@@ -530,7 +527,6 @@ function ProductsPageContent() {
             </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 }
@@ -540,7 +536,6 @@ export default function ProductsPageWithSuspense() {
     return (
         <Suspense fallback={
             <div className="flex flex-col min-h-screen">
-                <Header />
                 <main className="flex-grow container mx-auto px-4 py-8">
                     <div className="flex justify-between items-center mb-6">
                         <Skeleton className="h-8 w-48 bg-muted rounded" />
@@ -552,7 +547,6 @@ export default function ProductsPageWithSuspense() {
                         ))}
                     </div>
                 </main>
-                <Footer />
             </div>
         }>
             <ProductsPageContent />

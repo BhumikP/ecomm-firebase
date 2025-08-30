@@ -1,6 +1,6 @@
 // src/lib/razorpay.ts
-import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import Razorpay from 'razorpay';
 
 const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -64,5 +64,50 @@ export const verifyPaymentSignature = (
     } catch (error) {
         console.error("Error verifying Razorpay payment signature:", error);
         return false;
+    }
+};
+
+/**
+ * Creates a Razorpay order with proper error handling
+ * @param amount Amount in rupees
+ * @param currency Currency code (default: INR)
+ * @param receipt Receipt identifier
+ * @returns Promise with order details or throws error
+ */
+export const createRazorpayOrder = async (
+    amount: number,
+    currency: string = 'INR',
+    receipt?: string
+) => {
+    if (!razorpayInstance) {
+        throw new Error("Razorpay instance not available. Check your environment variables.");
+    }
+    
+    if (amount <= 0) {
+        throw new Error("Amount must be greater than 0");
+    }
+    
+    try {
+        const options = {
+            amount: Math.round(amount * 100), // Convert to paise
+            currency,
+            receipt: receipt || `receipt_${Date.now()}`,
+        };
+        
+        const order = await razorpayInstance.orders.create(options);
+        
+        return order;
+    } catch (error: any) {
+        
+        // Return more specific error messages
+        if (error.statusCode === 400) {
+            throw new Error(`Invalid request parameters: ${error.error?.description || error.message}`);
+        } else if (error.statusCode === 401) {
+            throw new Error("Invalid Razorpay credentials. Check your Key ID and Secret.");
+        } else if (error.statusCode === 500) {
+            throw new Error("Razorpay server error. Please try again later.");
+        } else {
+            throw new Error(`Razorpay error: ${error.message}`);
+        }
     }
 };

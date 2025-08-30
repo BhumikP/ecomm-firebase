@@ -1,8 +1,5 @@
 
 // No longer needs 'use client'
-import type { Metadata } from 'next';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
 import {
   Accordion,
   AccordionContent,
@@ -10,6 +7,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import type { Metadata } from 'next';
 import Link from 'next/link'; // Import Link for navigation
 
 export const metadata: Metadata = {
@@ -85,7 +83,6 @@ const faqItems = [
 export default function FaqPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto">
           <section className="text-center mb-12">
@@ -122,7 +119,6 @@ export default function FaqPage() {
 
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

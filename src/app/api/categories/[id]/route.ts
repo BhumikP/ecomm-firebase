@@ -1,10 +1,10 @@
 
 // src/app/api/categories/[id]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Category, { ICategory } from '@/models/Category';
 import Product from '@/models/Product';
 import mongoose from 'mongoose';
+import { NextRequest, NextResponse } from 'next/server';
 // TODO: Add admin authentication/authorization
 
 interface Params {
@@ -44,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json() as Partial<Pick<ICategory, 'name' | 'subcategories'>>;
+    const body = await req.json() as Partial<Pick<ICategory, 'name' | 'subcategories' | 'image'>>;
 
     if (Object.keys(body).length === 0) {
       return NextResponse.json({ message: 'No update data provided' }, { status: 400 });
@@ -53,6 +53,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const updateData: Partial<ICategory> = {};
     if (body.name && body.name.trim() !== '') {
       updateData.name = body.name.trim();
+    }
+    if (body.image && typeof body.image === 'string') {
+      updateData.image = body.image.trim();
     }
     if (body.subcategories && Array.isArray(body.subcategories)) {
       // Filter out empty strings and trim, then ensure uniqueness
@@ -106,14 +109,34 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       }, { status: 400 });
     }
 
-    const deletedCategory = await Category.findByIdAndDelete(id);
-
-    if (!deletedCategory) {
+    // Get the category first to check if it has an image
+    const categoryToDelete = await Category.findById(id);
+    
+    if (!categoryToDelete) {
       return NextResponse.json({ message: 'Category not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ message: 'Category deleted successfully' }, { status: 200 });
-  } catch (error) {
+    // Delete the category from database
+    await Category.findByIdAndDelete(id);
+
+    // If the category had an image, attempt to delete it from S3
+    if (categoryToDelete.image && categoryToDelete.image.trim() !== '') {
+      try {
+        // Call the delete image API
+        await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/categories/image?categoryId=${id}&imageUrl=${encodeURIComponent(categoryToDelete.image)}`, {
+          method: 'DELETE',
+        });
+      } catch (imageError) {
+        // Log warning but don't fail the category deletion
+        console.warn(`Failed to delete image for category ${id}:`, imageError);
+      }
+    }
+
+    return NextResponse.json({ 
+      message: 'Category deleted successfully',
+      imageDeleted: !!categoryToDelete.image
+    }, { status: 200 });
+  } catch {
     // console.error(`Error deleting category ${id}:`, error); // Removed
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }

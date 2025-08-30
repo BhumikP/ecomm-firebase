@@ -1,16 +1,16 @@
 // src/components/page-specific/homepage-client-content.tsx
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { LoginPromptDialog } from '@/components/shared/login-prompt-dialog';
 import { ProductCard, type ProductCardProductType as FetchedProduct } from '@/components/shared/product-card';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import type { IProductColor } from '@/models/Product';
-import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface HomepageClientContentProps {
   sectionTitle: string;
@@ -98,7 +98,7 @@ export function HomepageClientContent({ sectionTitle, products, viewAllLink, sec
   return (
     <>
       <LoginPromptDialog isOpen={isLoginPromptOpen} onOpenChange={setIsLoginPromptOpen} />
-      <section aria-labelledby={sectionId} className="container mx-auto px-4 mb-12">
+      <section aria-labelledby={sectionId} className="container mx-auto px-4 lg:px-10 mb-12">
         <div className="flex justify-between items-center mb-6">
           <h2 id={sectionId} className="text-2xl md:text-3xl font-bold text-foreground">{sectionTitle}</h2>
           {viewAllLink && (

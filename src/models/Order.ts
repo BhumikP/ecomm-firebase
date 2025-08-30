@@ -1,9 +1,9 @@
 
 // src/models/Order.ts
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
-import type { IUser } from './User';
 import type { IProduct } from './Product';
 import type { ITransaction } from './Transaction'; // Import ITransaction
+import type { IUser } from './User';
 
 // Define the structure for items within an order
 export interface OrderItem {

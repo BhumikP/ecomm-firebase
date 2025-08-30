@@ -1,8 +1,8 @@
 
 // src/app/api/categories/route.ts
-import { NextRequest, NextResponse } from 'next/server';
 import connectDb from '@/lib/mongodb';
 import Category, { ICategory } from '@/models/Category';
+import { NextRequest, NextResponse } from 'next/server';
 // TODO: Add admin authentication/authorization
 
 // GET all categories
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   await connectDb();
   // TODO: Implement admin check
   try {
-    const body = await req.json() as Partial<Pick<ICategory, 'name' | 'subcategories'>>;
+    const body = await req.json() as Partial<Pick<ICategory, 'name' | 'subcategories' | 'image'>>;
 
     if (!body.name || body.name.trim() === '') {
       return NextResponse.json({ message: 'Category name is required' }, { status: 400 });
@@ -35,9 +35,15 @@ export async function POST(req: NextRequest) {
       subcategoriesArray = Array.from(new Set(subcategoriesArray)); // Ensure uniqueness
     }
 
+   let image: string | undefined;
+   if (body.image && typeof body.image === 'string') {
+     image = body.image.trim();
+   }
+
     const newCategory = new Category({
       name: body.name.trim(),
       subcategories: subcategoriesArray,
+      image: image || undefined,
     });
 
     const savedCategory = await newCategory.save();

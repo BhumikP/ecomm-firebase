@@ -2,8 +2,6 @@
 'use client';
 
 import type React from 'react';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
 
 export default function AccountLayout({
   children,
@@ -16,11 +14,9 @@ export default function AccountLayout({
   // The important part is removing the blocking useEffect and skeleton.
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow bg-muted/30">
         {children}
       </main>
-      <Footer />
     </div>
   );
 }

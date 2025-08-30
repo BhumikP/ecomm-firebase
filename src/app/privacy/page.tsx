@@ -1,7 +1,5 @@
 
 import type { Metadata } from 'next';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -29,7 +27,6 @@ export default function PrivacyPolicyPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto prose prose-base md:prose-lg dark:prose-invert prose-headings:text-primary prose-a:text-primary hover:prose-a:text-primary/80">
           <h1 className="text-4xl md:text-5xl font-bold mb-6">Privacy Policy</h1>
@@ -156,7 +153,6 @@ export default function PrivacyPolicyPage() {
           </ul>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }
